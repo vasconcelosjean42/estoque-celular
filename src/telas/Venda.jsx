@@ -12,7 +12,7 @@ export const FORMAS = {
 const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" };
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
 
-export default function Venda() {
+export default function Venda({ maoDeObraOn = true }) {
   const [pecas, setPecas] = useState([]);
   const [vendasHoje, setVendasHoje] = useState([]);
   const [busca, setBusca] = useState("");
@@ -81,11 +81,13 @@ export default function Venda() {
           <div style={{ fontWeight: "bold", marginBottom: 4 }}>Preço unitário (R$) — edite p/ dar desconto</div>
           <input style={inp} value={venda.preco} onChange={(e) => setVenda({ ...venda, preco: e.target.value })} />
         </label>
-        <label style={{ display: "block", marginBottom: 12 }}>
-          <div style={{ fontWeight: "bold", marginBottom: 4 }}>Mão de obra (R$, opcional)</div>
-          <input style={inp} placeholder="0,00" value={venda.maoDeObra}
-            onChange={(e) => setVenda({ ...venda, maoDeObra: e.target.value })} />
-        </label>
+        {maoDeObraOn && (
+          <label style={{ display: "block", marginBottom: 12 }}>
+            <div style={{ fontWeight: "bold", marginBottom: 4 }}>Mão de obra (R$, opcional)</div>
+            <input style={inp} placeholder="0,00" value={venda.maoDeObra}
+              onChange={(e) => setVenda({ ...venda, maoDeObra: e.target.value })} />
+          </label>
+        )}
         <div style={{ fontWeight: "bold", marginBottom: 4 }}>Forma de pagamento</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
           {Object.entries(FORMAS).map(([valor, rotulo]) => (

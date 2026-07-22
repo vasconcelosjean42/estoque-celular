@@ -1,19 +1,21 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 
 let db;
 
-function backupDiario() {
+async function backupDiario() {
   // Copia o .db para a pasta de backup (aponte para a pasta do Google Drive
   // desktop nas configurações e o Drive sobe sozinho quando tiver internet).
   const row = db.prepare("SELECT valor FROM config WHERE chave = 'pasta_backup'").get();
-  if (!row) return;
+  if (!row || !row.valor) return { ok: false, erro: "Nenhuma pasta de backup escolhida." };
   const destino = path.join(row.valor, `estoque-${new Date().toISOString().slice(0, 10)}.db`);
   try {
-    db.backup(destino);
+    await db.backup(destino);
+    return { ok: true, destino };
   } catch (e) {
     console.error("backup falhou:", e.message);
+    return { ok: false, erro: e.message };
   }
 }
 
@@ -42,7 +44,26 @@ app.whenReady().then(() => {
     db.transaction(() => comandos.map(([sql, params = []]) => db.prepare(sql).run(...params)))()
   );
 
+  ipcMain.handle("escolher-pasta", async () => {
+    const r = await dialog.showOpenDialog({ properties: ["openDirectory"] });
+    return r.canceled ? null : r.filePaths[0];
+  });
+
+  ipcMain.handle("escolher-logo", async () => {
+    const r = await dialog.showOpenDialog({
+      properties: ["openFile"],
+      filters: [{ name: "Imagens", extensions: ["png", "jpg", "jpeg", "gif", "webp"] }],
+    });
+    if (r.canceled) return null;
+    const arquivo = r.filePaths[0];
+    const mime = arquivo.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
+    return `data:${mime};base64,${fs.readFileSync(arquivo).toString("base64")}`;
+  });
+
+  ipcMain.handle("backup-agora", () => backupDiario());
+
   backupDiario();
+  setInterval(backupDiario, 3600 * 1000); // loja fica aberta o dia todo
   createWindow();
 });
 
