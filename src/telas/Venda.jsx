@@ -4,6 +4,7 @@ import { fmtReais, parseReais } from "./Estoque.jsx";
 export const FORMAS = {
   especie: "Espécie",
   pix: "Pix",
+  debito: "Débito",
   credito_avista: "Crédito à vista",
   credito_parcelado: "Crédito parcelado",
 };

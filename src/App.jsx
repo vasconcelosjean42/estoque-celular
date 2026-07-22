@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import Estoque from "./telas/Estoque.jsx";
 import Venda from "./telas/Venda.jsx";
+import Dashboard from "./telas/Dashboard.jsx";
 
 const TELAS = ["Estoque", "Venda", "Dashboard", "Trocas", "Config"];
 
@@ -31,7 +32,7 @@ export default function App() {
         ))}
       </nav>
       <main style={{ flex: 1, padding: 24, overflow: "auto" }}>
-        {tela === "Estoque" ? <Estoque /> : tela === "Venda" ? <Venda /> : <h1>{tela}</h1>}
+        {tela === "Estoque" ? <Estoque /> : tela === "Venda" ? <Venda /> : tela === "Dashboard" ? <Dashboard /> : <h1>{tela}</h1>}
       </main>
     </div>
   );

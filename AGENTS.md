@@ -42,7 +42,7 @@ Cliente chega para trocar tela do Note 10. Tela no estoque: compra R$100, venda 
    R: Vira **crédito** com o fornecedor, no mesmo valor de compra da peça. Sistema controla o saldo de crédito.
 
 2. **Registrar forma de pagamento (dinheiro/cartão/Pix)? Se cartão, a taxa da maquininha desconta do lucro mostrado?**
-   R: Sim, separado: **espécie, Pix, crédito à vista, crédito parcelado**. Taxa da maquininha é repassada ao cliente (não desconta do lucro). Fechamento do dia mostra o total por forma de pagamento (quanto bateu em espécie, quanto caiu em Pix etc.).
+   R: Sim, separado: **espécie, Pix, débito, crédito à vista, crédito parcelado**. Taxa da maquininha é repassada ao cliente (não desconta do lucro). Fechamento do dia mostra o total por forma de pagamento (quanto bateu em espécie, quanto caiu em Pix etc.).
 
 3. **Existe venda fiado/a prazo? Precisa controlar "quem deve"?**
    R: **Sem fiado no v1** — fica para uma versão futura (o schema/telas devem facilitar essa adição). Requisito firme: o programa deve ser fácil de estender e de **atualizar sem perder dados** — electron-updater + GitHub Releases (app se atualiza sozinho; banco fica em userData, intocado).
