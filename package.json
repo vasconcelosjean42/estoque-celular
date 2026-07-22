@@ -1,0 +1,28 @@
+{
+  "name": "estoque-celular",
+  "version": "0.1.0",
+  "description": "Controle de estoque, vendas e trocas para loja de peças e conserto de celular",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "build": "vite build && electron-builder --win"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "vite": "^6.0.7",
+    "wait-on": "^8.0.2"
+  },
+  "build": {
+    "appId": "br.com.estoquecelular",
+    "files": ["dist/**", "electron/**"],
+    "win": { "target": "nsis" }
+  }
+}
