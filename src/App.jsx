@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import Estoque from "./telas/Estoque.jsx";
 
 const TELAS = ["Estoque", "Venda", "Dashboard", "Trocas", "Config"];
 
@@ -28,8 +29,8 @@ export default function App() {
           </button>
         ))}
       </nav>
-      <main style={{ flex: 1, padding: 24 }}>
-        <h1>{tela}</h1>
+      <main style={{ flex: 1, padding: 24, overflow: "auto" }}>
+        {tela === "Estoque" ? <Estoque /> : <h1>{tela}</h1>}
       </main>
     </div>
   );
