@@ -49,4 +49,9 @@ CREATE TABLE IF NOT EXISTS config (
 );
 `);
 
+// Migrações idempotentes: ALTER falha se a coluna já existe — ignorar.
+try {
+  db.exec("ALTER TABLE vendas ADD COLUMN forma_pagamento TEXT NOT NULL DEFAULT 'especie'");
+} catch {}
+
 module.exports = db;

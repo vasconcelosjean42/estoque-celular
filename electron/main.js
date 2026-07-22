@@ -37,6 +37,11 @@ app.whenReady().then(() => {
     return stmt.reader ? stmt.all(...(params || [])) : stmt.run(...(params || []));
   });
 
+  // Vários comandos numa transação única (venda = baixa estoque + registro).
+  ipcMain.handle("db-tx", (_e, comandos) =>
+    db.transaction(() => comandos.map(([sql, params = []]) => db.prepare(sql).run(...params)))()
+  );
+
   backupDiario();
   createWindow();
 });
