@@ -5,8 +5,8 @@ para o app ser usável cedo (estoque + venda primeiro, resto depois).
 
 | # | Passo | Entregável testável | Status |
 |---|-------|---------------------|--------|
-| 1 | Shell de navegação | App abre com 5 abas grandes (Estoque, Venda, Dashboard, Trocas, Config), telas vazias | spec pronta |
-| 2 | Estoque | Cadastrar/editar/excluir peça, margem automática, alerta de mínimo | — |
+| 1 | Shell de navegação | App abre com 5 abas grandes (Estoque, Venda, Dashboard, Trocas, Config), telas vazias | ✅ aprovado |
+| 2 | Estoque | Cadastrar/editar/excluir peça, margem automática, alerta de mínimo | spec pronta |
 | 3 | Venda rápida | Buscar peça → vender em 1 clique, preço editável, baixa estoque | — |
 | 4 | Dashboard | Lucro/faturamento semana/mês/ano + histórico de vendas | — |
 | 5 | Config + backup | Flag mão de obra ON/OFF, escolher pasta de backup | — |
