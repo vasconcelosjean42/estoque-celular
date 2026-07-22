@@ -7,10 +7,13 @@ para o app ser usável cedo (estoque + venda primeiro, resto depois).
 |---|-------|---------------------|--------|
 | 1 | Shell de navegação | App abre com 5 abas grandes (Estoque, Venda, Dashboard, Trocas, Config), telas vazias | ✅ aprovado |
 | 2 | Estoque | Cadastrar/editar/excluir peça, margem automática, alerta de mínimo | spec pronta |
-| 3 | Venda rápida | Buscar peça → vender em 1 clique, preço editável, baixa estoque | — |
-| 4 | Dashboard | Lucro/faturamento semana/mês/ano + histórico de vendas | — |
-| 5 | Config + backup | Flag mão de obra ON/OFF, escolher pasta de backup | — |
-| 6 | Trocas | Prateleira de defeituosas, contador 40 dias, lotes p/ fornecedor | **bloqueado: dúvidas 1 e 4 do AGENTS.md** |
-| 7 | Build final | Instalador .exe via electron-builder, ícone, nome (dúvida 5) | — |
+| 3 | Venda rápida | Buscar → vender em 1 clique, preço editável, baixa estoque, forma de pagamento (espécie/Pix/crédito à vista/parcelado) | — |
+| 4 | Dashboard | Lucro/faturamento semana/mês/ano, histórico, fechamento do dia por forma de pagamento | — |
+| 5 | Config + backup | Pasta de backup, flag mão de obra, título e logo editáveis | — |
+| 6 | Trocas | Prateleira de defeituosas, 40 dias, lotes; retorno vira crédito c/ fornecedor (valor de compra); troca mesmo modelo / outra peça c/ diferença / estorno volta ao estoque | — |
+| 7 | Usuários | Login simples dono × funcionário; funcionário não vê preço de compra/margem/lucro nem edita preços | — |
+| 8 | Build + auto-update | Instalador .exe, electron-updater + GitHub Releases (atualiza sozinho sem perder dados) | — |
+
+Fora do v1 (versão futura): **Fiado** — venda a prazo, lista de quem deve, baixa de dívida.
 
 Regra: só começo o passo N+1 depois que você testou e aprovou o passo N.

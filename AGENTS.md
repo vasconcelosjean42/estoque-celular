@@ -8,7 +8,7 @@ Sistema desktop de controle de estoque, vendas e trocas para uma loja de peças,
 - Banco: arquivo único SQLite em `app.getPath("userData")/estoque.db`, WAL ativado.
 - **Preços em centavos (INTEGER)** — nunca float para dinheiro.
 - Backup: cópia diária do `.db` para uma pasta configurável (apontar para a pasta do Google Drive desktop do cliente = "nuvem" de graça). Sem banco na nuvem, sem sync — 1 PC só, não há conflito.
-- Sem auth, sem multiusuário, sem impressão fiscal (v1).
+- Login simples com níveis de acesso: **dono** (vê/edita tudo) × **funcionário** (não vê preço de compra/margem/lucro, não edita preços). Sem impressão fiscal (v1).
 
 ## Escopo v1
 
@@ -36,21 +36,23 @@ Cliente chega para trocar tela do Note 10. Tela no estoque: compra R$100, venda 
 - **Funcionalidade nova: valor a definir por demanda**, conforme complexidade de implementação e integração — orçada e aprovada antes de fazer.
 - Manutenção ≠ funcionalidade nova: manutenção mantém o que existe funcionando; coisa nova é orçamento à parte.
 
-## DÚVIDAS PENDENTES (responder aqui antes de implementar Trocas/Pagamento)
-
-> Preencha a resposta abaixo de cada pergunta.
+## DÚVIDAS RESPONDIDAS (2026-07-22)
 
 1. **Quando o fornecedor devolve o lote trocado: a peça nova volta ao estoque ou vira crédito para compras futuras?**
-   R:
+   R: Vira **crédito** com o fornecedor, no mesmo valor de compra da peça. Sistema controla o saldo de crédito.
 
 2. **Registrar forma de pagamento (dinheiro/cartão/Pix)? Se cartão, a taxa da maquininha desconta do lucro mostrado?**
-   R:
+   R: Sim, separado: **espécie, Pix, crédito à vista, crédito parcelado**. Taxa da maquininha é repassada ao cliente (não desconta do lucro). Fechamento do dia mostra o total por forma de pagamento (quanto bateu em espécie, quanto caiu em Pix etc.).
 
 3. **Existe venda fiado/a prazo? Precisa controlar "quem deve"?**
-   R:
+   R: **Sem fiado no v1** — fica para uma versão futura (o schema/telas devem facilitar essa adição). Requisito firme: o programa deve ser fácil de estender e de **atualizar sem perder dados** — electron-updater + GitHub Releases (app se atualiza sozinho; banco fica em userData, intocado).
 
 4. **O terceiro que devolve a peça defeituosa recebe reembolso ou peça nova na hora? (afeta caixa e estoque)**
-   R:
+   R: Na maioria troca pelo **mesmo modelo** na hora. Pode trocar por outra peça, pagando/recebendo a diferença. Se não usou a peça e devolve funcionando: **estorno** do valor e a peça **volta ao estoque**.
 
 5. **O sistema tem nome? (título da janela, ícone)**
-   R:
+   R: **Título e logo editáveis na tela de Config.**
+
+## Adição pedida pelo cliente
+
+- **Controle de usuários**: dono edita preços e vê tudo; demais níveis não veem preço de compra, margem e lucro.
