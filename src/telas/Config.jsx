@@ -22,9 +22,15 @@ export default function Config({ aoMudar }) {
   const [msgBackup, setMsgBackup] = useState("");
   const [dev, setDev] = useState(null); // null | "pin" | "aberto"
   const [pin, setPin] = useState("");
+  const [usuarios, setUsuarios] = useState([]);
+  const [novoUsuario, setNovoUsuario] = useState(null); // { nome, pin, papel }
+
+  const carregarUsuarios = () =>
+    window.api.query("SELECT * FROM usuarios ORDER BY papel DESC, nome").then(setUsuarios);
 
   useEffect(() => {
     lerConfig().then(setCfg);
+    carregarUsuarios();
   }, []);
 
   if (!cfg) return null;
@@ -39,6 +45,33 @@ export default function Config({ aoMudar }) {
     setMsgBackup("Fazendo backup…");
     const r = await window.api.backupAgora();
     setMsgBackup(r.ok ? `✔ Backup salvo em ${r.destino}` : `✖ ${r.erro}`);
+  };
+
+  const salvarPinUsuario = async (u, valor) => {
+    const p = valor.replace(/\D/g, "").slice(0, 4);
+    setUsuarios(usuarios.map((x) => (x.id === u.id ? { ...x, pin: p } : x)));
+    if (/^\d{4}$/.test(p)) await window.api.query("UPDATE usuarios SET pin = ? WHERE id = ?", [p, u.id]);
+  };
+
+  const removerUsuario = async (u) => {
+    if (u.papel === "dono" && usuarios.filter((x) => x.papel === "dono").length === 1) {
+      alert("Precisa existir pelo menos um dono.");
+      return;
+    }
+    if (!confirm(`Remover usuário "${u.nome}"?`)) return;
+    await window.api.query("DELETE FROM usuarios WHERE id = ?", [u.id]);
+    carregarUsuarios();
+  };
+
+  const adicionarUsuario = async () => {
+    if (!novoUsuario.nome.trim() || !/^\d{4}$/.test(novoUsuario.pin)) {
+      alert("Preencha nome e PIN de 4 dígitos.");
+      return;
+    }
+    await window.api.query("INSERT INTO usuarios (nome, pin, papel) VALUES (?,?,?)",
+      [novoUsuario.nome.trim(), novoUsuario.pin, novoUsuario.papel]);
+    setNovoUsuario(null);
+    carregarUsuarios();
   };
 
   const demoAtiva = !!cfg?.demo_ids;
@@ -164,6 +197,46 @@ export default function Config({ aoMudar }) {
           />
           Mostrar campo "Mão de obra" ao vender
         </label>
+      </div>
+
+      <div style={bloco}>
+        <h3 style={{ marginTop: 0 }}>Usuários</h3>
+        {usuarios.map((u) => (
+          <div key={u.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #e2e8f0", fontSize: 15 }}>
+            <strong style={{ flex: 1 }}>{u.nome}</strong>
+            <span style={{ color: "#64748b" }}>{u.papel === "dono" ? "dono" : "funcionário"}</span>
+            <span>PIN:</span>
+            <input value={u.pin} onChange={(e) => salvarPinUsuario(u, e.target.value)}
+              style={{ padding: 6, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1", width: 64, textAlign: "center" }} />
+            <button style={{ ...btn, padding: "6px 12px", fontSize: 14, background: "#fee2e2", color: "#dc2626" }} onClick={() => removerUsuario(u)}>
+              Remover
+            </button>
+          </div>
+        ))}
+        {novoUsuario ? (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
+            <input placeholder="Nome" autoFocus value={novoUsuario.nome}
+              onChange={(e) => setNovoUsuario({ ...novoUsuario, nome: e.target.value })}
+              style={{ padding: 8, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1", flex: 1, minWidth: 120 }} />
+            <input placeholder="PIN (4 dígitos)" inputMode="numeric" maxLength={4} value={novoUsuario.pin}
+              onChange={(e) => setNovoUsuario({ ...novoUsuario, pin: e.target.value.replace(/\D/g, "") })}
+              style={{ padding: 8, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1", width: 110, textAlign: "center" }} />
+            <select value={novoUsuario.papel} onChange={(e) => setNovoUsuario({ ...novoUsuario, papel: e.target.value })}
+              style={{ padding: 8, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1" }}>
+              <option value="funcionario">funcionário</option>
+              <option value="dono">dono</option>
+            </select>
+            <button style={{ ...btn, background: "#22c55e", color: "white" }} onClick={adicionarUsuario}>Adicionar</button>
+            <button style={{ ...btn, background: "#e2e8f0", color: "#334155" }} onClick={() => setNovoUsuario(null)}>Cancelar</button>
+          </div>
+        ) : (
+          <button style={{ ...btn, marginTop: 12 }} onClick={() => setNovoUsuario({ nome: "", pin: "", papel: "funcionario" })}>
+            + Novo usuário
+          </button>
+        )}
+        <div style={{ fontSize: 14, color: "#64748b", marginTop: 10 }}>
+          Funcionário só acessa Estoque e Venda, não vê preço de compra/margem/lucro e não edita preços.
+        </div>
       </div>
 
       <div style={bloco}>

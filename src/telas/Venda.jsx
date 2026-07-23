@@ -13,7 +13,7 @@ export const FORMAS = {
 const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" };
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
 
-export default function Venda({ maoDeObraOn = true, aoTrocar }) {
+export default function Venda({ maoDeObraOn = true, dono = true, aoTrocar }) {
   const [pecas, setPecas] = useState([]);
   const [vendasHoje, setVendasHoje] = useState([]);
   const [trocasVenda, setTrocasVenda] = useState([]); // trocas vinculadas a vendas (cadeia A → B → C)
@@ -103,8 +103,9 @@ export default function Venda({ maoDeObraOn = true, aoTrocar }) {
             onChange={(e) => setVenda({ ...venda, qtd: e.target.value })} />
         </label>
         <label style={{ display: "block", marginBottom: 12 }}>
-          <div style={{ fontWeight: "bold", marginBottom: 4 }}>Preço unitário (R$) — edite p/ dar desconto</div>
-          <input style={inp} value={venda.preco} onChange={(e) => setVenda({ ...venda, preco: e.target.value })} />
+          <div style={{ fontWeight: "bold", marginBottom: 4 }}>Preço unitário (R$){dono && " — edite p/ dar desconto"}</div>
+          <input style={{ ...inp, ...(dono ? {} : { background: "#f1f5f9", color: "#64748b" }) }} readOnly={!dono}
+            value={venda.preco} onChange={(e) => setVenda({ ...venda, preco: e.target.value })} />
         </label>
         <label style={{ display: "block", marginBottom: 12 }}>
           <div style={{ fontWeight: "bold", marginBottom: 4 }}>Cliente (opcional)</div>
@@ -208,10 +209,12 @@ export default function Venda({ maoDeObraOn = true, aoTrocar }) {
                       <span style={{ color: "#b45309", fontSize: 14, fontWeight: "bold" }}>trocada ↓</span>
                     ) : (
                       <>
-                        <button style={{ ...btn, padding: "6px 12px", fontSize: 14, background: "#fef3c7", color: "#b45309", marginRight: 6 }}
-                          onClick={() => aoTrocar({ venda_id: v.id, peca_id: v.peca_id, nome: v.nome, modelo: v.modelo, preco_compra: v.preco_compra, preco_venda: v.preco_venda })}>
-                          Trocar
-                        </button>
+                        {dono && (
+                          <button style={{ ...btn, padding: "6px 12px", fontSize: 14, background: "#fef3c7", color: "#b45309", marginRight: 6 }}
+                            onClick={() => aoTrocar({ venda_id: v.id, peca_id: v.peca_id, nome: v.nome, modelo: v.modelo, preco_compra: v.preco_compra, preco_venda: v.preco_venda })}>
+                            Trocar
+                          </button>
+                        )}
                         <button style={{ ...btn, padding: "6px 12px", fontSize: 14, background: "#fee2e2", color: "#dc2626" }} onClick={() => desfazer(v)}>
                           Desfazer
                         </button>
@@ -231,7 +234,7 @@ export default function Venda({ maoDeObraOn = true, aoTrocar }) {
                       <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
                         {t.lote_id ? (
                           <span style={{ color: "#64748b", fontSize: 14 }}>no lote #{t.lote_id}</span>
-                        ) : ultima ? (
+                        ) : ultima && dono ? (
                           <>
                             <button style={{ ...btn, padding: "6px 12px", fontSize: 14, background: "#fef3c7", color: "#b45309", marginRight: 6 }}
                               onClick={() => aoTrocar({ venda_id: t.venda_id, peca_id: t.nova_peca_id, nome: t.nova_nome, modelo: t.nova_modelo, preco_compra: t.nova_compra, preco_venda: t.nova_preco })}>

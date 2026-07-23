@@ -11,7 +11,7 @@ const VAZIA = { nome: "", modelo: "", quantidade: 0, preco_compra: "", preco_ven
 const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" };
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
 
-export default function Estoque() {
+export default function Estoque({ dono = true }) {
   const [pecas, setPecas] = useState([]);
   const [busca, setBusca] = useState("");
   const [form, setForm] = useState(null); // null = lista; objeto = formulário
@@ -173,8 +173,10 @@ export default function Estoque() {
     else setOrdem(null);                                         // 3º: padrão
   };
 
-  const COLUNAS = [["Produto", "nome"], ["Modelo", "modelo"], ["Qtd", "quantidade"],
-    ["Compra", "preco_compra"], ["Venda", "preco_venda"], ["Margem", "margem"], ["", null]];
+  const COLUNAS = dono
+    ? [["Produto", "nome"], ["Modelo", "modelo"], ["Qtd", "quantidade"],
+       ["Compra", "preco_compra"], ["Venda", "preco_venda"], ["Margem", "margem"], ["", null]]
+    : [["Produto", "nome"], ["Modelo", "modelo"], ["Qtd", "quantidade"], ["Venda", "preco_venda"]];
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -185,9 +187,11 @@ export default function Estoque() {
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
         />
-        <button style={{ ...btn, background: "#38bdf8", color: "#0f172a" }} onClick={() => setForm(VAZIA)}>
-          + Novo produto
-        </button>
+        {dono && (
+          <button style={{ ...btn, background: "#38bdf8", color: "#0f172a" }} onClick={() => setForm(VAZIA)}>
+            + Novo produto
+          </button>
+        )}
       </div>
 
       {/* 60% produtos / 40% últimas entradas, cada um com rolagem própria */}
@@ -210,46 +214,51 @@ export default function Estoque() {
             return (
               <tr
                 key={p.id}
-                onClick={() => setForm({ ...p, preco_compra: (p.preco_compra / 100).toFixed(2).replace(".", ","), preco_venda: (p.preco_venda / 100).toFixed(2).replace(".", ",") })}
-                style={{ borderBottom: "1px solid #e2e8f0", cursor: "pointer", background: baixo ? "#fef2f2" : undefined }}
+                onClick={dono ? () => setForm({ ...p, preco_compra: (p.preco_compra / 100).toFixed(2).replace(".", ","), preco_venda: (p.preco_venda / 100).toFixed(2).replace(".", ",") }) : undefined}
+                style={{ borderBottom: "1px solid #e2e8f0", cursor: dono ? "pointer" : "default", background: baixo ? "#fef2f2" : undefined }}
               >
                 <td style={{ padding: 8, fontWeight: "bold" }}>
                   {p.nome} {baixo && <span style={{ color: "#dc2626" }} title="Estoque baixo">⚠</span>}
                 </td>
                 <td style={{ padding: 8 }}>{p.modelo}</td>
                 <td style={{ padding: 8, color: baixo ? "#dc2626" : undefined, fontWeight: baixo ? "bold" : undefined }}>{p.quantidade}</td>
-                <td style={{ padding: 8 }}>{fmtReais(p.preco_compra)}</td>
+                {dono && <td style={{ padding: 8 }}>{fmtReais(p.preco_compra)}</td>}
                 <td style={{ padding: 8 }}>{fmtReais(p.preco_venda)}</td>
-                <td style={{ padding: 8 }}>
-                  {fmtReais(margem)}{p.preco_compra > 0 && ` (${Math.round((margem / p.preco_compra) * 100)}%)`}
-                </td>
-                <td style={{ padding: 8, whiteSpace: "nowrap" }}>
-                  <button
-                    style={{ ...btn, padding: "6px 12px", fontSize: 14, background: "#dcfce7", color: "#16a34a", marginRight: 6 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEntrada({ peca: p, quantidade: 1, preco: (p.preco_compra / 100).toFixed(2).replace(".", ","), observacao: "" });
-                    }}
-                  >
-                    + Entrada
-                  </button>
-                  <button
-                    style={{ ...btn, padding: "6px 12px", fontSize: 14, background: "#fee2e2", color: "#dc2626" }}
-                    onClick={(e) => { e.stopPropagation(); excluir(p); }}
-                  >
-                    Excluir
-                  </button>
-                </td>
+                {dono && (
+                  <td style={{ padding: 8 }}>
+                    {fmtReais(margem)}{p.preco_compra > 0 && ` (${Math.round((margem / p.preco_compra) * 100)}%)`}
+                  </td>
+                )}
+                {dono && (
+                  <td style={{ padding: 8, whiteSpace: "nowrap" }}>
+                    <button
+                      style={{ ...btn, padding: "6px 12px", fontSize: 14, background: "#dcfce7", color: "#16a34a", marginRight: 6 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEntrada({ peca: p, quantidade: 1, preco: (p.preco_compra / 100).toFixed(2).replace(".", ","), observacao: "" });
+                      }}
+                    >
+                      + Entrada
+                    </button>
+                    <button
+                      style={{ ...btn, padding: "6px 12px", fontSize: 14, background: "#fee2e2", color: "#dc2626" }}
+                      onClick={(e) => { e.stopPropagation(); excluir(p); }}
+                    >
+                      Excluir
+                    </button>
+                  </td>
+                )}
               </tr>
             );
           })}
           {visiveis.length === 0 && (
-            <tr><td colSpan={7} style={{ padding: 24, color: "#64748b" }}>Nenhuma peça {filtro ? "encontrada" : "cadastrada"}.</td></tr>
+            <tr><td colSpan={COLUNAS.length} style={{ padding: 24, color: "#64748b" }}>Nenhuma peça {filtro ? "encontrada" : "cadastrada"}.</td></tr>
           )}
         </tbody>
       </table>
       </div>
 
+      {dono && (
       <div style={{ flex: "4 1 0", overflow: "auto", minHeight: 0, borderTop: "2px solid #cbd5e1", marginTop: 12 }}>
       <h3 style={{ margin: "12px 0 8px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         {fSel === "tudo" ? "Últimas entradas" : `Entradas ${sufixoTitulo(fSel)}`}
@@ -271,6 +280,7 @@ export default function Estoque() {
         </tbody>
       </table>
       </div>
+      )}
     </div>
   );
 }

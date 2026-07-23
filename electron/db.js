@@ -65,7 +65,17 @@ CREATE TABLE IF NOT EXISTS creditos (
   descricao TEXT NOT NULL,
   criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
+
+CREATE TABLE IF NOT EXISTS usuarios (
+  id    INTEGER PRIMARY KEY,
+  nome  TEXT NOT NULL,
+  pin   TEXT NOT NULL, -- texto puro de propósito: controle operacional, não segurança
+  papel TEXT NOT NULL DEFAULT 'funcionario' -- dono | funcionario
+);
 `);
+
+// Primeiro uso: garante um dono pra conseguir logar (trocar PIN na Config).
+db.exec("INSERT INTO usuarios (nome, pin, papel) SELECT 'Dono', '1234', 'dono' WHERE NOT EXISTS (SELECT 1 FROM usuarios)");
 
 // Migrações idempotentes: ALTER falha se a coluna já existe — ignorar.
 for (const sql of [
