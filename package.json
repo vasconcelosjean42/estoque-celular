@@ -5,6 +5,7 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "test": "vite build && node test/smoke.js",
     "build": "vite build && electron-builder --win"
   },
   "dependencies": {
@@ -17,12 +18,18 @@
     "concurrently": "^9.1.2",
     "electron": "^33.3.1",
     "electron-builder": "^25.1.8",
+    "playwright-core": "^1.61.1",
     "vite": "^6.0.7",
     "wait-on": "^8.0.2"
   },
   "build": {
     "appId": "br.com.estoquecelular",
-    "files": ["dist/**", "electron/**"],
-    "win": { "target": "nsis" }
+    "files": [
+      "dist/**",
+      "electron/**"
+    ],
+    "win": {
+      "target": "nsis"
+    }
   }
 }

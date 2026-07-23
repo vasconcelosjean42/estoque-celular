@@ -2,6 +2,9 @@ const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 
+// Smoke test (test/smoke.js): banco isolado num diretório temporário.
+if (process.env.ESTOQUE_DB_DIR) app.setPath("userData", process.env.ESTOQUE_DB_DIR);
+
 let db;
 
 async function backupDiario() {
@@ -25,7 +28,7 @@ function createWindow() {
     height: 800,
     webPreferences: { preload: path.join(__dirname, "preload.js") },
   });
-  if (app.isPackaged) win.loadFile(path.join(__dirname, "../dist/index.html"));
+  if (app.isPackaged || process.env.SMOKE) win.loadFile(path.join(__dirname, "../dist/index.html"));
   else win.loadURL("http://localhost:5173");
 }
 
@@ -65,6 +68,7 @@ app.whenReady().then(() => {
   // alert/confirm do Chromium travam mouse/teclado no Windows até a janela
   // perder o foco (bug do Electron) — diálogo do sistema no lugar.
   ipcMain.on("dialogo", (e, { tipo, msg }) => {
+    if (process.env.SMOKE) return (e.returnValue = 0); // teste: sempre "OK"
     const win = BrowserWindow.fromWebContents(e.sender);
     e.returnValue = dialog.showMessageBoxSync(win, {
       type: tipo === "confirm" ? "question" : "info",
