@@ -187,6 +187,29 @@ export default function Config({ aoMudar }) {
     }
   };
 
+  // Zera o banco: apaga TODOS os dados e volta ao estado de fábrica (Administrador/1234).
+  const limparBanco = async () => {
+    if (!confirm("APAGAR TODOS OS DADOS? Produtos, vendas, entradas, trocas, créditos, notas, usuários e configurações serão perdidos. Isto não tem como desfazer.")) return;
+    if (!confirm("Tem certeza mesmo? O sistema volta ao estado de fábrica (login Administrador / PIN 1234).")) return;
+    try {
+      await window.api.tx([
+        ["DELETE FROM notas", []],
+        ["DELETE FROM creditos", []],
+        ["DELETE FROM trocas", []],
+        ["DELETE FROM lotes", []],
+        ["DELETE FROM entradas", []],
+        ["DELETE FROM vendas", []],
+        ["DELETE FROM pecas", []],
+        ["DELETE FROM usuarios", []],
+        ["DELETE FROM config", []],
+        ["INSERT INTO usuarios (nome, pin, papel) VALUES ('Administrador','1234','dono')", []],
+      ]);
+      location.reload();
+    } catch (e) {
+      alert(`Erro ao limpar: ${e.message}`);
+    }
+  };
+
   return (
     <div style={{ maxWidth: 640 }}>
       <div style={bloco}>
@@ -394,12 +417,12 @@ export default function Config({ aoMudar }) {
                   onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
                   onKeyDown={(e) => {
                     if (e.key !== "Enter") return;
-                    pin === "0000" ? setDev("aberto") : (alert("Senha incorreta."), setPin(""));
+                    pin === "4242" ? setDev("aberto") : (alert("Senha incorreta."), setPin(""));
                   }}
                   style={{ padding: 12, fontSize: 22, borderRadius: 8, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box", textAlign: "center", letterSpacing: 8 }}
                 />
                 <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                  <button style={{ ...btn, flex: 1 }} onClick={() => (pin === "0000" ? setDev("aberto") : (alert("Senha incorreta."), setPin("")))}>
+                  <button style={{ ...btn, flex: 1 }} onClick={() => (pin === "4242" ? setDev("aberto") : (alert("Senha incorreta."), setPin("")))}>
                     Entrar
                   </button>
                   <button style={{ ...btn, background: "#e2e8f0" }} onClick={() => setDev(null)}>Cancelar</button>
@@ -426,6 +449,17 @@ export default function Config({ aoMudar }) {
                     </button>
                   )}
                   <button style={{ ...btn, background: "#e2e8f0" }} onClick={() => setDev(null)}>Fechar</button>
+                </div>
+
+                <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 16, paddingTop: 16 }}>
+                  <div style={{ fontSize: 15, fontWeight: "bold", marginBottom: 4, color: "#dc2626" }}>Zona de perigo</div>
+                  <div style={{ fontSize: 14, color: "#64748b", marginBottom: 12 }}>
+                    Apaga <strong>todos</strong> os dados e volta o sistema ao estado de fábrica
+                    (Administrador / PIN 1234). Use para preparar uma máquina nova.
+                  </div>
+                  <button style={{ ...btn, background: "#dc2626", color: "white", width: "100%" }} onClick={limparBanco}>
+                    Limpar banco de dados
+                  </button>
                 </div>
               </>
             )}

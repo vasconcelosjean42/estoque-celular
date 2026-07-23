@@ -1,6 +1,6 @@
 {
   "name": "estoque-celular",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Controle de estoque, vendas e trocas para loja de peças e conserto de celular",
   "author": "Jean Vasconcelos <jean.vasconcelos@befective.com>",
   "main": "electron/main.js",
