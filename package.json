@@ -2,6 +2,7 @@
   "name": "estoque-celular",
   "version": "0.1.0",
   "description": "Controle de estoque, vendas e trocas para loja de peças e conserto de celular",
+  "author": "Jean Vasconcelos <jean.vasconcelos@befective.com>",
   "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
@@ -10,6 +11,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.10.0",
+    "electron-updater": "^6.8.9",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
@@ -24,12 +26,18 @@
   },
   "build": {
     "appId": "br.com.estoquecelular",
+    "productName": "Estoque Celular",
     "files": [
       "dist/**",
       "electron/**"
     ],
     "win": {
       "target": "nsis"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "vasconcelosjean42",
+      "repo": "estoque-celular"
     }
   }
 }

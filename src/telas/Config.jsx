@@ -210,6 +210,22 @@ export default function Config({ aoMudar }) {
       </div>
 
       <div style={bloco}>
+        <h3 style={{ marginTop: 0 }}>Iniciar com o Windows</h3>
+        <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 16, cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            style={{ width: 22, height: 22 }}
+            checked={cfg.abrir_com_windows !== "0"}
+            onChange={(e) => {
+              gravar("abrir_com_windows", e.target.checked ? "1" : "0");
+              window.api.autoStart(e.target.checked);
+            }}
+          />
+          Abrir o sistema junto com o Windows (vale para o app instalado)
+        </label>
+      </div>
+
+      <div style={bloco}>
         <h3 style={{ marginTop: 0 }}>Nota / recibo</h3>
         <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 16, cursor: "pointer", marginBottom: 12 }}>
           <input

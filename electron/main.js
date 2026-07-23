@@ -28,6 +28,7 @@ function createWindow() {
     height: 800,
     webPreferences: { preload: path.join(__dirname, "preload.js") },
   });
+  win.maximize(); // maximizada (com barra de título), não quiosque — leigo precisa minimizar
   if (app.isPackaged || process.env.SMOKE) win.loadFile(path.join(__dirname, "../dist/index.html"));
   else win.loadURL("http://localhost:5173");
 }
@@ -101,6 +102,26 @@ app.whenReady().then(() => {
       cancelId: 1,
     });
   });
+
+  // Abrir junto com o Windows (só faz sentido no app instalado; checkbox na Config).
+  ipcMain.handle("auto-start", (_e, ligado) => {
+    if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: ligado });
+  });
+  if (app.isPackaged) {
+    const row = db.prepare("SELECT valor FROM config WHERE chave = 'abrir_com_windows'").get();
+    app.setLoginItemSettings({ openAtLogin: !row || row.valor !== "0" }); // ligado por padrão
+  }
+
+  // Auto-update via GitHub Releases: baixa em background, instala ao fechar.
+  // Banco fica em userData — o update não toca nos dados.
+  if (app.isPackaged) {
+    try {
+      const { autoUpdater } = require("electron-updater");
+      autoUpdater.checkForUpdatesAndNotify().catch((e) => console.error("update:", e.message));
+    } catch (e) {
+      console.error("updater indisponível:", e.message);
+    }
+  }
 
   backupDiario();
   setInterval(backupDiario, 3600 * 1000); // loja fica aberta o dia todo

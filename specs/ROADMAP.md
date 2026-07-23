@@ -14,7 +14,7 @@ para o app ser usável cedo (estoque + venda primeiro, resto depois).
 | 6b | Entrada de estoque | Botão "+ Entrada" na peça: soma quantidade, atualiza preço de compra, grava histórico de entradas | ✅ aprovado |
 | 6c | Smoke test E2E | `npm test`: builda, abre o app com banco isolado e percorre venda → troca → desfazer, falhando em tela branca/erro | ✅ |
 | 7 | Usuários | Login simples administrador × colaborador; colaborador não vê preço de compra/margem/lucro nem edita preços | feito — testar |
-| 8 | Build + auto-update | Instalador .exe, electron-updater + GitHub Releases (atualiza sozinho sem perder dados); abre com o Windows (checkbox na Config) e maximizado | spec pronta |
+| 8 | Build + auto-update | Instalador .exe, electron-updater + GitHub Releases (atualiza sozinho sem perder dados); abre com o Windows (checkbox na Config) e maximizado | feito — testar instalador |
 | 9 | Nota / recibo | Opcional por flag na Config: após confirmar venda, gera recibo PDF (porta a lógica do sistema Python já validado, adaptada). OFF = idêntico a hoje | feito — validar PDF impresso |
 
 Fora do v1 (versão futura): **Fiado** — venda a prazo, lista de quem deve, baixa de dívida.
