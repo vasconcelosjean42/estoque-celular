@@ -55,7 +55,7 @@ export default function Config({ aoMudar }) {
 
   const removerUsuario = async (u) => {
     if (u.papel === "dono" && usuarios.filter((x) => x.papel === "dono").length === 1) {
-      alert("Precisa existir pelo menos um dono.");
+      alert("Precisa existir pelo menos um administrador.");
       return;
     }
     if (!confirm(`Remover usuário "${u.nome}"?`)) return;
@@ -204,7 +204,7 @@ export default function Config({ aoMudar }) {
         {usuarios.map((u) => (
           <div key={u.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #e2e8f0", fontSize: 15 }}>
             <strong style={{ flex: 1 }}>{u.nome}</strong>
-            <span style={{ color: "#64748b" }}>{u.papel === "dono" ? "dono" : "funcionário"}</span>
+            <span style={{ color: "#64748b" }}>{u.papel === "dono" ? "administrador" : "colaborador"}</span>
             <span>PIN:</span>
             <input value={u.pin} onChange={(e) => salvarPinUsuario(u, e.target.value)}
               style={{ padding: 6, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1", width: 64, textAlign: "center" }} />
@@ -223,8 +223,8 @@ export default function Config({ aoMudar }) {
               style={{ padding: 8, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1", width: 110, textAlign: "center" }} />
             <select value={novoUsuario.papel} onChange={(e) => setNovoUsuario({ ...novoUsuario, papel: e.target.value })}
               style={{ padding: 8, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1" }}>
-              <option value="funcionario">funcionário</option>
-              <option value="dono">dono</option>
+              <option value="funcionario">colaborador</option>
+              <option value="dono">administrador</option>
             </select>
             <button style={{ ...btn, background: "#22c55e", color: "white" }} onClick={adicionarUsuario}>Adicionar</button>
             <button style={{ ...btn, background: "#e2e8f0", color: "#334155" }} onClick={() => setNovoUsuario(null)}>Cancelar</button>
@@ -235,7 +235,7 @@ export default function Config({ aoMudar }) {
           </button>
         )}
         <div style={{ fontSize: 14, color: "#64748b", marginTop: 10 }}>
-          Funcionário só acessa Estoque e Venda, não vê preço de compra/margem/lucro e não edita preços.
+          Colaborador só acessa Estoque e Venda, não vê preço de compra/margem/lucro e não edita preços.
         </div>
       </div>
 

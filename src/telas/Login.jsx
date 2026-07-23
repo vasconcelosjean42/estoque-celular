@@ -26,7 +26,7 @@ export default function Login({ aoEntrar }) {
             <button key={u.id} onClick={() => { setSel(u); setPin(""); }}
               style={{ padding: "24px 40px", fontSize: 22, fontWeight: "bold", border: "none", borderRadius: 12, cursor: "pointer", background: "#38bdf8", color: "#0f172a" }}>
               {u.nome}
-              <div style={{ fontSize: 14, fontWeight: "normal", marginTop: 4 }}>{u.papel === "dono" ? "dono" : "funcionário"}</div>
+              <div style={{ fontSize: 14, fontWeight: "normal", marginTop: 4 }}>{u.papel === "dono" ? "administrador" : "colaborador"}</div>
             </button>
           ))}
         </div>

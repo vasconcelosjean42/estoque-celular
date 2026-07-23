@@ -29,8 +29,8 @@ const path = require("path");
       await win.press('input[type="password"]', "Enter");
     };
 
-    // 0. login como dono (seed Dono/1234)
-    await login("Dono", "1234");
+    // 0. login como administrador (seed Administrador/1234)
+    await login("Administrador", "1234");
 
     // 1. todas as abas abrem com conteúdo
     for (const [nome, marca] of [
@@ -82,18 +82,18 @@ const path = require("path");
     await aba("Dashboard");
     await espera("Histórico de vendas");
 
-    // 8. cria funcionário, loga como ele e confere as permissões
+    // 8. cria colaborador, loga como ele e confere as permissões
     await aba("Config");
     await win.click('button:text("+ Novo usuário")');
     await win.fill('input[placeholder="Nome"]', "Func");
     await win.fill('input[placeholder="PIN (4 dígitos)"]', "1111");
     await win.click('button:text-is("Adicionar")');
-    await espera("funcionário");
+    await espera("colaborador");
     await win.click('nav button:text-is("Sair")');
     await login("Func", "1111");
     await espera("PecaSmoke");
-    assert.strictEqual(await win.locator('nav button:text-is("Dashboard")').count(), 0, "funcionário não deveria ver a aba Dashboard");
-    assert.strictEqual(await win.locator('th:text-is("Compra")').count(), 0, "funcionário não deveria ver a coluna Compra");
+    assert.strictEqual(await win.locator('nav button:text-is("Dashboard")').count(), 0, "colaborador não deveria ver a aba Dashboard");
+    assert.strictEqual(await win.locator('th:text-is("Compra")').count(), 0, "colaborador não deveria ver a coluna Compra");
 
     const corpo = (await win.locator("#root").innerText()).trim();
     assert(corpo.length > 0, "tela em branco no fim do fluxo");

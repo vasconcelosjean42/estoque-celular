@@ -74,8 +74,9 @@ CREATE TABLE IF NOT EXISTS usuarios (
 );
 `);
 
-// Primeiro uso: garante um dono pra conseguir logar (trocar PIN na Config).
-db.exec("INSERT INTO usuarios (nome, pin, papel) SELECT 'Dono', '1234', 'dono' WHERE NOT EXISTS (SELECT 1 FROM usuarios)");
+// Primeiro uso: garante um administrador pra conseguir logar (trocar PIN na Config).
+db.exec("INSERT INTO usuarios (nome, pin, papel) SELECT 'Administrador', '1234', 'dono' WHERE NOT EXISTS (SELECT 1 FROM usuarios)");
+db.exec("UPDATE usuarios SET nome = 'Administrador' WHERE nome = 'Dono' AND papel = 'dono'"); // renomeia o seed antigo
 
 // Migrações idempotentes: ALTER falha se a coluna já existe — ignorar.
 for (const sql of [
