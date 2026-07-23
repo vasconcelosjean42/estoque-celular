@@ -8,4 +8,5 @@ contextBridge.exposeInMainWorld("api", {
   backupAgora: () => ipcRenderer.invoke("backup-agora"),
   alerta: (msg) => { ipcRenderer.sendSync("dialogo", { tipo: "alert", msg: String(msg) }); },
   confirmar: (msg) => ipcRenderer.sendSync("dialogo", { tipo: "confirm", msg: String(msg) }) === 0,
+  gerarNotaPdf: (html, numero) => ipcRenderer.invoke("nota-pdf", { html, numero }),
 });

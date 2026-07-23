@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 
@@ -64,6 +64,30 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle("backup-agora", () => backupDiario());
+
+  // Gera o recibo em PDF (janela oculta -> printToPDF) e abre no visualizador
+  // padrão. window.print() do renderer abre diálogo sem preview no Windows;
+  // isto espelha o original (gera PDF e abre) e ainda arquiva o arquivo.
+  ipcMain.handle("nota-pdf", async (_e, { html, numero }) => {
+    const dir = path.join(app.getPath("userData"), "notas");
+    fs.mkdirSync(dir, { recursive: true });
+    const dest = path.join(dir, `nota-${String(numero).padStart(4, "0")}.pdf`);
+    const tmpHtml = path.join(app.getPath("temp"), `nota-${Date.now()}.html`);
+    fs.writeFileSync(tmpHtml, html, "utf-8");
+    const win = new BrowserWindow({ show: false, width: 400, height: 800 });
+    try {
+      await win.loadFile(tmpHtml);
+      const pdf = await win.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true });
+      fs.writeFileSync(dest, pdf);
+      if (!process.env.SMOKE) shell.openPath(dest);
+      return { ok: true, dest };
+    } catch (e) {
+      return { ok: false, erro: e.message };
+    } finally {
+      win.destroy();
+      try { fs.unlinkSync(tmpHtml); } catch {}
+    }
+  });
 
   // alert/confirm do Chromium travam mouse/teclado no Windows até a janela
   // perder o foco (bug do Electron) — diálogo do sistema no lugar.

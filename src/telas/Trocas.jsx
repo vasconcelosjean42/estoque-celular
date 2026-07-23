@@ -5,15 +5,18 @@ const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cb
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
 const bloco = { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 16, marginBottom: 20 };
 
-const FORM_VAZIO = { peca_id: "", modelo: "", defeito: "", observacao: "", valor: "", entregueiNova: false };
+const FORM_VAZIO = { peca_id: "", modelo: "", defeito: "", observacao: "", valor: "", fornecedor: "", entregueiNova: false };
 
 export default function Trocas({ vendaTroca, aoConsumir }) {
   const [pecas, setPecas] = useState([]);
   const [prateleira, setPrateleira] = useState([]);
   const [lotes, setLotes] = useState([]);
   const [creditos, setCreditos] = useState([]);
+  const [fornecedores, setFornecedores] = useState([]); // sugestões do datalist
   const [form, setForm] = useState(null);
   const [marcadas, setMarcadas] = useState(new Set());
+  const [fForn, setFForn] = useState(""); // filtro prateleira por fornecedor ('' = todos)
+  const [fProd, setFProd] = useState(""); // filtro prateleira por produto (contém)
   const [abate, setAbate] = useState(null); // { valor, descricao } — prompt() não existe no Electron
 
   const carregar = () => {
@@ -28,6 +31,8 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
               GROUP BY l.id ORDER BY l.id DESC`)
       .then(setLotes);
     window.api.query("SELECT * FROM creditos ORDER BY id DESC").then(setCreditos);
+    window.api.query("SELECT DISTINCT fornecedor FROM trocas WHERE fornecedor != '' ORDER BY fornecedor")
+      .then((r) => setFornecedores(r.map((x) => x.fornecedor)));
     setMarcadas(new Set());
   };
 
@@ -65,13 +70,13 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
         return;
       }
       comandos.push(
-        ["INSERT INTO trocas (modelo, defeito, observacao, valor_compra, peca_id, venda_id, nova_peca_id) VALUES (?,?,?,?,?,?,?)",
-          [form.modelo.trim(), form.defeito.trim(), form.observacao.trim(), valor, form.peca_id || null, form.venda_id, nova.id]],
+        ["INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, peca_id, venda_id, nova_peca_id) VALUES (?,?,?,?,?,?,?,?)",
+          [form.modelo.trim(), form.defeito.trim(), form.observacao.trim(), valor, form.fornecedor.trim(), form.peca_id || null, form.venda_id, nova.id]],
         ["UPDATE pecas SET quantidade = quantidade - 1 WHERE id = ?", [nova.id]]
       );
     } else {
-      comandos.push(["INSERT INTO trocas (modelo, defeito, observacao, valor_compra, peca_id) VALUES (?,?,?,?,?)",
-        [form.modelo.trim(), form.defeito.trim(), form.observacao.trim(), valor, form.peca_id || null]]);
+      comandos.push(["INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, peca_id) VALUES (?,?,?,?,?,?)",
+        [form.modelo.trim(), form.defeito.trim(), form.observacao.trim(), valor, form.fornecedor.trim(), form.peca_id || null]]);
       if (form.entregueiNova && form.peca_id) {
         comandos.push(["UPDATE pecas SET quantidade = quantidade - 1 WHERE id = ?", [form.peca_id]]);
       }
@@ -119,6 +124,19 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
 
   const saldo = creditos.reduce((s, c) => s + c.valor, 0);
 
+  const fornsPrateleira = [...new Set(prateleira.map((t) => t.fornecedor).filter(Boolean))].sort();
+  const prod = fProd.trim().toLowerCase();
+  const prateleiraFiltrada = prateleira.filter((t) =>
+    (!fForn || t.fornecedor === fForn) && (!prod || t.modelo.toLowerCase().includes(prod)));
+  const todasMarcadas = prateleiraFiltrada.length > 0 && prateleiraFiltrada.every((t) => marcadas.has(t.id));
+
+  // Seleciona/desmarca só o que está filtrado, preservando o resto da seleção.
+  const alternarTodas = (marcar) => {
+    const s = new Set(marcadas);
+    prateleiraFiltrada.forEach((t) => (marcar ? s.add(t.id) : s.delete(t.id)));
+    setMarcadas(s);
+  };
+
   const aoEscolherPeca = (peca_id) => {
     const p = pecas.find((x) => x.id === Number(peca_id));
     setForm({
@@ -152,6 +170,14 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
             <input style={inp} value={form[chave]} onChange={(e) => setForm({ ...form, [chave]: e.target.value })} />
           </label>
         ))}
+        <label style={{ display: "block", marginBottom: 12 }}>
+          <div style={{ fontWeight: "bold", marginBottom: 4 }}>Fornecedor</div>
+          <input style={inp} list="lista-fornecedores" placeholder="Escolha ou digite um novo"
+            value={form.fornecedor} onChange={(e) => setForm({ ...form, fornecedor: e.target.value })} />
+          <datalist id="lista-fornecedores">
+            {fornecedores.map((f) => <option key={f} value={f} />)}
+          </datalist>
+        </label>
         {form.travada && (
           <label style={{ display: "block", marginBottom: 12 }}>
             <div style={{ fontWeight: "bold", marginBottom: 4 }}>Trocar por (sai 1 do estoque)</div>
@@ -211,13 +237,20 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
       )}
 
       <div style={bloco}>
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-          <h3 style={{ margin: 0 }}>Prateleira ({prateleira.length})</h3>
-          {prateleira.length > 0 && (
-            <label style={{ marginLeft: 16, display: "flex", gap: 6, alignItems: "center", fontSize: 15, cursor: "pointer" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
+          <h3 style={{ margin: 0 }}>
+            Prateleira ({prateleiraFiltrada.length}{prateleiraFiltrada.length !== prateleira.length ? ` de ${prateleira.length}` : ""})
+          </h3>
+          <select style={{ ...inp, width: "auto" }} value={fForn} onChange={(e) => setFForn(e.target.value)}>
+            <option value="">Todos os fornecedores</option>
+            {fornsPrateleira.map((f) => <option key={f} value={f}>{f}</option>)}
+          </select>
+          <input style={{ ...inp, width: 180 }} placeholder="Filtrar por produto…" value={fProd}
+            onChange={(e) => setFProd(e.target.value)} />
+          {prateleiraFiltrada.length > 0 && (
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 15, cursor: "pointer" }}>
               <input type="checkbox" style={{ width: 18, height: 18 }}
-                checked={marcadas.size === prateleira.length}
-                onChange={(e) => setMarcadas(e.target.checked ? new Set(prateleira.map((t) => t.id)) : new Set())} />
+                checked={todasMarcadas} onChange={(e) => alternarTodas(e.target.checked)} />
               Selecionar todas
             </label>
           )}
@@ -229,7 +262,7 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
           <tbody>
-            {prateleira.map((t) => (
+            {prateleiraFiltrada.map((t) => (
               <tr key={t.id} style={{ borderBottom: "1px solid #e2e8f0", background: t.dias >= 40 ? "#fef2f2" : t.dias >= 30 ? "#fffbeb" : undefined }}>
                 <td style={{ padding: 8 }}>
                   <input type="checkbox" style={{ width: 18, height: 18 }} checked={marcadas.has(t.id)}
@@ -241,6 +274,7 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
                 </td>
                 <td style={{ padding: 8, fontWeight: "bold" }}>{t.modelo}</td>
                 <td style={{ padding: 8 }}>{t.defeito}{t.observacao && ` — ${t.observacao}`}</td>
+                <td style={{ padding: 8, color: "#64748b" }}>{t.fornecedor || "—"}</td>
                 <td style={{ padding: 8 }}>{fmtReais(t.valor_compra)}</td>
                 <td style={{ padding: 8, fontWeight: t.dias >= 30 ? "bold" : undefined, color: t.dias >= 40 ? "#dc2626" : t.dias >= 30 ? "#d97706" : "#64748b" }}>
                   {t.dias} dia{t.dias === 1 ? "" : "s"}{t.dias >= 40 && " ⚠ prazo!"}
@@ -252,8 +286,10 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
                 </td>
               </tr>
             ))}
-            {prateleira.length === 0 && (
-              <tr><td style={{ padding: 16, color: "#64748b" }}>Nenhuma peça na prateleira.</td></tr>
+            {prateleiraFiltrada.length === 0 && (
+              <tr><td style={{ padding: 16, color: "#64748b" }}>
+                {prateleira.length ? "Nenhuma peça no filtro." : "Nenhuma peça na prateleira."}
+              </td></tr>
             )}
           </tbody>
         </table>

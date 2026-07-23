@@ -8,6 +8,16 @@ export const lerConfig = async () => {
 export const salvarConfig = (chave, valor) =>
   window.api.query("INSERT OR REPLACE INTO config (chave, valor) VALUES (?,?)", [chave, valor]);
 
+// Máscara de telefone BR: (99) 99999-9999 (celular) ou (99) 9999-9999 (fixo).
+const mascaraTelefone = (str) => {
+  const d = String(str).replace(/\D/g, "").slice(0, 11);
+  if (!d) return "";
+  if (d.length <= 2) return `(${d}`;
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+};
+
 const bloco = { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 16, marginBottom: 16 };
 const btn = { padding: "10px 18px", fontSize: 15, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer", background: "#38bdf8", color: "#0f172a" };
 
@@ -58,7 +68,7 @@ export default function Config({ aoMudar }) {
       alert("Precisa existir pelo menos um administrador.");
       return;
     }
-    if (!confirm(`Remover usuário "${u.nome}"?`)) return;
+    if (!confirm(`Tem certeza que quer excluir o usuário "${u.nome}"?`)) return;
     await window.api.query("DELETE FROM usuarios WHERE id = ?", [u.id]);
     carregarUsuarios();
   };
@@ -197,6 +207,42 @@ export default function Config({ aoMudar }) {
           />
           Mostrar campo "Mão de obra" ao vender
         </label>
+      </div>
+
+      <div style={bloco}>
+        <h3 style={{ marginTop: 0 }}>Nota / recibo</h3>
+        <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 16, cursor: "pointer", marginBottom: 12 }}>
+          <input
+            type="checkbox"
+            style={{ width: 22, height: 22 }}
+            checked={cfg.nota_ativa === "1"}
+            onChange={(e) => gravar("nota_ativa", e.target.checked ? "1" : "0")}
+          />
+          Gerar nota após a venda
+        </label>
+        {cfg.nota_ativa === "1" && (
+          <>
+            <div style={{ fontSize: 14, color: "#64748b", marginBottom: 12 }}>
+              Recibo não fiscal impresso após confirmar a venda. Usa o logo acima. Preencha os dados da loja:
+            </div>
+            {[["Nome na nota", "nota_loja_nome", "ex.: Xiaomi Centro"],
+              ["Endereço", "nota_loja_endereco", "ex.: R. Getúlio Vargas, 186"],
+              ["Telefone", "nota_loja_telefone", "ex.: (99) 98454-7874"],
+              ["Email/contato", "nota_loja_email", "opcional"],
+              ["Rodapé", "nota_rodape", "ex.: Obrigado pela preferência!"]].map(([rotulo, chave, ph]) => (
+              <label key={chave} style={{ display: "block", marginBottom: 10 }}>
+                <div style={{ fontWeight: "bold", marginBottom: 4, fontSize: 15 }}>{rotulo}</div>
+                <input
+                  style={{ padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" }}
+                  placeholder={ph}
+                  inputMode={chave === "nota_loja_telefone" ? "numeric" : undefined}
+                  value={cfg[chave] ?? ""}
+                  onChange={(e) => gravar(chave, chave === "nota_loja_telefone" ? mascaraTelefone(e.target.value) : e.target.value)}
+                />
+              </label>
+            ))}
+          </>
+        )}
       </div>
 
       <div style={bloco}>

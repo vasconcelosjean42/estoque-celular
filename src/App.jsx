@@ -65,7 +65,7 @@ export default function App() {
       </nav>
       <main style={{ flex: 1, padding: 24, overflow: "auto" }}>
         {tela === "Estoque" ? <Estoque dono={dono} />
-          : tela === "Venda" ? <Venda maoDeObraOn={cfg.mao_de_obra !== "0"} dono={dono} aoTrocar={(v) => { setTrocaDe(v); setTela("Trocas"); }} />
+          : tela === "Venda" ? <Venda maoDeObraOn={cfg.mao_de_obra !== "0"} dono={dono} cfg={cfg} aoTrocar={(v) => { setTrocaDe(v); setTela("Trocas"); }} />
           : tela === "Dashboard" ? <Dashboard />
           : tela === "Trocas" ? <Trocas vendaTroca={trocaDe} aoConsumir={() => setTrocaDe(null)} />
           : tela === "Config" ? <Config aoMudar={carregarCfg} />

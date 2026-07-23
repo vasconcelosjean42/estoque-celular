@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { fmtReais, parseReais } from "./Estoque.jsx";
 import FiltroData, { calcAtalho, sufixoTitulo } from "./FiltroData.jsx";
+import { NotaModal, reimprimirNota } from "./Nota.jsx";
 
 export const FORMAS = {
   especie: "Espécie",
@@ -13,10 +14,13 @@ export const FORMAS = {
 const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" };
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
 
-export default function Venda({ maoDeObraOn = true, dono = true, aoTrocar }) {
+export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, aoTrocar }) {
+  const notaOn = cfg.nota_ativa === "1";
   const [pecas, setPecas] = useState([]);
   const [vendasHoje, setVendasHoje] = useState([]);
   const [trocasVenda, setTrocasVenda] = useState([]); // trocas vinculadas a vendas (cadeia A → B → C)
+  const [notasPorVenda, setNotasPorVenda] = useState({}); // venda_id → nota (p/ reimprimir)
+  const [notaVenda, setNotaVenda] = useState(null); // venda recém-confirmada aguardando nota
   const [busca, setBusca] = useState("");
   const [venda, setVenda] = useState(null); // { peca, qtd, preco, maoDeObra, forma }
   const [[fSel, fDe, fAte], setFiltroData] = useState(() => ["hoje", ...calcAtalho("hoje")]);
@@ -42,6 +46,14 @@ export default function Venda({ maoDeObraOn = true, dono = true, aoTrocar }) {
          WHERE t.venda_id IS NOT NULL ORDER BY t.id`
       )
       .then(setTrocasVenda);
+    // ponytail: varre notas inteiro (tabela pequena numa loja); filtrar por venda se crescer.
+    if (notaOn) {
+      window.api.query("SELECT * FROM notas").then((rows) => {
+        const m = {};
+        rows.forEach((n) => { m[n.venda_id] = n; });
+        setNotasPorVenda(m);
+      });
+    }
   };
 
   useEffect(() => {
@@ -60,16 +72,34 @@ export default function Venda({ maoDeObraOn = true, dono = true, aoTrocar }) {
       alert("Preço inválido.");
       return;
     }
-    await window.api.tx([
+    const res = await window.api.tx([
       ["UPDATE pecas SET quantidade = quantidade - ? WHERE id = ?", [qtd, venda.peca.id]],
       [
         "INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, mao_de_obra, forma_pagamento, cliente) VALUES (?,?,?,?,?,?,?)",
         [venda.peca.id, qtd, preco, venda.peca.preco_compra, maoDeObra, venda.forma, venda.cliente.trim()],
       ],
     ]);
+    if (notaOn) {
+      setNotaVenda({
+        id: res[1].lastInsertRowid,
+        cliente: venda.cliente.trim(),
+        descricao: `${qtd}x ${venda.peca.nome} ${venda.peca.modelo}`.trim(),
+        valor_total: preco * qtd + maoDeObra,
+      });
+    }
     setVenda(null);
     setBusca("");
     carregar();
+  };
+
+  const notaClick = (v) => {
+    const existente = notasPorVenda[v.id];
+    if (existente) return reimprimirNota(existente, cfg);
+    setNotaVenda({
+      id: v.id, cliente: v.cliente || "",
+      descricao: `${v.quantidade}x ${v.nome} ${v.modelo}`.trim(),
+      valor_total: v.preco_venda * v.quantidade + v.mao_de_obra,
+    });
   };
 
   const desfazerTroca = async (t) => {
@@ -205,6 +235,12 @@ export default function Venda({ maoDeObraOn = true, dono = true, aoTrocar }) {
                   <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(v.preco_venda * v.quantidade + v.mao_de_obra)}</td>
                   <td style={{ padding: 8 }}>{FORMAS[v.forma_pagamento] || v.forma_pagamento}</td>
                   <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
+                    {notaOn && (
+                      <button style={{ ...btn, padding: "6px 12px", fontSize: 14, background: "#e0f2fe", color: "#0369a1", marginRight: 6 }}
+                        onClick={() => notaClick(v)}>
+                        🧾 {notasPorVenda[v.id] ? "Reimprimir" : "Nota"}
+                      </button>
+                    )}
                     {trocada ? (
                       <span style={{ color: "#b45309", fontSize: 14, fontWeight: "bold" }}>trocada ↓</span>
                     ) : (
@@ -260,6 +296,8 @@ export default function Venda({ maoDeObraOn = true, dono = true, aoTrocar }) {
         </tbody>
       </table>
       </div>
+
+      {notaVenda && <NotaModal venda={notaVenda} cfg={cfg} aoFechar={() => { setNotaVenda(null); carregar(); }} />}
     </div>
   );
 }

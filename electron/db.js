@@ -72,6 +72,17 @@ CREATE TABLE IF NOT EXISTS usuarios (
   pin   TEXT NOT NULL, -- texto puro de propósito: controle operacional, não segurança
   papel TEXT NOT NULL DEFAULT 'funcionario' -- dono | funcionario
 );
+
+CREATE TABLE IF NOT EXISTS notas (
+  id              INTEGER PRIMARY KEY,
+  venda_id        INTEGER REFERENCES vendas(id),
+  numero          INTEGER NOT NULL,        -- sequencial legível (0001, 0002…)
+  cliente_nome    TEXT NOT NULL DEFAULT '',
+  cliente_contato TEXT NOT NULL DEFAULT '', -- email ou telefone
+  descricao       TEXT NOT NULL,           -- "1x Tela iPhone 13"
+  valor_total     INTEGER NOT NULL,        -- centavos
+  criado_em       TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
 `);
 
 // Primeiro uso: garante um administrador pra conseguir logar (trocar PIN na Config).
@@ -87,6 +98,9 @@ for (const sql of [
   "ALTER TABLE vendas ADD COLUMN cliente TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE trocas ADD COLUMN venda_id INTEGER REFERENCES vendas(id)",
   "ALTER TABLE trocas ADD COLUMN nova_peca_id INTEGER REFERENCES pecas(id)",
+  "ALTER TABLE entradas ADD COLUMN custo_anterior INTEGER", // p/ desfazer entrada revertendo o custo médio
+  "ALTER TABLE trocas ADD COLUMN fornecedor TEXT NOT NULL DEFAULT ''",
+
 ]) {
   try {
     db.exec(sql);

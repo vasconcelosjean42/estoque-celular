@@ -47,12 +47,24 @@ const path = require("path");
     // 2. cadastra produto
     await aba("Estoque");
     await win.click('button:text("+ Novo produto")');
-    await win.fill('label:has-text("Nome") input', "PecaSmoke");
+    await win.fill('label:has-text("Produto") input', "PecaSmoke");
     await win.fill('label:has-text("Quantidade") input', "5");
     await win.fill('label:has-text("Preço de compra") input', "10,00");
     await win.fill('label:has-text("Preço de venda") input', "20,00");
     await win.click('button:text-is("Salvar")');
+    await espera("adicionado"); // cadastro em série: fica no form e lista o que entrou
+    await win.click('button:text-is("Concluir")');
     await espera("PecaSmoke");
+
+    // 2b. entrada muda o custo médio; desfazer volta ao custo original
+    await win.click('tr:has-text("PecaSmoke") button:text("+ Entrada")');
+    await win.fill('label:has-text("Quantidade recebida") input', "7");
+    await win.fill('label:has-text("Preço de compra desta leva") input', "20,00");
+    await win.click('button:text("Confirmar entrada")');
+    await espera("15,83"); // média: (5×10,00 + 7×20,00) / 12
+    await win.click('tr:has-text("+7x PecaSmoke") button:text-is("Desfazer")');
+    await win.waitForSelector("text=+7x PecaSmoke", { state: "detached", timeout: 8000 });
+    await win.waitForSelector('tr:has-text("PecaSmoke") td:has-text("10,00")', { timeout: 8000 }); // custo restaurado
 
     // 3. vende
     await aba("Venda");
@@ -81,6 +93,19 @@ const path = require("path");
     // 7. dashboard renderiza com a venda
     await aba("Dashboard");
     await espera("Histórico de vendas");
+
+    // 7b. nota: liga a flag, vende e gera nota (impressão pulada em modo smoke)
+    await aba("Config");
+    await win.click('label:has-text("Gerar nota após a venda") input');
+    await win.fill('label:has-text("Nome na nota") input', "Loja Teste");
+    await aba("Venda");
+    await win.click('tr:has-text("PecaSmoke") button:text-is("Vender")');
+    await win.click('button:text("Confirmar venda")');
+    await espera("Gerar nota (PDF)");
+    await win.click('button:text-is("Gerar nota (PDF)")');
+    await win.waitForSelector('tr:has-text("PecaSmoke") button:has-text("Reimprimir")', { timeout: 8000 });
+    const nNotas = await win.evaluate(() => window.api.query("SELECT COUNT(*) AS c FROM notas").then((r) => r[0].c));
+    assert.strictEqual(nNotas, 1, "deveria ter criado exatamente 1 nota");
 
     // 8. cria colaborador, loga como ele e confere as permissões
     await aba("Config");

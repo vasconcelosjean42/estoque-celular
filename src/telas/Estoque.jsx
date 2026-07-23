@@ -7,6 +7,7 @@ export const fmtReais = (centavos) =>
 export const parseReais = (texto) => Math.round(parseFloat(String(texto).replace(",", ".")) * 100);
 
 const VAZIA = { nome: "", modelo: "", quantidade: 0, preco_compra: "", preco_venda: "", estoque_minimo: 1 };
+const FIXAVEIS = ["quantidade", "preco_compra", "preco_venda", "estoque_minimo"]; // campos com 📌 no cadastro em série
 
 const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" };
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
@@ -18,6 +19,9 @@ export default function Estoque({ dono = true }) {
   const [entrada, setEntrada] = useState(null); // { peca, quantidade, preco, observacao }
   const [entradas, setEntradas] = useState([]);
   const [ordem, setOrdem] = useState(null); // { col, dir: 1 asc | -1 desc } | null = padrão
+  const [adicionados, setAdicionados] = useState([]); // nomes salvos nesta sessão do formulário
+  const [fixos, setFixos] = useState({}); // { chave: true } = valor continua após salvar
+  const [flashId, setFlashId] = useState(null); // peça destacada após receber entrada
   const [[fSel, fDe, fAte], setFiltroData] = useState(["tudo", "", ""]);
 
   const carregar = () => {
@@ -53,6 +57,7 @@ export default function Estoque({ dono = true }) {
         "UPDATE pecas SET nome=?, modelo=?, quantidade=?, preco_compra=?, preco_venda=?, estoque_minimo=? WHERE id=?",
         [...params, form.id]
       );
+      setForm(null);
     } else {
       const comandos = [
         ["INSERT INTO pecas (nome, modelo, quantidade, preco_compra, preco_venda, estoque_minimo) VALUES (?,?,?,?,?,?)", params],
@@ -65,8 +70,12 @@ export default function Estoque({ dono = true }) {
         ]);
       }
       await window.api.tx(comandos);
+      // Cadastro em série: continua no formulário e lista o que já entrou.
+      setAdicionados([`+${Number(form.quantidade) || 0} ${form.nome.trim()} ${form.modelo.trim()}`.trim(), ...adicionados]);
+      const proximo = { ...VAZIA };
+      FIXAVEIS.forEach((k) => { if (fixos[k]) proximo[k] = form[k]; });
+      setForm(proximo);
     }
-    setForm(null);
     carregar();
   };
 
@@ -79,10 +88,31 @@ export default function Estoque({ dono = true }) {
     const custoMedio = Math.round((qtdAtual * entrada.peca.preco_compra + qtd * preco) / (qtdAtual + qtd));
     await window.api.tx([
       ["UPDATE pecas SET quantidade = quantidade + ?, preco_compra = ? WHERE id = ?", [qtd, custoMedio, entrada.peca.id]],
-      ["INSERT INTO entradas (peca_id, quantidade, preco_compra, observacao) VALUES (?,?,?,?)",
-        [entrada.peca.id, qtd, preco, entrada.observacao.trim()]],
+      ["INSERT INTO entradas (peca_id, quantidade, preco_compra, observacao, custo_anterior) VALUES (?,?,?,?,?)",
+        [entrada.peca.id, qtd, preco, entrada.observacao.trim(), entrada.peca.preco_compra]],
     ]);
     setEntrada(null);
+    carregar();
+    // Destaca a linha da peça que recebeu a entrada e rola até ela.
+    setFlashId(entrada.peca.id);
+    setTimeout(() => document.getElementById(`peca-${entrada.peca.id}`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
+    setTimeout(() => setFlashId(null), 1600);
+  };
+
+  // ponytail: restaura o custo gravado na entrada; entradas antigas (sem
+  // snapshot) desfazem a média ponderada com os números atuais da peça.
+  const desfazerEntrada = async (e) => {
+    if (!confirm(`Desfazer a entrada de +${e.quantidade}x ${e.nome} ${e.modelo}?`)) return;
+    const [p] = await window.api.query("SELECT quantidade, preco_compra FROM pecas WHERE id = ?", [e.peca_id]);
+    const qtdAntes = p.quantidade - e.quantidade;
+    const reverso = qtdAntes > 0
+      ? Math.round((p.quantidade * p.preco_compra - e.quantidade * e.preco_compra) / qtdAntes)
+      : p.preco_compra;
+    const custo = e.custo_anterior ?? Math.max(reverso, 0);
+    await window.api.tx([
+      ["UPDATE pecas SET quantidade = quantidade - ?, preco_compra = ? WHERE id = ?", [e.quantidade, custo, e.peca_id]],
+      ["DELETE FROM entradas WHERE id = ?", [e.id]],
+    ]);
     carregar();
   };
 
@@ -122,22 +152,49 @@ export default function Estoque({ dono = true }) {
   }
 
   if (form) {
-    const campo = (label, chave, type = "text") => (
-      <label style={{ display: "block", marginBottom: 12 }}>
-        <div style={{ fontWeight: "bold", marginBottom: 4 }}>{label}</div>
-        <input
-          style={inp}
-          type={type}
-          value={form[chave]}
-          onChange={(e) => setForm({ ...form, [chave]: e.target.value })}
-        />
-      </label>
-    );
+    const campo = (label, chave, type = "text", lista) => {
+      const fixavel = !form.id && FIXAVEIS.includes(chave);
+      return (
+        <label style={{ display: "block", marginBottom: 12 }}>
+          <div style={{ fontWeight: "bold", marginBottom: 4 }}>{label}</div>
+          <div style={{ position: "relative" }}>
+            <input
+              style={{ ...inp, paddingRight: fixavel ? 40 : 10 }}
+              type={type}
+              list={lista}
+              autoFocus={chave === "nome"}
+              onFocus={(e) => e.target.select()}
+              value={form[chave]}
+              onChange={(e) => setForm({ ...form, [chave]: e.target.value })}
+            />
+            {fixavel && (
+              <button
+                type="button"
+                title={fixos[chave] ? "Fixado: o valor continua após salvar" : "Clique pra manter o valor após salvar"}
+                onClick={(e) => { e.preventDefault(); setFixos({ ...fixos, [chave]: !fixos[chave] }); }}
+                style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", border: "none",
+                  background: "transparent", cursor: "pointer", fontSize: 18, opacity: fixos[chave] ? 1 : 0.3 }}
+              >
+                📌
+              </button>
+            )}
+          </div>
+        </label>
+      );
+    };
     return (
-      <div style={{ maxWidth: 480 }}>
-        <h2>{form.id ? "Editar produto" : "Novo produto"}</h2>
-        {campo("Nome", "nome")}
-        {campo("Modelo", "modelo")}
+      <div style={{ display: "flex", gap: 32, alignItems: "flex-start" }}>
+        <div style={{ maxWidth: 480, flex: 1 }}>
+        <h2 style={{ marginTop: 0 }}>{form.id ? "Editar produto" : "Novo produto"}</h2>
+        {campo("Produto", "nome", "text", "lista-produtos")}
+        {campo("Modelo", "modelo", "text", "lista-modelos")}
+        {/* sugestões vêm do que já existe: digitou algo novo, entra na lista no próximo cadastro */}
+        <datalist id="lista-produtos">
+          {[...new Set(pecas.map((p) => p.nome))].map((n) => <option key={n} value={n} />)}
+        </datalist>
+        <datalist id="lista-modelos">
+          {[...new Set(pecas.map((p) => p.modelo))].filter(Boolean).map((m) => <option key={m} value={m} />)}
+        </datalist>
         {campo("Quantidade", "quantidade", "number")}
         {campo("Preço de compra (R$)", "preco_compra")}
         {campo("Preço de venda (R$)", "preco_venda")}
@@ -147,9 +204,20 @@ export default function Estoque({ dono = true }) {
             Salvar
           </button>
           <button style={{ ...btn, background: "#e2e8f0" }} onClick={() => setForm(null)}>
-            Cancelar
+            {adicionados.length ? "Concluir" : "Cancelar"}
           </button>
         </div>
+        </div>
+        {adicionados.length > 0 && (
+          <div style={{ minWidth: 240 }}>
+            <h3 style={{ marginTop: 0 }}>Adicionados agora</h3>
+            {adicionados.map((n, i) => (
+              <div key={i} style={{ color: "#16a34a", fontWeight: "bold", padding: "4px 0", fontSize: 15 }}>
+                ✔ {n} adicionado
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -188,7 +256,7 @@ export default function Estoque({ dono = true }) {
           onChange={(e) => setBusca(e.target.value)}
         />
         {dono && (
-          <button style={{ ...btn, background: "#38bdf8", color: "#0f172a" }} onClick={() => setForm(VAZIA)}>
+          <button style={{ ...btn, background: "#38bdf8", color: "#0f172a" }} onClick={() => { setForm(VAZIA); setAdicionados([]); }}>
             + Novo produto
           </button>
         )}
@@ -214,8 +282,10 @@ export default function Estoque({ dono = true }) {
             return (
               <tr
                 key={p.id}
+                id={`peca-${p.id}`}
                 onClick={dono ? () => setForm({ ...p, preco_compra: (p.preco_compra / 100).toFixed(2).replace(".", ","), preco_venda: (p.preco_venda / 100).toFixed(2).replace(".", ",") }) : undefined}
-                style={{ borderBottom: "1px solid #e2e8f0", cursor: dono ? "pointer" : "default", background: baixo ? "#fef2f2" : undefined }}
+                style={{ borderBottom: "1px solid #e2e8f0", cursor: dono ? "pointer" : "default", transition: "background .8s",
+                  background: flashId === p.id ? "#86efac" : baixo ? "#fef2f2" : undefined }}
               >
                 <td style={{ padding: 8, fontWeight: "bold" }}>
                   {p.nome} {baixo && <span style={{ color: "#dc2626" }} title="Estoque baixo">⚠</span>}
@@ -272,6 +342,11 @@ export default function Estoque({ dono = true }) {
               <td style={{ padding: 8, fontWeight: "bold" }}>+{e.quantidade}x {e.nome} {e.modelo}</td>
               <td style={{ padding: 8 }}>compra {fmtReais(e.preco_compra)}</td>
               <td style={{ padding: 8, color: "#64748b" }}>{e.observacao}</td>
+              <td style={{ padding: 8, textAlign: "right" }}>
+                <button style={{ ...btn, padding: "6px 12px", fontSize: 14, background: "#fee2e2", color: "#dc2626" }} onClick={() => desfazerEntrada(e)}>
+                  Desfazer
+                </button>
+              </td>
             </tr>
           ))}
           {entradas.length === 0 && (
