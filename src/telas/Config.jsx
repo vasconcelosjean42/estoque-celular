@@ -34,6 +34,8 @@ export default function Config({ aoMudar }) {
   const [pin, setPin] = useState("");
   const [usuarios, setUsuarios] = useState([]);
   const [novoUsuario, setNovoUsuario] = useState(null); // { nome, pin, papel }
+  const [appInfo, setAppInfo] = useState(null); // { versao, empacotado }
+  const [upd, setUpd] = useState(null); // status do update vindo do main
 
   const carregarUsuarios = () =>
     window.api.query("SELECT * FROM usuarios ORDER BY papel DESC, nome").then(setUsuarios);
@@ -41,6 +43,8 @@ export default function Config({ aoMudar }) {
   useEffect(() => {
     lerConfig().then(setCfg);
     carregarUsuarios();
+    window.api.appInfo?.().then(setAppInfo);
+    window.api.onUpdateStatus?.(setUpd);
   }, []);
 
   if (!cfg) return null;
@@ -55,6 +59,22 @@ export default function Config({ aoMudar }) {
     setMsgBackup("Fazendo backup…");
     const r = await window.api.backupAgora();
     setMsgBackup(r.ok ? `✔ Backup salvo em ${r.destino}` : `✖ ${r.erro}`);
+  };
+
+  const verificarUpdate = async () => {
+    setUpd({ estado: "checando" });
+    const r = await window.api.checkUpdate?.();
+    if (r?.erro) setUpd({ estado: "erro", msg: r.erro });
+  };
+
+  const textoUpdate = (u) => {
+    if (!u) return "";
+    if (u.estado === "checando") return "Verificando…";
+    if (u.estado === "baixando") return `Baixando atualização${u.pct != null ? ` ${u.pct}%` : ""}…`;
+    if (u.estado === "atual") return "✔ Você já está na versão mais recente.";
+    if (u.estado === "pronto") return `✔ Versão ${u.versao} baixada. Clique para instalar.`;
+    if (u.estado === "erro") return `✖ ${u.msg}`;
+    return "";
   };
 
   const salvarPinUsuario = async (u, valor) => {
@@ -169,6 +189,32 @@ export default function Config({ aoMudar }) {
 
   return (
     <div style={{ maxWidth: 640 }}>
+      <div style={bloco}>
+        <h3 style={{ marginTop: 0 }}>Sobre / Atualização</h3>
+        <div style={{ fontSize: 16, marginBottom: 10 }}>
+          Versão instalada: <strong>{appInfo ? appInfo.versao : "…"}</strong>
+        </div>
+        {appInfo && !appInfo.empacotado ? (
+          <div style={{ fontSize: 14, color: "#64748b" }}>
+            Modo desenvolvimento — atualização automática só funciona no app instalado.
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button style={btn} disabled={upd?.estado === "checando" || upd?.estado === "baixando"} onClick={verificarUpdate}>
+                Verificar atualização
+              </button>
+              {upd?.estado === "pronto" && (
+                <button style={{ ...btn, background: "#22c55e", color: "white" }} onClick={() => window.api.installUpdate()}>
+                  Instalar e reiniciar
+                </button>
+              )}
+            </div>
+            {upd && <div style={{ marginTop: 8, fontSize: 15, color: upd.estado === "erro" ? "#dc2626" : "#334155" }}>{textoUpdate(upd)}</div>}
+          </>
+        )}
+      </div>
+
       <div style={bloco}>
         <h3 style={{ marginTop: 0 }}>Título do sistema</h3>
         <input

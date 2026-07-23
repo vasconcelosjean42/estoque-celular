@@ -112,15 +112,30 @@ app.whenReady().then(() => {
     app.setLoginItemSettings({ openAtLogin: !row || row.valor !== "0" }); // ligado por padrão
   }
 
-  // Auto-update via GitHub Releases: baixa em background, instala ao fechar.
-  // Banco fica em userData — o update não toca nos dados.
-  if (app.isPackaged) {
-    try {
-      const { autoUpdater } = require("electron-updater");
-      autoUpdater.checkForUpdatesAndNotify().catch((e) => console.error("update:", e.message));
-    } catch (e) {
-      console.error("updater indisponível:", e.message);
-    }
+  ipcMain.handle("app-info", () => ({ versao: app.getVersion(), empacotado: app.isPackaged }));
+
+  // Auto-update via GitHub Releases: banco fica em userData, o update não toca nos dados.
+  let autoUpdater;
+  try { autoUpdater = require("electron-updater").autoUpdater; } catch (e) { console.error("updater indisponível:", e.message); }
+
+  if (autoUpdater) {
+    const envia = (estado, extra = {}) =>
+      BrowserWindow.getAllWindows()[0]?.webContents.send("update-status", { estado, ...extra });
+    autoUpdater.on("checking-for-update", () => envia("checando"));
+    autoUpdater.on("update-available", (i) => envia("baixando", { versao: i.version }));
+    autoUpdater.on("update-not-available", () => envia("atual"));
+    autoUpdater.on("download-progress", (p) => envia("baixando", { pct: Math.round(p.percent) }));
+    autoUpdater.on("update-downloaded", (i) => envia("pronto", { versao: i.version }));
+    autoUpdater.on("error", (e) => envia("erro", { msg: e.message }));
+
+    ipcMain.handle("check-update", async () => {
+      if (!app.isPackaged) return { erro: "Atualização só funciona no app instalado." };
+      try { await autoUpdater.checkForUpdates(); return {}; }
+      catch (e) { return { erro: e.message }; }
+    });
+    ipcMain.handle("install-update", () => { if (app.isPackaged) autoUpdater.quitAndInstall(); });
+
+    if (app.isPackaged) autoUpdater.checkForUpdatesAndNotify().catch((e) => console.error("update:", e.message));
   }
 
   backupDiario();

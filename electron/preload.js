@@ -10,4 +10,8 @@ contextBridge.exposeInMainWorld("api", {
   confirmar: (msg) => ipcRenderer.sendSync("dialogo", { tipo: "confirm", msg: String(msg) }) === 0,
   gerarNotaPdf: (html, numero) => ipcRenderer.invoke("nota-pdf", { html, numero }),
   autoStart: (ligado) => ipcRenderer.invoke("auto-start", ligado),
+  appInfo: () => ipcRenderer.invoke("app-info"),
+  checkUpdate: () => ipcRenderer.invoke("check-update"),
+  installUpdate: () => ipcRenderer.invoke("install-update"),
+  onUpdateStatus: (cb) => ipcRenderer.on("update-status", (_e, d) => cb(d)),
 });
