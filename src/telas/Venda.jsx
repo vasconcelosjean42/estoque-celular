@@ -21,6 +21,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, aoTro
   const [trocasVenda, setTrocasVenda] = useState([]); // trocas vinculadas a vendas (cadeia A → B → C)
   const [notasPorVenda, setNotasPorVenda] = useState({}); // venda_id → nota (p/ reimprimir)
   const [notaVenda, setNotaVenda] = useState(null); // venda recém-confirmada aguardando nota
+  const [flashId, setFlashId] = useState(null); // venda destacada após confirmar
   const [busca, setBusca] = useState("");
   const [venda, setVenda] = useState(null); // { peca, qtd, preco, maoDeObra, forma }
   const [[fSel, fDe, fAte], setFiltroData] = useState(() => ["hoje", ...calcAtalho("hoje")]);
@@ -90,6 +91,11 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, aoTro
     setVenda(null);
     setBusca("");
     carregar();
+    // Destaca a venda recém-registrada na lista e rola até ela.
+    const novaId = res[1].lastInsertRowid;
+    setFlashId(novaId);
+    setTimeout(() => document.getElementById(`venda-${novaId}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 50);
+    setTimeout(() => setFlashId(null), 1600);
   };
 
   const notaClick = (v) => {
@@ -226,7 +232,8 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, aoTro
             const trocada = cadeia.length > 0;
             return (
               <React.Fragment key={v.id}>
-                <tr style={{ borderBottom: trocada ? "none" : "1px solid #e2e8f0", background: trocada ? "#fffbeb" : undefined }}>
+                <tr id={`venda-${v.id}`} style={{ borderBottom: trocada ? "none" : "1px solid #e2e8f0", transition: "background .8s",
+                  background: flashId === v.id ? "#86efac" : trocada ? "#fffbeb" : undefined }}>
                   <td style={{ padding: 8, color: "#64748b" }}>{v.criado_em.slice(11, 16)}</td>
                   <td style={{ padding: 8 }}>
                     {v.quantidade}x {v.nome} {v.modelo}
