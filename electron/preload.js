@@ -6,4 +6,6 @@ contextBridge.exposeInMainWorld("api", {
   escolherPasta: () => ipcRenderer.invoke("escolher-pasta"),
   escolherLogo: () => ipcRenderer.invoke("escolher-logo"),
   backupAgora: () => ipcRenderer.invoke("backup-agora"),
+  alerta: (msg) => { ipcRenderer.sendSync("dialogo", { tipo: "alert", msg: String(msg) }); },
+  confirmar: (msg) => ipcRenderer.sendSync("dialogo", { tipo: "confirm", msg: String(msg) }) === 0,
 });

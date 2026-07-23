@@ -3,12 +3,14 @@ import Estoque from "./telas/Estoque.jsx";
 import Venda from "./telas/Venda.jsx";
 import Dashboard from "./telas/Dashboard.jsx";
 import Config, { lerConfig } from "./telas/Config.jsx";
+import Trocas from "./telas/Trocas.jsx";
 
 const TELAS = ["Estoque", "Venda", "Dashboard", "Trocas", "Config"];
 
 export default function App() {
   const [tela, setTela] = useState("Estoque");
   const [cfg, setCfg] = useState({});
+  const [trocaDe, setTrocaDe] = useState(null); // venda levada da aba Venda pra Trocas
 
   const carregarCfg = () => lerConfig().then(setCfg);
 
@@ -50,8 +52,9 @@ export default function App() {
       </nav>
       <main style={{ flex: 1, padding: 24, overflow: "auto" }}>
         {tela === "Estoque" ? <Estoque />
-          : tela === "Venda" ? <Venda maoDeObraOn={cfg.mao_de_obra !== "0"} />
+          : tela === "Venda" ? <Venda maoDeObraOn={cfg.mao_de_obra !== "0"} aoTrocar={(v) => { setTrocaDe(v); setTela("Trocas"); }} />
           : tela === "Dashboard" ? <Dashboard />
+          : tela === "Trocas" ? <Trocas vendaTroca={trocaDe} aoConsumir={() => setTrocaDe(null)} />
           : tela === "Config" ? <Config aoMudar={carregarCfg} />
           : <h1>{tela}</h1>}
       </main>

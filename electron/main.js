@@ -62,6 +62,18 @@ app.whenReady().then(() => {
 
   ipcMain.handle("backup-agora", () => backupDiario());
 
+  // alert/confirm do Chromium travam mouse/teclado no Windows até a janela
+  // perder o foco (bug do Electron) — diálogo do sistema no lugar.
+  ipcMain.on("dialogo", (e, { tipo, msg }) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    e.returnValue = dialog.showMessageBoxSync(win, {
+      type: tipo === "confirm" ? "question" : "info",
+      message: msg,
+      buttons: tipo === "confirm" ? ["OK", "Cancelar"] : ["OK"],
+      cancelId: 1,
+    });
+  });
+
   backupDiario();
   setInterval(backupDiario, 3600 * 1000); // loja fica aberta o dia todo
   createWindow();

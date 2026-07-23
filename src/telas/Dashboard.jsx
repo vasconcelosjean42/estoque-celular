@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { fmtReais } from "./Estoque.jsx";
 import { FORMAS } from "./Venda.jsx";
+import FiltroData, { isoDia } from "./FiltroData.jsx";
 
 const FAT = "SUM(preco_venda * quantidade + mao_de_obra)";
 const LUCRO = "SUM((preco_venda - preco_compra) * quantidade + mao_de_obra)";
@@ -12,18 +13,14 @@ const PERIODOS = [
   ["Este ano", "strftime('%Y', criado_em) = strftime('%Y', 'now', 'localtime')"],
 ];
 
-const isoDia = (date) => {
-  const d = new Date(date);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
-
 export default function Dashboard() {
   const [cards, setCards] = useState([]);
   const [fechamento, setFechamento] = useState([]);
   const [porDia, setPorDia] = useState([]);
   const [historico, setHistorico] = useState([]);
-  const [de, setDe] = useState("");
-  const [ate, setAte] = useState("");
+  const [de, setDe] = useState(() => isoDia(Date.now()));
+  const [ate, setAte] = useState(() => isoDia(Date.now()));
+  const [atalhoSel, setAtalhoSel] = useState("hoje"); // null = período manual
   const [hoverDia, setHoverDia] = useState(null);
   const [pagina, setPagina] = useState(0);
   const [diaSel, setDiaSel] = useState(null); // { chave, rotulo, formas: [{forma_pagamento, total}] }
@@ -73,15 +70,6 @@ export default function Dashboard() {
       .then(setHistorico);
     setPagina(0);
   }, [de, ate]);
-
-  const hoje = new Date();
-  const atalhos = [
-    ["Hoje", () => [isoDia(hoje), isoDia(hoje)]],
-    ["Ontem", () => { const d = isoDia(hoje.getTime() - 86400000); return [d, d]; }],
-    ["Esta semana", () => [isoDia(hoje.getTime() - ((hoje.getDay() + 6) % 7) * 86400000), isoDia(hoje)]],
-    ["Este mês", () => [`${isoDia(hoje).slice(0, 8)}01`, isoDia(hoje)]],
-    ["Tudo", () => ["", ""]],
-  ];
 
   const totalFiltro = historico.reduce((s, v) => s + v.preco_venda * v.quantidade + v.mao_de_obra, 0);
   const lucroFiltro = historico.reduce((s, v) => s + (v.preco_venda - v.preco_compra) * v.quantidade + v.mao_de_obra, 0);
@@ -239,18 +227,12 @@ export default function Dashboard() {
 
       <h3>Histórico de vendas</h3>
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
-        <input type="date" value={de} onChange={(e) => setDe(e.target.value)}
+        <input type="date" value={de} onChange={(e) => { setAtalhoSel(null); setDe(e.target.value); }}
           style={{ padding: 8, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1" }} />
         <span>até</span>
-        <input type="date" value={ate} onChange={(e) => setAte(e.target.value)}
+        <input type="date" value={ate} onChange={(e) => { setAtalhoSel(null); setAte(e.target.value); }}
           style={{ padding: 8, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1" }} />
-        {atalhos.map(([rotulo, calc]) => (
-          <button key={rotulo}
-            onClick={() => { const [d, a] = calc(); setDe(d); setAte(a); }}
-            style={{ padding: "8px 14px", fontSize: 14, fontWeight: "bold", border: "none", borderRadius: 6, cursor: "pointer", background: "#e2e8f0", color: "#334155" }}>
-            {rotulo}
-          </button>
-        ))}
+        <FiltroData sel={atalhoSel} aoEscolher={(chave, d, a) => { setAtalhoSel(chave); setDe(d); setAte(a); }} />
         <button onClick={exportarExcel} disabled={!historico.length}
           style={{ padding: "8px 14px", fontSize: 14, fontWeight: "bold", border: "none", borderRadius: 6, cursor: "pointer", background: "#16a34a", color: "white", marginLeft: "auto" }}>
           ⬇ Exportar Excel
