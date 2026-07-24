@@ -167,18 +167,27 @@ export default function Config({ aoMudar }) {
   const desativarDemo = async () => {
     try {
       const ids = JSON.parse(cfg.demo_ids);
-      const em = (lista) => lista.join(",") || "0";
+      const em = (lista) => (lista || []).join(",") || "0";
       const p = em(ids.pecas);
-      // Apaga os registros da demo E qualquer registro criado por cima de produto
-      // fictício (venda/entrada de teste manual) — senão a FK trava tudo.
+      const vendasDemo = `SELECT id FROM vendas WHERE id IN (${em(ids.vendas)}) OR peca_id IN (${p})`;
+      // Apaga o que é da demo e solta o que é real: registro do dono criado por
+      // cima de produto fictício perde só a referência, não some.
+      //
+      // ATENÇÃO: toda FK nova que apontar para pecas/vendas/lotes tem que entrar
+      // aqui, senão o desativar volta a morrer com "FOREIGN KEY constraint
+      // failed". Coberto pelo caso 39 do test/p0.js.
       await window.api.tx([
-        [`DELETE FROM vendas WHERE id IN (${em(ids.vendas)}) OR peca_id IN (${p})`, []],
+        [`UPDATE notas  SET venda_id = NULL WHERE venda_id IN (${vendasDemo})`, []],
+        [`UPDATE trocas SET venda_id = NULL WHERE venda_id IN (${vendasDemo})`, []],
+        [`DELETE FROM vendas   WHERE id IN (${em(ids.vendas)})   OR peca_id IN (${p})`, []],
         [`DELETE FROM entradas WHERE id IN (${em(ids.entradas)}) OR peca_id IN (${p})`, []],
-        [`UPDATE trocas SET peca_id = NULL WHERE peca_id IN (${p})`, []],
+        [`UPDATE trocas SET peca_id = NULL      WHERE peca_id IN (${p})`, []],
+        [`UPDATE trocas SET nova_peca_id = NULL WHERE nova_peca_id IN (${p})`, []],
         [`DELETE FROM trocas WHERE id IN (${em(ids.trocas)})`, []],
-        [`DELETE FROM lotes WHERE id IN (${em(ids.lotes)})`, []],
+        [`UPDATE trocas SET lote_id = NULL WHERE lote_id IN (${em(ids.lotes)})`, []],
+        [`DELETE FROM lotes    WHERE id IN (${em(ids.lotes)})`, []],
         [`DELETE FROM creditos WHERE id IN (${em(ids.creditos)})`, []],
-        [`DELETE FROM pecas WHERE id IN (${p})`, []],
+        [`DELETE FROM pecas    WHERE id IN (${p})`, []],
         ["DELETE FROM config WHERE chave = 'demo_ids'", []],
       ]);
       location.reload();

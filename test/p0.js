@@ -58,6 +58,14 @@ const path = require("path");
     await win.waitForSelector("text=adicionado", { timeout: 8000 });
     await win.click('button:text-is("Concluir")');
   };
+  // Botão invisível no canto inferior direito da Config -> PIN de dev.
+  const abrirDev = async () => {
+    await aba("Config");
+    await win.click('button[aria-hidden="true"]');
+    await win.fill('input[placeholder="Senha (4 dígitos)"]', "4242");
+    await win.click('button:text-is("Entrar")');
+    await win.waitForSelector("text=Config de desenvolvedor", { timeout: 8000 });
+  };
   const codigoDe = async (nome, modelo) =>
     (await um("SELECT codigo FROM pecas WHERE nome = ? AND modelo = ?", [nome, modelo]))?.codigo;
   const peca = (id) => um("SELECT * FROM pecas WHERE id = ?", [id]);
@@ -387,6 +395,54 @@ const path = require("path");
       assert.strictEqual(await codigoDe("Tela", "Legado"), "TE003", "segue a numeração das telas que já existiam");
       assert.strictEqual((await um("SELECT COUNT(*) AS n FROM pecas WHERE codigo = ''")).n, 0,
         "nenhum produto pode ficar sem código");
+    });
+
+    console.log("\nPainel de desenvolvedor");
+
+    await caso("39. desativar demo apaga o fictício e preserva o real por cima dele", async () => {
+      const conta = async () =>
+        await um(`SELECT (SELECT COUNT(*) FROM pecas) AS pecas, (SELECT COUNT(*) FROM vendas) AS vendas,
+                         (SELECT COUNT(*) FROM trocas) AS trocas, (SELECT COUNT(*) FROM notas) AS notas`);
+      const antes = await conta();
+
+      await abrirDev();
+      await win.click('button:text("Ativar dados de demonstração")');
+      await win.waitForSelector("text=Quem está usando?", { timeout: 60000 });
+      await login("Administrador", "1234");
+      await win.waitForSelector("text=+ Novo produto", { timeout: 8000 });
+
+      // O que quebrou de verdade: troca e nota do dono em cima de produto/venda
+      // fictícios — trocas.venda_id, trocas.nova_peca_id e notas.venda_id.
+      const demo = JSON.parse((await um("SELECT valor FROM config WHERE chave = 'demo_ids'")).valor);
+      assert(demo.pecas.length === 40, "a demo deveria ter criado 40 produtos");
+      await sql(
+        "INSERT INTO trocas (modelo, defeito, valor_compra, peca_id, venda_id, nova_peca_id) VALUES ('Real sobre demo','defeito',1000,?,?,?)",
+        [demo.pecas[0], demo.vendas[0], demo.pecas[1]]
+      );
+      await sql("INSERT INTO notas (venda_id, numero, descricao, valor_total) VALUES (?, 9999, '1x demo', 1000)",
+        [demo.vendas[0]]);
+
+      await abrirDev();
+      await win.click('button:text("Desativar e apagar dados fictícios")');
+      await win
+        .waitForSelector("text=Quem está usando?", { timeout: 60000 })
+        .catch(() => { throw new Error("desativar falhou — o app não recarregou (FK esquecida?)"); });
+      await login("Administrador", "1234");
+      await win.waitForSelector("text=+ Novo produto", { timeout: 8000 });
+
+      const depois = await conta();
+      assert.strictEqual(depois.pecas, antes.pecas, "todo produto fictício tem que sair");
+      assert.strictEqual(depois.vendas, antes.vendas, "toda venda fictícia tem que sair");
+      assert.strictEqual((await um("SELECT COUNT(*) AS n FROM config WHERE chave = 'demo_ids'")).n, 0);
+
+      const t = await um("SELECT * FROM trocas WHERE modelo = 'Real sobre demo'");
+      assert(t, "a troca real não podia ser apagada junto");
+      assert.strictEqual(t.venda_id, null, "só a referência à venda fictícia sai");
+      assert.strictEqual(t.peca_id, null);
+      assert.strictEqual(t.nova_peca_id, null);
+      const n = await um("SELECT * FROM notas WHERE numero = 9999");
+      assert(n, "a nota real não podia ser apagada junto");
+      assert.strictEqual(n.venda_id, null);
     });
 
     console.log("\nUsuários e permissões");
