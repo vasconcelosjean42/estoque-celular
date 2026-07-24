@@ -4,7 +4,16 @@ import FiltroData, { sufixoTitulo } from "./FiltroData.jsx";
 export const fmtReais = (centavos) =>
   (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-export const parseReais = (texto) => Math.round(parseFloat(String(texto).replace(",", ".")) * 100);
+// Aceita "1.500,00", "1500,00", "10,5" e "10.50" (ponto decimal do teclado numérico).
+// Com vírgula: ela é o decimal e os pontos são milhar. Sem vírgula: ponto seguido de
+// 3 dígitos é milhar ("1.500" = mil e quinhentos), senão é decimal ("10.50" = dez e cinquenta).
+export const parseReais = (texto) => {
+  const s = String(texto).trim();
+  const limpo = s.includes(",")
+    ? s.replace(/\./g, "").replace(",", ".")
+    : s.replace(/\.(\d{3})(?=\D|$)/g, "$1");
+  return Math.round(parseFloat(limpo) * 100);
+};
 
 const VAZIA = { nome: "", modelo: "", quantidade: 0, preco_compra: "", preco_venda: "", estoque_minimo: 1 };
 const FIXAVEIS = ["quantidade", "preco_compra", "preco_venda", "estoque_minimo"]; // campos com 📌 no cadastro em série
@@ -102,8 +111,13 @@ export default function Estoque({ dono = true }) {
   // ponytail: restaura o custo gravado na entrada; entradas antigas (sem
   // snapshot) desfazem a média ponderada com os números atuais da peça.
   const desfazerEntrada = async (e) => {
-    if (!confirm(`Desfazer a entrada de +${e.quantidade}x ${e.nome} ${e.modelo}?`)) return;
     const [p] = await window.api.query("SELECT quantidade, preco_compra FROM pecas WHERE id = ?", [e.peca_id]);
+    // Sem isto o estoque ficava negativo quando a leva já tinha sido vendida.
+    if (p.quantidade < e.quantidade) {
+      alert(`Não dá para desfazer: entraram ${e.quantidade}x ${e.nome} ${e.modelo}, mas só ${p.quantidade} continuam em estoque (o resto já saiu em venda ou troca).\n\nSe precisa acertar o estoque, edite a quantidade direto no produto.`);
+      return;
+    }
+    if (!confirm(`Desfazer a entrada de +${e.quantidade}x ${e.nome} ${e.modelo}?`)) return;
     const qtdAntes = p.quantidade - e.quantidade;
     const reverso = qtdAntes > 0
       ? Math.round((p.quantidade * p.preco_compra - e.quantidade * e.preco_compra) / qtdAntes)
@@ -116,9 +130,23 @@ export default function Estoque({ dono = true }) {
     carregar();
   };
 
+  // Venda/troca é histórico: o banco barra o DELETE (FK) e antes disso o clique não
+  // fazia nada. Entrada sozinha não é histórico — sai junto com a peça.
   const excluir = async (p) => {
+    const [{ n }] = await window.api.query(
+      `SELECT (SELECT COUNT(*) FROM vendas WHERE peca_id = ?)
+            + (SELECT COUNT(*) FROM trocas WHERE peca_id = ? OR nova_peca_id = ?) AS n`,
+      [p.id, p.id, p.id]
+    );
+    if (n) {
+      alert(`"${p.nome} ${p.modelo}" já tem ${n} venda(s)/troca(s) registrada(s) e não pode ser excluído — o histórico e o lucro do período seriam perdidos.\n\nSe a peça saiu de linha, deixe a quantidade em 0.`);
+      return;
+    }
     if (!confirm(`Excluir "${p.nome} ${p.modelo}"?`)) return;
-    await window.api.query("DELETE FROM pecas WHERE id=?", [p.id]);
+    await window.api.tx([
+      ["DELETE FROM entradas WHERE peca_id = ?", [p.id]],
+      ["DELETE FROM pecas WHERE id = ?", [p.id]],
+    ]);
     carregar();
   };
 

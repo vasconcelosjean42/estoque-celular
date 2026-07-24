@@ -9,4 +9,12 @@ if (window.api?.alerta) {
   window.confirm = (msg) => window.api.confirmar(msg);
 }
 
+// Nenhuma tela trata erro de SQL. Sem isto a operação falhava calada e o usuário
+// achava que tinha dado certo. Rede de segurança única para todas as telas.
+window.addEventListener("unhandledrejection", (e) => {
+  e.preventDefault();
+  console.error("operação falhou:", e.reason); // fica no log p/ diagnóstico e p/ os testes
+  window.alert(`Não foi possível concluir a operação.\n\n${e.reason?.message || e.reason}`);
+});
+
 createRoot(document.getElementById("root")).render(<App />);

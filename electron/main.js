@@ -5,6 +5,19 @@ const fs = require("fs");
 // Smoke test (test/smoke.js): banco isolado num diretório temporário.
 if (process.env.ESTOQUE_DB_DIR) app.setPath("userData", process.env.ESTOQUE_DB_DIR);
 
+// Dois cliques no ícone abriam duas janelas no mesmo banco: a segunda mostrava
+// estoque velho e sobrescrevia o da primeira. Agora a 2ª só foca a que já existe.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+  return; // módulo CommonJS: nada mais é registrado nesta instância
+}
+app.on("second-instance", () => {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.focus();
+});
+
 let db;
 
 async function backupDiario() {

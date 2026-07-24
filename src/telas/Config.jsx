@@ -337,7 +337,10 @@ export default function Config({ aoMudar }) {
             <strong style={{ flex: 1 }}>{u.nome}</strong>
             <span style={{ color: "#64748b" }}>{u.papel === "dono" ? "administrador" : "colaborador"}</span>
             <span>PIN:</span>
-            <input value={u.pin} onChange={(e) => salvarPinUsuario(u, e.target.value)}
+            {/* onBlur: PIN incompleto não é salvo — recarregar evita a tela mostrar
+                um PIN que não é o do banco (dono achava que tinha trocado e não trocou). */}
+            <input value={u.pin} aria-label={`PIN de ${u.nome}`}
+              onChange={(e) => salvarPinUsuario(u, e.target.value)} onBlur={carregarUsuarios}
               style={{ padding: 6, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1", width: 64, textAlign: "center" }} />
             <button style={{ ...btn, padding: "6px 12px", fontSize: 14, background: "#fee2e2", color: "#dc2626" }} onClick={() => removerUsuario(u)}>
               Remover

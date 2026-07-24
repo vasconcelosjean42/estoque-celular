@@ -6,7 +6,7 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "test": "vite build && node test/smoke.js",
+    "test": "vite build && node test/smoke.js && node test/p0.js",
     "build": "vite build && electron-builder --win"
   },
   "dependencies": {
