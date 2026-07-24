@@ -5,8 +5,11 @@ import Dashboard from "./telas/Dashboard.jsx";
 import Config, { lerConfig } from "./telas/Config.jsx";
 import Trocas from "./telas/Trocas.jsx";
 import Login from "./telas/Login.jsx";
+import Fechamento from "./telas/Fechamento.jsx";
 
 const TELAS = ["Estoque", "Venda", "Dashboard", "Trocas", "Config"];
+// Colaborador fecha a gaveta no fim do expediente sem depender do administrador.
+const TELAS_COLABORADOR = ["Estoque", "Venda", "Fechamento"];
 
 export default function App() {
   const [tela, setTela] = useState("Estoque");
@@ -28,7 +31,7 @@ export default function App() {
 
   if (!usuario) return <Login aoEntrar={(u) => { setUsuario(u); setTela("Estoque"); }} />;
   const dono = usuario.papel === "dono";
-  const telas = dono ? TELAS : ["Estoque", "Venda"];
+  const telas = dono ? TELAS : TELAS_COLABORADOR;
 
   return (
     <div style={{ fontFamily: "sans-serif", height: "100vh", display: "flex", flexDirection: "column" }}>
@@ -66,7 +69,8 @@ export default function App() {
       </nav>
       <main style={{ flex: 1, padding: 24, overflow: "auto" }}>
         {tela === "Estoque" ? <Estoque dono={dono} />
-          : tela === "Venda" ? <Venda maoDeObraOn={cfg.mao_de_obra !== "0"} dono={dono} cfg={cfg} aoTrocar={(v) => { setTrocaDe(v); setTela("Trocas"); }} />
+          : tela === "Venda" ? <Venda maoDeObraOn={cfg.mao_de_obra !== "0"} dono={dono} cfg={cfg} usuario={usuario} aoTrocar={(v) => { setTrocaDe(v); setTela("Trocas"); }} />
+          : tela === "Fechamento" ? <Fechamento destaque />
           : tela === "Dashboard" ? <Dashboard />
           : tela === "Trocas" ? <Trocas vendaTroca={trocaDe} aoConsumir={() => setTrocaDe(null)} />
           : tela === "Config" ? <Config aoMudar={carregarCfg} />

@@ -89,7 +89,12 @@ export default function Config({ aoMudar }) {
       return;
     }
     if (!confirm(`Tem certeza que quer excluir o usuário "${u.nome}"?`)) return;
-    await window.api.query("DELETE FROM usuarios WHERE id = ?", [u.id]);
+    // As vendas dele continuam no histórico, só perdem o nome do vendedor —
+    // sem isto a FK barraria a exclusão de quem já vendeu.
+    await window.api.tx([
+      ["UPDATE vendas SET usuario_id = NULL WHERE usuario_id = ?", [u.id]],
+      ["DELETE FROM usuarios WHERE id = ?", [u.id]],
+    ]);
     carregarUsuarios();
   };
 
@@ -351,7 +356,7 @@ export default function Config({ aoMudar }) {
             <input value={u.pin} aria-label={`PIN de ${u.nome}`}
               onChange={(e) => salvarPinUsuario(u, e.target.value)} onBlur={carregarUsuarios}
               style={{ padding: 6, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1", width: 64, textAlign: "center" }} />
-            <button style={{ ...btn, padding: "6px 12px", fontSize: 14, background: "#fee2e2", color: "#dc2626" }} onClick={() => removerUsuario(u)}>
+            <button aria-label={`Remover ${u.nome}`} style={{ ...btn, padding: "6px 12px", fontSize: 14, background: "#fee2e2", color: "#dc2626" }} onClick={() => removerUsuario(u)}>
               Remover
             </button>
           </div>

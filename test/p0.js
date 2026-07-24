@@ -463,6 +463,46 @@ const path = require("path");
       assert.strictEqual(n.venda_id, null);
     });
 
+    console.log("\nFechamento e vendedor (passo 11)");
+
+    await caso("40. venda grava quem estava logado", async () => {
+      const admin = await um("SELECT id FROM usuarios WHERE nome = 'Administrador'");
+      const id = await novaPeca("P40", 5, 10000, 20000);
+      await vender("P40");
+      assert.strictEqual((await vendasDe(id))[0].usuario_id, admin.id);
+    });
+
+    await caso("41. Dashboard filtra o histórico por vendedor", async () => {
+      const u = (await sql("INSERT INTO usuarios (nome, pin, papel) VALUES ('Vendedor2','2222','funcionario')")).lastInsertRowid;
+      const id = await novaPeca("P41", 5, 10000, 20000);
+      await sql("INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, usuario_id) VALUES (?,1,20000,10000,?)", [id, u]);
+      await aba("Dashboard");
+      await win.click('button:text-is("Tudo")');
+      await win.waitForTimeout(400);
+      const todos = await win.locator("tbody tr").count();
+      assert(todos > 1, "o histórico deveria ter várias vendas");
+      await win.selectOption("select", { label: "Vendedor2" });
+      await win.waitForTimeout(400);
+      assert.strictEqual(await win.locator('tbody tr:has-text("P41")').count(), 1, "a venda dele aparece");
+      assert.strictEqual(await win.locator("tbody tr").count(), 1, "e só a dele");
+      await win.selectOption("select", { label: "Todos os vendedores" });
+      await win.waitForTimeout(400);
+      assert.strictEqual(await win.locator("tbody tr").count(), todos, "voltar para todos restaura a lista");
+    });
+
+    await caso("42. excluir usuário que já vendeu preserva a venda", async () => {
+      const u = (await sql("INSERT INTO usuarios (nome, pin, papel) VALUES ('Temp','9999','funcionario')")).lastInsertRowid;
+      const id = await novaPeca("P42", 5, 10000, 20000);
+      await sql("INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, usuario_id) VALUES (?,1,20000,10000,?)", [id, u]);
+      await aba("Config");
+      await win.click('button[aria-label="Remover Temp"]');
+      await win.waitForSelector('button[aria-label="Remover Temp"]', { state: "detached", timeout: 8000 });
+      assert.strictEqual(await um("SELECT id FROM usuarios WHERE nome = 'Temp'"), undefined, "usuário sai");
+      const [v] = await vendasDe(id);
+      assert(v, "a venda dele não pode sumir junto");
+      assert.strictEqual(v.usuario_id, null, "só perde o nome do vendedor");
+    });
+
     console.log("\nUsuários e permissões");
 
     await caso("32. PIN só é salvo com 4 dígitos; incompleto não fica na tela", async () => {
@@ -489,13 +529,33 @@ const path = require("path");
     await login("Colab", "1111");
     await win.waitForSelector("text=P01");
 
-    await caso("25. colaborador só enxerga as abas Estoque e Venda", async () => {
+    await caso("25. colaborador só enxerga Estoque, Venda e Fechamento", async () => {
       for (const t of ["Dashboard", "Config", "Trocas"]) {
         assert.strictEqual(await win.locator(`nav button:text-is("${t}")`).count(), 0, `viu a aba ${t}`);
       }
-      for (const t of ["Estoque", "Venda"]) {
-        assert.strictEqual(await win.locator(`nav button:text-is("${t}")`).count(), 1);
+      for (const t of ["Estoque", "Venda", "Fechamento"]) {
+        assert.strictEqual(await win.locator(`nav button:text-is("${t}")`).count(), 1, `faltou a aba ${t}`);
       }
+    });
+
+    await caso("30. fechamento do colaborador: total do dia, sem custo nem lucro", async () => {
+      await aba("Fechamento");
+      await win.waitForSelector("text=Fechamento de hoje", { timeout: 8000 });
+      const texto = await win.locator("#root").innerText();
+      assert(texto.includes("Total do dia"), "tem que mostrar o total do dia");
+      assert(!/lucro/i.test(texto), "colaborador não pode ver lucro");
+      assert(!/margem/i.test(texto), "colaborador não pode ver margem");
+      assert(!/compra/i.test(texto), "colaborador não pode ver custo");
+      const { n } = await um("SELECT COUNT(*) AS n FROM vendas WHERE date(criado_em) = date('now','localtime')");
+      assert(texto.includes(`${n} venda`), `deveria contar as ${n} vendas de hoje`);
+    });
+
+    await caso("31. venda do colaborador fica no nome dele", async () => {
+      const colab = await um("SELECT id FROM usuarios WHERE nome = 'Colab'");
+      const antes = await um("SELECT COUNT(*) AS n FROM vendas WHERE usuario_id = ?", [colab.id]);
+      await vender("P01");
+      const depois = await um("SELECT COUNT(*) AS n FROM vendas WHERE usuario_id = ?", [colab.id]);
+      assert.strictEqual(depois.n, antes.n + 1, "a venda tem que sair no nome do colaborador");
     });
 
     await caso("26. colaborador não vê Compra, Margem nem as entradas", async () => {

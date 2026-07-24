@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { fmtReais } from "./Estoque.jsx";
 import { FORMAS } from "./Venda.jsx";
 import FiltroData, { isoDia } from "./FiltroData.jsx";
+import Fechamento from "./Fechamento.jsx";
 
 const FAT = "SUM(preco_venda * quantidade + mao_de_obra)";
 const LUCRO = "SUM((preco_venda - preco_compra) * quantidade + mao_de_obra)";
@@ -15,8 +16,9 @@ const PERIODOS = [
 
 export default function Dashboard() {
   const [cards, setCards] = useState([]);
-  const [fechamento, setFechamento] = useState([]);
   const [porDia, setPorDia] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
+  const [vendedor, setVendedor] = useState(""); // "" = todos
   const [historico, setHistorico] = useState([]);
   const [de, setDe] = useState(() => isoDia(Date.now()));
   const [ate, setAte] = useState(() => isoDia(Date.now()));
@@ -34,12 +36,7 @@ export default function Dashboard() {
           .then(([r]) => ({ rotulo, fat: r.fat || 0, lucro: r.lucro || 0 }))
       )
     ).then(setCards);
-    window.api
-      .query(
-        `SELECT forma_pagamento, ${FAT} AS total FROM vendas
-         WHERE date(criado_em) = date('now','localtime') GROUP BY forma_pagamento`
-      )
-      .then(setFechamento);
+    window.api.query("SELECT id, nome FROM usuarios ORDER BY nome").then(setUsuarios);
   }, []);
 
   useEffect(() => {
@@ -60,16 +57,19 @@ export default function Dashboard() {
     const params = [];
     if (de) { condicoes.push("date(v.criado_em) >= ?"); params.push(de); }
     if (ate) { condicoes.push("date(v.criado_em) <= ?"); params.push(ate); }
+    if (vendedor) { condicoes.push("v.usuario_id = ?"); params.push(Number(vendedor)); }
     const where = condicoes.length ? `WHERE ${condicoes.join(" AND ")}` : "";
     window.api
       .query(
-        `SELECT v.*, p.nome, p.modelo FROM vendas v JOIN pecas p ON p.id = v.peca_id
+        `SELECT v.*, p.nome, p.modelo, u.nome AS vendedor
+         FROM vendas v JOIN pecas p ON p.id = v.peca_id
+         LEFT JOIN usuarios u ON u.id = v.usuario_id
          ${where} ORDER BY v.id DESC`,
         params
       )
       .then(setHistorico);
     setPagina(0);
-  }, [de, ate]);
+  }, [de, ate, vendedor]);
 
   const totalFiltro = historico.reduce((s, v) => s + v.preco_venda * v.quantidade + v.mao_de_obra, 0);
   const lucroFiltro = historico.reduce((s, v) => s + (v.preco_venda - v.preco_compra) * v.quantidade + v.mao_de_obra, 0);
@@ -77,12 +77,12 @@ export default function Dashboard() {
   const exportarExcel = () => {
     const num = (centavos) => (centavos / 100).toFixed(2).replace(".", ",");
     const linhas = [
-      ["Data", "Hora", "Peça", "Modelo", "Qtd", "Preço unit.", "Mão de obra", "Total", "Forma de pagamento", "Custo unit.", "Lucro"],
+      ["Data", "Hora", "Peça", "Modelo", "Qtd", "Preço unit.", "Mão de obra", "Total", "Forma de pagamento", "Vendedor", "Custo unit.", "Lucro"],
       ...historico.map((v) => [
         `${v.criado_em.slice(8, 10)}/${v.criado_em.slice(5, 7)}/${v.criado_em.slice(0, 4)}`,
         v.criado_em.slice(11, 16), v.nome, v.modelo, v.quantidade,
         num(v.preco_venda), num(v.mao_de_obra), num(v.preco_venda * v.quantidade + v.mao_de_obra),
-        FORMAS[v.forma_pagamento] || v.forma_pagamento, num(v.preco_compra),
+        FORMAS[v.forma_pagamento] || v.forma_pagamento, v.vendedor || "não informado", num(v.preco_compra),
         num((v.preco_venda - v.preco_compra) * v.quantidade + v.mao_de_obra),
       ]),
     ];
@@ -144,18 +144,7 @@ export default function Dashboard() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
-        <div>
-          <h3 style={{ marginTop: 0 }}>Fechamento de hoje</h3>
-          {Object.entries(FORMAS).map(([valor, rotulo]) => {
-            const linha = fechamento.find((f) => f.forma_pagamento === valor);
-            return (
-              <div key={valor} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #e2e8f0", fontSize: 16 }}>
-                <span>{rotulo}</span>
-                <strong>{fmtReais(linha ? linha.total : 0)}</strong>
-              </div>
-            );
-          })}
-        </div>
+        <Fechamento />
 
         <div>
           <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8 }}>
@@ -233,6 +222,11 @@ export default function Dashboard() {
         <input type="date" value={ate} onChange={(e) => { setAtalhoSel(null); setAte(e.target.value); }}
           style={{ padding: 8, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1" }} />
         <FiltroData sel={atalhoSel} aoEscolher={(chave, d, a) => { setAtalhoSel(chave); setDe(d); setAte(a); }} />
+        <select value={vendedor} onChange={(e) => setVendedor(e.target.value)}
+          style={{ padding: 8, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1" }}>
+          <option value="">Todos os vendedores</option>
+          {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+        </select>
         <button onClick={exportarExcel} disabled={!historico.length}
           style={{ padding: "8px 14px", fontSize: 14, fontWeight: "bold", border: "none", borderRadius: 6, cursor: "pointer", background: "#16a34a", color: "white", marginLeft: "auto" }}>
           ⬇ Exportar Excel
@@ -245,7 +239,7 @@ export default function Dashboard() {
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
         <thead>
           <tr style={{ textAlign: "left", borderBottom: "2px solid #cbd5e1" }}>
-            {["Data", "Peça", "Qtd", "Total", "Forma", "Lucro"].map((h) => (
+            {["Data", "Peça", "Qtd", "Total", "Forma", "Vendedor", "Lucro"].map((h) => (
               <th key={h} style={{ padding: 8 }}>{h}</th>
             ))}
           </tr>
@@ -258,13 +252,14 @@ export default function Dashboard() {
               <td style={{ padding: 8 }}>{v.quantidade}</td>
               <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(v.preco_venda * v.quantidade + v.mao_de_obra)}</td>
               <td style={{ padding: 8 }}>{FORMAS[v.forma_pagamento] || v.forma_pagamento}</td>
+              <td style={{ padding: 8, color: v.vendedor ? undefined : "#94a3b8" }}>{v.vendedor || "não informado"}</td>
               <td style={{ padding: 8, color: "#16a34a", fontWeight: "bold" }}>
                 {fmtReais((v.preco_venda - v.preco_compra) * v.quantidade + v.mao_de_obra)}
               </td>
             </tr>
           ))}
           {historico.length === 0 && (
-            <tr><td colSpan={6} style={{ padding: 16, color: "#64748b" }}>Nenhuma venda registrada.</td></tr>
+            <tr><td colSpan={7} style={{ padding: 16, color: "#64748b" }}>Nenhuma venda registrada.</td></tr>
           )}
         </tbody>
       </table>

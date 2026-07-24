@@ -101,6 +101,7 @@ for (const sql of [
   "ALTER TABLE entradas ADD COLUMN custo_anterior INTEGER", // p/ desfazer entrada revertendo o custo médio
   "ALTER TABLE trocas ADD COLUMN fornecedor TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE pecas ADD COLUMN codigo TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE vendas ADD COLUMN usuario_id INTEGER REFERENCES usuarios(id)", // NULL = venda anterior ao passo 11
   // Parcial: os produtos ainda sem código ('') não colidem entre si.
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_pecas_codigo ON pecas(codigo) WHERE codigo != ''",
 

@@ -14,7 +14,7 @@ export const FORMAS = {
 const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" };
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
 
-export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, aoTrocar }) {
+export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuario = null, aoTrocar }) {
   const notaOn = cfg.nota_ativa === "1";
   const [pecas, setPecas] = useState([]);
   const [vendasHoje, setVendasHoje] = useState([]);
@@ -76,8 +76,8 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, aoTro
     const res = await window.api.tx([
       ["UPDATE pecas SET quantidade = quantidade - ? WHERE id = ?", [qtd, venda.peca.id]],
       [
-        "INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, mao_de_obra, forma_pagamento, cliente) VALUES (?,?,?,?,?,?,?)",
-        [venda.peca.id, qtd, preco, venda.peca.preco_compra, maoDeObra, venda.forma, venda.cliente.trim()],
+        "INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, mao_de_obra, forma_pagamento, cliente, usuario_id) VALUES (?,?,?,?,?,?,?,?)",
+        [venda.peca.id, qtd, preco, venda.peca.preco_compra, maoDeObra, venda.forma, venda.cliente.trim(), usuario?.id ?? null],
       ],
     ]);
     if (notaOn) {
