@@ -503,6 +503,20 @@ const path = require("path");
       assert.strictEqual(v.usuario_id, null, "só perde o nome do vendedor");
     });
 
+    await caso("43. Dashboard mostra o mesmo fechamento e marca venda sem vendedor", async () => {
+      // Venda como as anteriores ao passo 11: sem usuario_id.
+      const id = await novaPeca("P43", 5, 10000, 20000);
+      await sql("INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra) VALUES (?,1,20000,10000)", [id]);
+      await aba("Dashboard");
+      await win.waitForSelector("text=Fechamento de hoje", { timeout: 8000 });
+      const texto = await win.locator("#root").innerText();
+      const { n } = await um("SELECT COUNT(*) AS n FROM vendas WHERE date(criado_em) = date('now','localtime')");
+      // O caso 30 confere o mesmo número na aba do colaborador: os dois têm que bater.
+      assert(texto.includes(`${n} venda`), `o fechamento do Dashboard tem que contar as mesmas ${n} vendas`);
+      const linha = await win.locator('tbody tr:has-text("P43")').first().innerText();
+      assert(linha.includes("não informado"), "venda sem vendedor aparece como 'não informado'");
+    });
+
     console.log("\nUsuários e permissões");
 
     await caso("32. PIN só é salvo com 4 dígitos; incompleto não fica na tela", async () => {

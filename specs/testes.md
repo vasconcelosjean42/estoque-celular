@@ -87,6 +87,18 @@ funcionalidade nova). Cada um tem teste automatizado travando a regressão.
 - [x] 90. Busca por prefixo (`TE0`) e por código inteiro (`TE002`), no Estoque e na Venda. **auto 36**
 - [x] 91. Painel de dev: desativar demo com troca/nota por cima do fictício → apaga o fictício, preserva o real. **auto 39**
 
+## P0 — Fechamento e vendedor (passo 11, aprovado 2026-07-24)
+
+- [x] 92. Venda grava quem estava logado. **auto 40**
+- [x] 93. Colaborador tem a aba Fechamento (além de Estoque e Venda). **auto 25**
+- [x] 94. Fechamento mostra total do dia e nº de vendas, sem custo/margem/lucro. **auto 30**
+- [x] 95. Venda do colaborador sai no nome dele. **auto 31**
+- [x] 96. Dashboard e aba Fechamento mostram o mesmo número. **auto 30 + 43**
+- [x] 97. Dashboard filtra o histórico por vendedor; voltar para "todos" restaura. **auto 41**
+- [x] 98. Venda anterior ao passo 11 aparece como "não informado". **auto 43**
+- [x] 99. Excluir usuário que já vendeu preserva a venda (zera só o vendedor). **auto 42**
+- [ ] 100. Exportar Excel com a coluna Vendedor preenchida. *(manual — download de arquivo)*
+
 ## P1 — Trocas, crédito e relatórios
 
 ### Trocas
