@@ -77,6 +77,16 @@ funcionalidade nova). Cada um tem teste automatizado travando a regressão.
 
 ---
 
+## P0 — Código do produto (passo 10, aprovado 2026-07-24)
+
+- [x] 85. Migração: abrir com banco antigo → todo produto ganha código, agrupado por tipo, nenhum repetido. **auto 38**
+- [x] 86. Cadastrar "Tela" → código preenche sozinho enquanto digita; segunda "Tela" avança o número. **auto 34**
+- [x] 87. "Capinha" pega `CA`; "Câmera traseira" vira `CAM` (3 letras, acento ignorado). **auto 35**
+- [x] 88. Editar o código na mão → para de se regerar ao trocar o tipo. **auto 37b**
+- [x] 89. Código repetido é recusado; com código livre, salva. **auto 37**
+- [x] 90. Busca por prefixo (`TE0`) e por código inteiro (`TE002`), no Estoque e na Venda. **auto 36**
+- [x] 91. Painel de dev: desativar demo com troca/nota por cima do fictício → apaga o fictício, preserva o real. **auto 39**
+
 ## P1 — Trocas, crédito e relatórios
 
 ### Trocas

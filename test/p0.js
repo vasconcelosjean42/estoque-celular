@@ -386,6 +386,24 @@ const path = require("path");
       assert.strictEqual(await codigoDe("Bateria", "Moto G52"), "BA001", "com código livre, salva");
     });
 
+    await caso("37b. código editado na mão para de ser regerado ao mexer no tipo", async () => {
+      await recarregar("Estoque");
+      await win.click('button:text("+ Novo produto")');
+      const campoCodigo = win.locator('label:has-text("Código") input');
+      await win.fill('label:has-text("Produto") input', "Tela");
+      assert.strictEqual(await campoCodigo.inputValue(), "TE003", "antes de editar, acompanha o tipo");
+      await campoCodigo.fill("MEUCOD1");
+      await win.fill('label:has-text("Produto") input', "Bateria"); // troca o tipo depois de editar
+      await win.waitForTimeout(300);
+      assert.strictEqual(await campoCodigo.inputValue(), "MEUCOD1", "o que o dono digitou tem que ficar");
+      await win.fill('label:has-text("Quantidade") input', "1");
+      await win.fill('label:has-text("Preço de compra") input', "10,00");
+      await win.fill('label:has-text("Preço de venda") input', "20,00");
+      await win.click('button:text-is("Salvar")');
+      await concluir();
+      assert.strictEqual(await codigoDe("Bateria", ""), "MEUCOD1");
+    });
+
     await caso("38. produto sem código ganha código ao abrir o app (migração)", async () => {
       await sql("INSERT INTO pecas (nome, modelo, codigo, quantidade, preco_compra, preco_venda) VALUES ('Tela','Legado','',3,1000,2000)");
       await win.evaluate(() => location.reload());
