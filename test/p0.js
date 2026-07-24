@@ -71,12 +71,16 @@ const path = require("path");
   const peca = (id) => um("SELECT * FROM pecas WHERE id = ?", [id]);
   const vendasDe = (id) => sql("SELECT * FROM vendas WHERE peca_id = ? ORDER BY id", [id]);
 
-  // Abre o form de venda da peça e preenche o que foi passado.
+  // Passo 12: adiciona ao carrinho, ajusta a linha e vai pro fechamento do pedido.
+  const aoCarrinho = async (nome, campos = {}) => {
+    await win.click(`tr:has-text("${nome}") button:text-is("+ Adicionar")`);
+    if (campos.qtd !== undefined) await win.fill(`input[aria-label="Quantidade de ${nome}"]`, String(campos.qtd));
+    if (campos.preco !== undefined) await win.fill(`input[aria-label="Preço de ${nome}"]`, campos.preco);
+  };
   const abrirVenda = async (nome, campos = {}) => {
     await recarregar("Venda");
-    await win.click(`tr:has-text("${nome}") button:text-is("Vender")`);
-    if (campos.qtd !== undefined) await win.fill('label:has-text("Quantidade") input', String(campos.qtd));
-    if (campos.preco !== undefined) await win.fill('label:has-text("Preço unitário") input', campos.preco);
+    await aoCarrinho(nome, campos);
+    await win.click('button:text("Finalizar venda")');
     if (campos.mao !== undefined) await win.fill('label:has-text("Mão de obra") input', campos.mao);
     if (campos.forma) await win.click(`button:text-is("${campos.forma}")`);
   };
@@ -84,12 +88,12 @@ const path = require("path");
     await win.click('button:text("Confirmar venda")');
     await win.waitForSelector('button:text("Confirmar venda")', { state: "detached", timeout: 8000 });
   };
-  // Confirma esperando que seja RECUSADO: o form continua na tela.
+  // Confirma esperando que seja RECUSADO: a tela de fechamento continua aberta.
   const confirmarRecusado = async () => {
     await win.click('button:text("Confirmar venda")');
     await win.waitForTimeout(300);
-    assert(await win.locator('button:text("Confirmar venda")').count(), "o form deveria continuar aberto");
-    await win.click('button:text-is("Cancelar")');
+    assert(await win.locator('button:text("Confirmar venda")').count(), "o fechamento deveria continuar aberto");
+    await win.click('button:text-is("Cancelar venda")'); // limpa o carrinho p/ não vazar no próximo caso
   };
   const vender = async (nome, campos) => { await abrirVenda(nome, campos); await confirmarVenda(); };
 
@@ -151,7 +155,7 @@ const path = require("path");
     await caso("5. peça sem estoque tem o botão Vender desabilitado", async () => {
       await novaPeca("P05", 0, 10000, 20000);
       await recarregar("Venda");
-      assert(await win.locator('tr:has-text("P05") button:text-is("Vender")').isDisabled());
+      assert(await win.locator('tr:has-text("P05") button:text-is("+ Adicionar")').isDisabled());
     });
 
     await caso("6. preço editado na hora (desconto) é o que grava", async () => {
@@ -223,6 +227,113 @@ const path = require("path");
       for (const [rotulo] of formas) await vender("P14", { forma: rotulo });
       const gravadas = (await vendasDe(id)).map((v) => v.forma_pagamento);
       assert.deepStrictEqual(gravadas, formas.map(([, v]) => v));
+    });
+
+    console.log("\nCarrinho (passo 12)");
+
+    await caso("44. pedido com 3 itens grava tudo junto e baixa cada estoque", async () => {
+      const a = await novaPeca("C44A", 5, 10000, 20000);
+      const b = await novaPeca("C44B", 5, 3000, 8000);
+      const c = await novaPeca("C44C", 5, 1000, 2500);
+      await recarregar("Venda");
+      await aoCarrinho("C44A", { qtd: 2 });
+      await aoCarrinho("C44B");
+      await aoCarrinho("C44C", { qtd: 3 });
+      await win.click('button:text("Finalizar venda")');
+      await win.click('button:text-is("Pix")');
+      await confirmarVenda();
+      assert.strictEqual((await peca(a)).quantidade, 3);
+      assert.strictEqual((await peca(b)).quantidade, 4);
+      assert.strictEqual((await peca(c)).quantidade, 2);
+      const itens = await sql("SELECT * FROM vendas WHERE peca_id IN (?,?,?)", [a, b, c]);
+      assert.strictEqual(itens.length, 3, "3 linhas de venda");
+      assert.strictEqual(new Set(itens.map((v) => v.pedido_id)).size, 1, "todas no mesmo pedido");
+      assert(itens.every((v) => v.forma_pagamento === "pix"), "forma de pagamento vale pro pedido");
+      const total = itens.reduce((s, v) => s + v.preco_venda * v.quantidade + v.mao_de_obra, 0);
+      assert.strictEqual(total, 2 * 20000 + 8000 + 3 * 2500, "total do pedido");
+    });
+
+    await caso("45. clicar duas vezes no mesmo produto soma quantidade", async () => {
+      const id = await novaPeca("C45", 5, 10000, 20000);
+      await recarregar("Venda");
+      await aoCarrinho("C45");
+      await aoCarrinho("C45");
+      assert.strictEqual(await win.locator('input[aria-label="Quantidade de C45"]').inputValue(), "2");
+      await win.click('button:text("Finalizar venda")');
+      await confirmarVenda();
+      assert.strictEqual((await peca(id)).quantidade, 3);
+      assert.strictEqual((await vendasDe(id)).length, 1, "vira um item só com quantidade 2");
+    });
+
+    await caso("46. mão de obra do pedido soma uma vez, não por item", async () => {
+      const a = await novaPeca("C46A", 5, 10000, 20000);
+      const b = await novaPeca("C46B", 5, 10000, 20000);
+      await recarregar("Venda");
+      await aoCarrinho("C46A");
+      await aoCarrinho("C46B");
+      await win.click('button:text("Finalizar venda")');
+      await win.fill('label:has-text("Mão de obra") input', "50,00");
+      await confirmarVenda();
+      const itens = await sql("SELECT * FROM vendas WHERE peca_id IN (?,?)", [a, b]);
+      assert.strictEqual(itens.reduce((s, v) => s + v.mao_de_obra, 0), 5000, "50,00 uma vez só no pedido");
+      assert.strictEqual(itens.reduce((s, v) => s + v.preco_venda * v.quantidade + v.mao_de_obra, 0), 45000);
+    });
+
+    await caso("47. item sem estoque suficiente recusa o pedido inteiro", async () => {
+      const a = await novaPeca("C47A", 5, 10000, 20000);
+      const b = await novaPeca("C47B", 1, 10000, 20000);
+      await recarregar("Venda");
+      await aoCarrinho("C47A");
+      await aoCarrinho("C47B", { qtd: 4 }); // só tem 1
+      await win.click('button:text("Finalizar venda")');
+      await confirmarRecusado();
+      assert.strictEqual((await peca(a)).quantidade, 5, "nenhum item pode ter baixado");
+      assert.strictEqual((await peca(b)).quantidade, 1);
+      assert.strictEqual((await vendasDe(a)).length, 0);
+    });
+
+    await caso("48. remover item do carrinho não leva os outros", async () => {
+      const a = await novaPeca("C48A", 5, 10000, 20000);
+      const b = await novaPeca("C48B", 5, 10000, 20000);
+      await recarregar("Venda");
+      await aoCarrinho("C48A");
+      await aoCarrinho("C48B");
+      await win.click('button[aria-label="Remover C48A"]');
+      await win.waitForTimeout(200);
+      await win.click('button:text("Finalizar venda")');
+      await confirmarVenda();
+      assert.strictEqual((await vendasDe(a)).length, 0, "o removido não é vendido");
+      assert.strictEqual((await vendasDe(b)).length, 1);
+      assert.strictEqual((await peca(a)).quantidade, 5);
+    });
+
+    await caso("49. desfazer devolve o pedido inteiro", async () => {
+      const a = await novaPeca("C49A", 5, 10000, 20000);
+      const b = await novaPeca("C49B", 5, 10000, 20000);
+      await recarregar("Venda");
+      await aoCarrinho("C49A", { qtd: 2 });
+      await aoCarrinho("C49B");
+      await win.click('button:text("Finalizar venda")');
+      await confirmarVenda();
+      // Pelo id do pedido: "Pedido com 2 itens" casaria com o pedido de outro caso.
+      const pid = (await vendasDe(a))[0].pedido_id;
+      await win.click(`#pedido-${pid} button:text-is("Desfazer")`);
+      await win.waitForSelector(`#pedido-${pid}`, { state: "detached", timeout: 8000 });
+      assert.strictEqual((await peca(a)).quantidade, 5, "os dois itens voltam ao estoque");
+      assert.strictEqual((await peca(b)).quantidade, 5);
+      assert.strictEqual((await vendasDe(a)).length, 0);
+      assert.strictEqual((await vendasDe(b)).length, 0);
+    });
+
+    await caso("50. venda antiga (1 item) continua numa linha só", async () => {
+      const id = await novaPeca("C50", 5, 10000, 20000);
+      await vender("C50");
+      const [v] = await vendasDe(id);
+      assert(v.pedido_id, "mesmo com 1 item o pedido_id é preenchido");
+      const linha = await win.locator(`#pedido-${v.pedido_id}`).innerText();
+      assert(linha.includes("1x C50"), "a linha mostra o item direto");
+      assert(!linha.includes("Pedido com"), "pedido de 1 item não vira cabeçalho + item");
+      assert.strictEqual(await win.locator(`#pedido-${v.pedido_id} button:text-is("Desfazer")`).count(), 1);
     });
 
     console.log("\nEstoque e entradas");
@@ -590,10 +701,10 @@ const path = require("path");
 
     await caso("28. colaborador não edita o preço ao vender", async () => {
       await aba("Venda");
-      await win.click('tr:has-text("P01") button:text-is("Vender")');
-      const preco = win.locator('label:has-text("Preço unitário") input');
+      await win.click('tr:has-text("P01") button:text-is("+ Adicionar")');
+      const preco = win.locator('input[aria-label="Preço de P01"]');
       assert.strictEqual(await preco.evaluate((el) => el.readOnly), true, "preço tinha que estar travado");
-      await win.click('button:text-is("Cancelar")');
+      await win.click('button:text-is("Limpar carrinho")');
     });
 
     await caso("29. colaborador não vê o botão Trocar nas vendas", async () => {

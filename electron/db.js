@@ -102,6 +102,12 @@ for (const sql of [
   "ALTER TABLE trocas ADD COLUMN fornecedor TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE pecas ADD COLUMN codigo TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE vendas ADD COLUMN usuario_id INTEGER REFERENCES usuarios(id)", // NULL = venda anterior ao passo 11
+  // Passo 12: vendas continua uma linha por item; pedido_id agrupa o carrinho.
+  // Venda antiga vira um pedido de 1 item, então as telas podem agrupar sempre.
+  "ALTER TABLE vendas ADD COLUMN pedido_id INTEGER",
+  "UPDATE vendas SET pedido_id = id WHERE pedido_id IS NULL",
+  "ALTER TABLE notas ADD COLUMN pedido_id INTEGER",
+  "UPDATE notas SET pedido_id = venda_id WHERE pedido_id IS NULL",
   // Parcial: os produtos ainda sem código ('') não colidem entre si.
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_pecas_codigo ON pecas(codigo) WHERE codigo != ''",
 

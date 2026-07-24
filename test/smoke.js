@@ -68,7 +68,8 @@ const path = require("path");
 
     // 3. vende
     await aba("Venda");
-    await win.click('tr:has-text("PecaSmoke") button:text-is("Vender")');
+    await win.click('tr:has-text("PecaSmoke") button:text-is("+ Adicionar")');
+    await win.click('button:text("Finalizar venda")');
     await win.click('button:text("Confirmar venda")');
     await espera("Desfazer");
 
@@ -99,7 +100,8 @@ const path = require("path");
     await win.click('label:has-text("Gerar nota após a venda") input');
     await win.fill('label:has-text("Nome na nota") input', "Loja Teste");
     await aba("Venda");
-    await win.click('tr:has-text("PecaSmoke") button:text-is("Vender")');
+    await win.click('tr:has-text("PecaSmoke") button:text-is("+ Adicionar")');
+    await win.click('button:text("Finalizar venda")');
     await win.click('button:text("Confirmar venda")');
     await espera("Gerar nota (PDF)");
     await win.click('button:text-is("Gerar nota (PDF)")');

@@ -31,7 +31,7 @@ function reciboHTML(d, cfg) {
     ${d.cliente_nome ? `<div>Cliente: ${esc(d.cliente_nome)}</div>` : ""}
     ${d.cliente_contato ? `<div>Contato: ${esc(d.cliente_contato)}</div>` : ""}
     <hr>
-    <div>${esc(d.descricao)}</div>
+    <div>${esc(d.descricao).replace(/\n/g, "<br>")}</div>
     <div class="tot">TOTAL: ${esc(fmtReais(d.valor_total))}</div>
     <hr>
     <div class="c">${esc(cfg.nota_rodape || "Obrigado pela preferência!")}</div>
@@ -58,15 +58,15 @@ export function reimprimirNota(nota, cfg) {
 const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" };
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
 
-// venda = { id, cliente, descricao, valor_total (centavos) }
+// venda = { pedido_id, cliente, descricao (uma linha por item), valor_total (centavos) }
 export function NotaModal({ venda, cfg, aoFechar }) {
   const [contato, setContato] = useState("");
 
   const gerar = async () => {
     const [{ n }] = await window.api.query("SELECT COALESCE(MAX(numero),0)+1 AS n FROM notas");
     await window.api.query(
-      "INSERT INTO notas (venda_id, numero, cliente_nome, cliente_contato, descricao, valor_total) VALUES (?,?,?,?,?,?)",
-      [venda.id, n, venda.cliente || "", contato.trim(), venda.descricao, venda.valor_total]
+      "INSERT INTO notas (pedido_id, numero, cliente_nome, cliente_contato, descricao, valor_total) VALUES (?,?,?,?,?,?)",
+      [venda.pedido_id, n, venda.cliente || "", contato.trim(), venda.descricao, venda.valor_total]
     );
     imprimirRecibo(reciboHTML({
       numero: n, data: agora(), cliente_nome: venda.cliente, cliente_contato: contato.trim(),
@@ -81,7 +81,7 @@ export function NotaModal({ venda, cfg, aoFechar }) {
       <div style={{ background: "white", borderRadius: 12, padding: 24, minWidth: 360, maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginTop: 0 }}>Gerar nota</h3>
         <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 15 }}>
-          <div>{venda.descricao}</div>
+          {venda.descricao.split("\n").map((l, i) => <div key={i}>{l}</div>)}
           {venda.cliente && <div style={{ color: "#64748b" }}>Cliente: {venda.cliente}</div>}
           <div style={{ fontWeight: "bold", fontSize: 18, marginTop: 4 }}>Total: {fmtReais(venda.valor_total)}</div>
         </div>
