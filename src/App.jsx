@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import Estoque from "./telas/Estoque.jsx";
+import Estoque, { gerarCodigosFaltantes } from "./telas/Estoque.jsx";
 import Venda from "./telas/Venda.jsx";
 import Dashboard from "./telas/Dashboard.jsx";
 import Config, { lerConfig } from "./telas/Config.jsx";
@@ -18,6 +18,7 @@ export default function App() {
 
   useEffect(() => {
     carregarCfg();
+    gerarCodigosFaltantes(); // produtos cadastrados antes do passo 10
   }, []);
 
   const titulo = cfg.titulo || "Estoque Celular";

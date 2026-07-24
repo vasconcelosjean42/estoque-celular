@@ -37,9 +37,29 @@ const path = require("path");
     await win.fill('input[type="password"]', pin);
     await win.press('input[type="password"]', "Enter");
   };
+  // codigo = o próprio nome: único e previsível, sem depender do gerador.
   const novaPeca = async (nome, qtd, compra, venda) =>
-    (await sql("INSERT INTO pecas (nome, modelo, quantidade, preco_compra, preco_venda) VALUES (?,'',?,?,?)",
-      [nome, qtd, compra, venda])).lastInsertRowid;
+    (await sql("INSERT INTO pecas (nome, modelo, codigo, quantidade, preco_compra, preco_venda) VALUES (?,'',?,?,?,?)",
+      [nome, nome, qtd, compra, venda])).lastInsertRowid;
+
+  // Cadastro pela UI. Não clica em Concluir: o chamador decide (pode ter sido recusado).
+  const cadastrar = async (nome, extras = {}) => {
+    await recarregar("Estoque");
+    await win.click('button:text("+ Novo produto")');
+    await win.fill('label:has-text("Produto") input', nome);
+    if (extras.modelo) await win.fill('label:has-text("Modelo") input', extras.modelo);
+    if (extras.codigo !== undefined) await win.fill('label:has-text("Código") input', extras.codigo);
+    await win.fill('label:has-text("Quantidade") input', String(extras.qtd ?? 1));
+    await win.fill('label:has-text("Preço de compra") input', extras.compra ?? "10,00");
+    await win.fill('label:has-text("Preço de venda") input', extras.venda ?? "20,00");
+    await win.click('button:text-is("Salvar")');
+  };
+  const concluir = async () => {
+    await win.waitForSelector("text=adicionado", { timeout: 8000 });
+    await win.click('button:text-is("Concluir")');
+  };
+  const codigoDe = async (nome, modelo) =>
+    (await um("SELECT codigo FROM pecas WHERE nome = ? AND modelo = ?", [nome, modelo]))?.codigo;
   const peca = (id) => um("SELECT * FROM pecas WHERE id = ?", [id]);
   const vendasDe = (id) => sql("SELECT * FROM vendas WHERE peca_id = ? ORDER BY id", [id]);
 
@@ -306,6 +326,67 @@ const path = require("path");
       assert.strictEqual((await peca(id)).preco_venda, 30000, "produto tem que atualizar");
       const [v] = await vendasDe(id);
       assert.strictEqual(v.preco_venda, 20000, "a venda antiga tem que manter o preço praticado");
+    });
+
+    console.log("\nCódigo do produto (passo 10)");
+
+    await caso("34. cadastro gera código sequencial por tipo (TE001, TE002)", async () => {
+      await cadastrar("Tela", { modelo: "iPhone 13" });
+      await concluir();
+      assert.strictEqual(await codigoDe("Tela", "iPhone 13"), "TE001");
+      await cadastrar("Tela", { modelo: "iPhone 11" });
+      await concluir();
+      assert.strictEqual(await codigoDe("Tela", "iPhone 11"), "TE002", "mesmo tipo continua a numeração");
+    });
+
+    await caso("35. prefixo tomado por outro tipo estende para 3 letras (CA -> CAM)", async () => {
+      await cadastrar("Capinha", { modelo: "iPhone 13" });
+      await concluir();
+      assert.strictEqual(await codigoDe("Capinha", "iPhone 13"), "CA001");
+      await cadastrar("Câmera traseira", { modelo: "Galaxy A32" });
+      await concluir();
+      assert.strictEqual(await codigoDe("Câmera traseira", "Galaxy A32"), "CAM001",
+        "acento ignorado e prefixo estendido porque CA já é da Capinha");
+    });
+
+    await caso("36. busca por código funciona no Estoque e na Venda", async () => {
+      await recarregar("Estoque");
+      await win.fill('input[placeholder*="Buscar peça por código"]', "TE002");
+      await win.waitForTimeout(300);
+      assert.strictEqual(await win.locator('tbody tr:has-text("TE002")').count(), 1);
+      assert.strictEqual(await win.locator('tbody tr:has-text("TE001")').count(), 0, "busca exata não traz a outra tela");
+      await win.fill('input[placeholder*="Buscar peça por código"]', "TE0");
+      await win.waitForTimeout(300);
+      // "tbody tr" pegaria a tabela de entradas também — filtrar pelo código.
+      assert.strictEqual(await win.locator('tbody tr:has-text("TE0")').count(), 2, "prefixo traz as duas telas");
+      assert.strictEqual(await win.locator('tbody tr:has-text("CA001")').count(), 0, "e só as telas");
+      await recarregar("Venda");
+      await win.fill('input[placeholder*="Buscar peça por código"]', "CAM001");
+      await win.waitForTimeout(300);
+      assert.strictEqual(await win.locator('tr:has-text("Câmera traseira")').count(), 1);
+    });
+
+    await caso("37. código repetido é recusado", async () => {
+      const antes = (await um("SELECT COUNT(*) AS n FROM pecas")).n;
+      await cadastrar("Bateria", { modelo: "Moto G52", codigo: "TE001" });
+      await win.waitForTimeout(400);
+      assert.strictEqual((await um("SELECT COUNT(*) AS n FROM pecas")).n, antes, "não podia ter gravado");
+      assert(await win.locator('button:text-is("Salvar")').count(), "o form continua aberto");
+      await win.fill('label:has-text("Código") input', "BA001");
+      await win.click('button:text-is("Salvar")');
+      await concluir();
+      assert.strictEqual(await codigoDe("Bateria", "Moto G52"), "BA001", "com código livre, salva");
+    });
+
+    await caso("38. produto sem código ganha código ao abrir o app (migração)", async () => {
+      await sql("INSERT INTO pecas (nome, modelo, codigo, quantidade, preco_compra, preco_venda) VALUES ('Tela','Legado','',3,1000,2000)");
+      await win.evaluate(() => location.reload());
+      await login("Administrador", "1234");
+      await win.waitForSelector("text=+ Novo produto", { timeout: 8000 });
+      await win.waitForTimeout(500);
+      assert.strictEqual(await codigoDe("Tela", "Legado"), "TE003", "segue a numeração das telas que já existiam");
+      assert.strictEqual((await um("SELECT COUNT(*) AS n FROM pecas WHERE codigo = ''")).n, 0,
+        "nenhum produto pode ficar sem código");
     });
 
     console.log("\nUsuários e permissões");

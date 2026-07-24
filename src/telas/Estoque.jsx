@@ -15,7 +15,44 @@ export const parseReais = (texto) => {
   return Math.round(parseFloat(limpo) * 100);
 };
 
-const VAZIA = { nome: "", modelo: "", quantidade: 0, preco_compra: "", preco_venda: "", estoque_minimo: 1 };
+// Código = 2 letras do tipo (nome) + 3 dígitos sequenciais daquele tipo: TE001.
+// Prefixo já usado por outro tipo estende uma letra ("Capinha" pega CA, "Câmera"
+// vira CAM). Se mesmo assim empatar, os dois tipos dividem a numeração — feio,
+// mas o código continua único, que é o que importa.
+const soLetras = (s) => s.normalize("NFD").replace(/[^a-z]/gi, "").toUpperCase();
+const prefixoDe = (codigo) => codigo.replace(/\d+$/, "");
+
+export const gerarCodigo = (nome, pecas) => {
+  const comCodigo = pecas.filter((p) => p.codigo);
+  const irmao = comCodigo.find((p) => p.nome === nome);
+  let prefixo = irmao ? prefixoDe(irmao.codigo) : null;
+  if (!prefixo) {
+    const base = (soLetras(nome) || "XX").padEnd(2, "X");
+    const tomado = () => comCodigo.some((p) => p.nome !== nome && prefixoDe(p.codigo) === prefixo);
+    prefixo = base.slice(0, 2);
+    for (let n = 3; n <= base.length && tomado(); n++) prefixo = base.slice(0, n);
+  }
+  const usados = comCodigo
+    .filter((p) => prefixoDe(p.codigo) === prefixo)
+    .map((p) => Number(p.codigo.slice(prefixo.length)) || 0);
+  return `${prefixo}${String(Math.max(0, ...usados) + 1).padStart(3, "0")}`;
+};
+
+// Roda uma vez ao abrir: dá código aos produtos cadastrados antes do passo 10.
+export const gerarCodigosFaltantes = async () => {
+  const pecas = await window.api.query("SELECT id, nome, codigo FROM pecas ORDER BY id");
+  const semCodigo = pecas.filter((p) => !p.codigo);
+  if (!semCodigo.length) return;
+  const comandos = [];
+  for (const p of semCodigo) {
+    const codigo = gerarCodigo(p.nome, pecas);
+    p.codigo = codigo; // entra na lista para o próximo não repetir
+    comandos.push(["UPDATE pecas SET codigo = ? WHERE id = ?", [codigo, p.id]]);
+  }
+  await window.api.tx(comandos);
+};
+
+const VAZIA = { nome: "", modelo: "", codigo: "", quantidade: 0, preco_compra: "", preco_venda: "", estoque_minimo: 1 };
 const FIXAVEIS = ["quantidade", "preco_compra", "preco_venda", "estoque_minimo"]; // campos com 📌 no cadastro em série
 
 const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" };
@@ -60,16 +97,25 @@ export default function Estoque({ dono = true }) {
       alert("Preencha nome, preço de compra e preço de venda.");
       return;
     }
-    const params = [form.nome.trim(), form.modelo.trim(), Number(form.quantidade) || 0, compra, venda, Number(form.estoque_minimo) || 0];
+    const codigo = form.codigo.trim().toUpperCase();
+    if (!codigo) {
+      alert("O produto precisa de um código.");
+      return;
+    }
+    if (pecas.some((p) => p.codigo === codigo && p.id !== form.id)) {
+      alert(`O código ${codigo} já é de outro produto.`);
+      return;
+    }
+    const params = [form.nome.trim(), form.modelo.trim(), codigo, Number(form.quantidade) || 0, compra, venda, Number(form.estoque_minimo) || 0];
     if (form.id) {
       await window.api.query(
-        "UPDATE pecas SET nome=?, modelo=?, quantidade=?, preco_compra=?, preco_venda=?, estoque_minimo=? WHERE id=?",
+        "UPDATE pecas SET nome=?, modelo=?, codigo=?, quantidade=?, preco_compra=?, preco_venda=?, estoque_minimo=? WHERE id=?",
         [...params, form.id]
       );
       setForm(null);
     } else {
       const comandos = [
-        ["INSERT INTO pecas (nome, modelo, quantidade, preco_compra, preco_venda, estoque_minimo) VALUES (?,?,?,?,?,?)", params],
+        ["INSERT INTO pecas (nome, modelo, codigo, quantidade, preco_compra, preco_venda, estoque_minimo) VALUES (?,?,?,?,?,?,?)", params],
       ];
       const qtdInicial = Number(form.quantidade) || 0;
       if (qtdInicial > 0) {
@@ -180,6 +226,14 @@ export default function Estoque({ dono = true }) {
   }
 
   if (form) {
+    // Digitar o tipo regera o código sozinho — até o dono editar o código na mão.
+    const atualiza = (chave, valor) => {
+      const novo = { ...form, [chave]: valor };
+      if (chave === "codigo") novo.codigoManual = true;
+      if (chave === "nome" && !form.codigoManual && !form.id)
+        novo.codigo = valor.trim() ? gerarCodigo(valor.trim(), pecas) : "";
+      setForm(novo);
+    };
     const campo = (label, chave, type = "text", lista) => {
       const fixavel = !form.id && FIXAVEIS.includes(chave);
       return (
@@ -193,7 +247,7 @@ export default function Estoque({ dono = true }) {
               autoFocus={chave === "nome"}
               onFocus={(e) => e.target.select()}
               value={form[chave]}
-              onChange={(e) => setForm({ ...form, [chave]: e.target.value })}
+              onChange={(e) => atualiza(chave, e.target.value)}
             />
             {fixavel && (
               <button
@@ -216,6 +270,7 @@ export default function Estoque({ dono = true }) {
         <h2 style={{ marginTop: 0 }}>{form.id ? "Editar produto" : "Novo produto"}</h2>
         {campo("Produto", "nome", "text", "lista-produtos")}
         {campo("Modelo", "modelo", "text", "lista-modelos")}
+        {campo("Código (gerado pelo tipo — pode editar)", "codigo")}
         {/* sugestões vêm do que já existe: digitou algo novo, entra na lista no próximo cadastro */}
         <datalist id="lista-produtos">
           {[...new Set(pecas.map((p) => p.nome))].map((n) => <option key={n} value={n} />)}
@@ -252,7 +307,7 @@ export default function Estoque({ dono = true }) {
 
   const filtro = busca.trim().toLowerCase();
   let visiveis = filtro
-    ? pecas.filter((p) => `${p.nome} ${p.modelo}`.toLowerCase().includes(filtro))
+    ? pecas.filter((p) => `${p.codigo} ${p.nome} ${p.modelo}`.toLowerCase().includes(filtro))
     : pecas;
 
   if (ordem) {
@@ -270,16 +325,16 @@ export default function Estoque({ dono = true }) {
   };
 
   const COLUNAS = dono
-    ? [["Produto", "nome"], ["Modelo", "modelo"], ["Qtd", "quantidade"],
+    ? [["Código", "codigo"], ["Produto", "nome"], ["Modelo", "modelo"], ["Qtd", "quantidade"],
        ["Compra", "preco_compra"], ["Venda", "preco_venda"], ["Margem", "margem"], ["", null]]
-    : [["Produto", "nome"], ["Modelo", "modelo"], ["Qtd", "quantidade"], ["Venda", "preco_venda"]];
+    : [["Código", "codigo"], ["Produto", "nome"], ["Modelo", "modelo"], ["Qtd", "quantidade"], ["Venda", "preco_venda"]];
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
         <input
           style={{ ...inp, flex: 1 }}
-          placeholder="Buscar peça por nome ou modelo…"
+          placeholder="Buscar peça por código, nome ou modelo…"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
         />
@@ -315,6 +370,7 @@ export default function Estoque({ dono = true }) {
                 style={{ borderBottom: "1px solid #e2e8f0", cursor: dono ? "pointer" : "default", transition: "background .8s",
                   background: flashId === p.id ? "#86efac" : baixo ? "#fef2f2" : undefined }}
               >
+                <td style={{ padding: 8, color: "#64748b", fontFamily: "monospace", whiteSpace: "nowrap" }}>{p.codigo}</td>
                 <td style={{ padding: 8, fontWeight: "bold" }}>
                   {p.nome} {baixo && <span style={{ color: "#dc2626" }} title="Estoque baixo">⚠</span>}
                 </td>

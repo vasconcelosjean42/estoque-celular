@@ -100,6 +100,9 @@ for (const sql of [
   "ALTER TABLE trocas ADD COLUMN nova_peca_id INTEGER REFERENCES pecas(id)",
   "ALTER TABLE entradas ADD COLUMN custo_anterior INTEGER", // p/ desfazer entrada revertendo o custo médio
   "ALTER TABLE trocas ADD COLUMN fornecedor TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE pecas ADD COLUMN codigo TEXT NOT NULL DEFAULT ''",
+  // Parcial: os produtos ainda sem código ('') não colidem entre si.
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_pecas_codigo ON pecas(codigo) WHERE codigo != ''",
 
 ]) {
   try {

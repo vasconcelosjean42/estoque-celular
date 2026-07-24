@@ -179,7 +179,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, aoTro
 
   const filtro = busca.trim().toLowerCase();
   const visiveis = filtro
-    ? pecas.filter((p) => `${p.nome} ${p.modelo}`.toLowerCase().includes(filtro))
+    ? pecas.filter((p) => `${p.codigo} ${p.nome} ${p.modelo}`.toLowerCase().includes(filtro))
     : pecas;
 
   const trocasPorVenda = {};
@@ -187,7 +187,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, aoTro
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <input style={{ ...inp, marginBottom: 16 }} autoFocus placeholder="Buscar peça para vender…"
+      <input style={{ ...inp, marginBottom: 16 }} autoFocus placeholder="Buscar peça por código, nome ou modelo…"
         value={busca} onChange={(e) => setBusca(e.target.value)} />
 
       {/* 60% produtos / 40% vendas de hoje, cada um com rolagem própria */}
@@ -196,6 +196,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, aoTro
         <tbody>
           {visiveis.map((p) => (
             <tr key={p.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
+              <td style={{ padding: 8, color: "#64748b", fontFamily: "monospace", whiteSpace: "nowrap" }}>{p.codigo}</td>
               <td style={{ padding: 8, fontWeight: "bold" }}>{p.nome} {p.modelo}</td>
               <td style={{ padding: 8 }}>qtd: {p.quantidade}</td>
               <td style={{ padding: 8 }}>{fmtReais(p.preco_venda)}</td>
