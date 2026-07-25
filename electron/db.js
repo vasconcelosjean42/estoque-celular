@@ -73,6 +73,14 @@ CREATE TABLE IF NOT EXISTS usuarios (
   papel TEXT NOT NULL DEFAULT 'funcionario' -- dono | funcionario
 );
 
+CREATE TABLE IF NOT EXISTS clientes (
+  id        INTEGER PRIMARY KEY,
+  codigo    TEXT NOT NULL DEFAULT '', -- C001, C002… sequencial e editável
+  nome      TEXT NOT NULL,
+  contato   TEXT NOT NULL DEFAULT '',
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS notas (
   id              INTEGER PRIMARY KEY,
   venda_id        INTEGER REFERENCES vendas(id),
@@ -117,11 +125,34 @@ for (const sql of [
   // liberou o desconto — parcial, porque quem não tem fica com '' e não colide.
   "ALTER TABLE usuarios ADD COLUMN pin_permissao TEXT NOT NULL DEFAULT ''",
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_pin_permissao ON usuarios(pin_permissao) WHERE pin_permissao != ''",
+  // Passo 14: vendas.cliente (texto) fica pro histórico antigo; cliente_id é o vínculo.
+  "ALTER TABLE vendas ADD COLUMN cliente_id INTEGER REFERENCES clientes(id)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_codigo ON clientes(codigo) WHERE codigo != ''",
 
 ]) {
   try {
     db.exec(sql);
   } catch {}
+}
+
+// Passo 14: os nomes soltos em vendas.cliente viram cadastro. Roda uma vez só —
+// repetindo a cada boot, um cliente excluído voltaria do histórico de venda.
+if (!db.prepare("SELECT 1 FROM config WHERE chave = 'migrou_clientes'").get()) {
+  db.transaction(() => {
+    db.prepare(`INSERT INTO clientes (nome) SELECT DISTINCT TRIM(cliente) FROM vendas
+                WHERE TRIM(cliente) != ''
+                  AND TRIM(cliente) NOT IN (SELECT nome FROM clientes)`).run();
+    db.prepare(`UPDATE vendas SET cliente_id = (SELECT id FROM clientes WHERE nome = TRIM(vendas.cliente))
+                WHERE cliente_id IS NULL AND TRIM(cliente) != ''`).run();
+    db.prepare("INSERT INTO config (chave, valor) VALUES ('migrou_clientes','1')").run();
+  })();
+}
+
+// Código sequencial C001 pros clientes que ainda não têm (migrados ou importados).
+for (const { id } of db.prepare("SELECT id FROM clientes WHERE codigo = '' ORDER BY id").all()) {
+  db.prepare(`UPDATE clientes SET codigo = 'C' || printf('%03d',
+                (SELECT COALESCE(MAX(CAST(substr(codigo,2) AS INTEGER)),0)+1 FROM clientes WHERE codigo GLOB 'C[0-9]*'))
+              WHERE id = ?`).run(id);
 }
 
 module.exports = db;

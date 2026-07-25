@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import Clientes from "./Clientes.jsx";
 
 export const lerConfig = async () => {
   const linhas = await window.api.query("SELECT chave, valor FROM config");
@@ -231,6 +232,7 @@ export default function Config({ aoMudar }) {
         ["DELETE FROM lotes", []],
         ["DELETE FROM entradas", []],
         ["DELETE FROM vendas", []],
+        ["DELETE FROM clientes", []], // depois de vendas: é ela que referencia o cliente
         ["DELETE FROM pecas", []],
         ["DELETE FROM usuarios", []],
         ["DELETE FROM config", []],
@@ -360,6 +362,14 @@ export default function Config({ aoMudar }) {
             ))}
           </>
         )}
+      </div>
+
+      <div style={bloco}>
+        <h3 style={{ marginTop: 0 }}>Clientes</h3>
+        <div style={{ fontSize: 14, color: "#64748b", marginBottom: 10 }}>
+          Clique no nome pra ver o que o cliente já comprou.
+        </div>
+        <Clientes />
       </div>
 
       <div style={bloco}>

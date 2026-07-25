@@ -635,6 +635,103 @@ const path = require("path");
       }
     });
 
+    console.log("\nClientes (passo 14)");
+
+    await caso("64. cliente novo na venda vira cadastro com código sequencial", async () => {
+      await novaPeca("C64", 5, 10000, 20000);
+      await recarregar("Venda");
+      await aoCarrinho("C64");
+      await win.click('button:text("Finalizar venda")');
+      await win.fill('input[list="clientes-cadastrados"]', "João Teste");
+      await confirmarVenda();
+      const c = await um("SELECT * FROM clientes WHERE nome = 'João Teste'");
+      assert(c, "o cliente tinha que ser criado na hora da venda");
+      assert(/^C\d{3}$/.test(c.codigo), `código fora do formato C001: ${c.codigo}`);
+      const [v] = await sql("SELECT * FROM vendas WHERE cliente = 'João Teste'");
+      assert.strictEqual(v.cliente_id, c.id, "a venda fica vinculada ao cadastro");
+    });
+
+    await caso("65. vender de novo pelo nome ou pelo código não duplica o cadastro", async () => {
+      const c = await um("SELECT * FROM clientes WHERE nome = 'João Teste'");
+      await novaPeca("C65A", 5, 10000, 20000);
+      await novaPeca("C65B", 5, 10000, 20000);
+      for (const digitado of ["João Teste", c.codigo]) {
+        await recarregar("Venda");
+        await aoCarrinho(digitado === c.codigo ? "C65B" : "C65A");
+        await win.click('button:text("Finalizar venda")');
+        await win.fill('input[list="clientes-cadastrados"]', digitado);
+        await confirmarVenda();
+      }
+      assert.strictEqual((await sql("SELECT id FROM clientes WHERE nome = 'João Teste'")).length, 1,
+        "não pode nascer um segundo João");
+      const vs = await sql("SELECT * FROM vendas WHERE cliente_id = ?", [c.id]);
+      assert.strictEqual(vs.length, 3, "as três vendas apontam pro mesmo cadastro");
+      // Digitou o código: o nome gravado tem que ser o do cadastro, não "C00x".
+      assert(vs.every((v) => v.cliente === "João Teste"), "o nome vem do cadastro");
+    });
+
+    await caso("66. venda sem cliente não cria cadastro nenhum", async () => {
+      const antes = (await sql("SELECT id FROM clientes")).length;
+      const id = await novaPeca("C66", 5, 10000, 20000);
+      await vender("C66");
+      assert.strictEqual((await sql("SELECT id FROM clientes")).length, antes, "ninguém novo no cadastro");
+      const [v] = await vendasDe(id);
+      assert.strictEqual(v.cliente_id, null);
+      assert.strictEqual(v.cliente, "");
+    });
+
+    await caso("67. Config lista o cliente com total, nº de compras e última compra", async () => {
+      await aba("Config");
+      await win.waitForSelector('button[aria-label="Editar João Teste"]', { timeout: 8000 });
+      const linha = win.locator('tr:has(button[aria-label="Editar João Teste"])');
+      const texto = await linha.innerText();
+      // 3 vendas de 200,00 = 600,00, e são 3 pedidos distintos (1 item cada).
+      assert(await linha.locator(':text("R$ 600,00")').count(), `total errado: ${texto}`);
+      assert(/\b3\b/.test(texto), `deveria contar 3 compras: ${texto}`);
+    });
+
+    await caso("68. clicar no cliente abre o histórico de compras dele", async () => {
+      await aba("Config");
+      await win.click('button:text-is("João Teste")');
+      await win.waitForSelector("text=3 compras", { timeout: 8000 });
+      for (const peca of ["C64", "C65A", "C65B"]) {
+        assert(await win.locator(`tr:has-text("${peca}")`).count(), `faltou ${peca} no histórico`);
+      }
+      await win.click('button:text("‹ Voltar")');
+    });
+
+    await caso("69. compras do dia mostram o cliente de cada venda", async () => {
+      await aba("Config");
+      const doDia = win.locator('h4:text("Compras de hoje") + div table');
+      assert(await doDia.locator('tr:has-text("João Teste")').count(), "venda com cliente aparece nomeada");
+      assert(await doDia.locator('tr:has-text("sem cliente")').count(), "venda de balcão aparece sem nome");
+    });
+
+    await caso("70. excluir cliente solta as vendas mas não apaga o histórico", async () => {
+      const c = await um("SELECT * FROM clientes WHERE nome = 'João Teste'");
+      const antes = (await sql("SELECT id FROM vendas WHERE cliente_id = ?", [c.id])).length;
+      assert.strictEqual(antes, 3);
+      await aba("Config");
+      await win.click('button[aria-label="Excluir João Teste"]');
+      await win.waitForSelector('button[aria-label="Excluir João Teste"]', { state: "detached", timeout: 8000 });
+      assert.strictEqual(await um("SELECT id FROM clientes WHERE nome = 'João Teste'"), undefined, "sai do cadastro");
+      const vs = await sql("SELECT * FROM vendas WHERE cliente = 'João Teste'");
+      assert.strictEqual(vs.length, 3, "as vendas continuam no histórico");
+      assert(vs.every((v) => v.cliente_id === null), "só perdem o vínculo");
+    });
+
+    await caso("71. código de cliente repetido é recusado na edição", async () => {
+      await sql("INSERT INTO clientes (codigo, nome) VALUES ('C900','Ana71'), ('C901','Bia71')");
+      await recarregar("Config"); // a lista só relê ao montar; ficar na aba não traz os novos
+      await win.click('button[aria-label="Editar Bia71"]');
+      await win.fill('input[aria-label="Código do cliente"]', "C900"); // já é da Ana
+      await win.click('button:text-is("Salvar")');
+      await win.waitForTimeout(400);
+      assert.strictEqual((await um("SELECT codigo FROM clientes WHERE nome = 'Bia71'")).codigo, "C901",
+        "o código repetido não pode ser gravado");
+      await sql("DELETE FROM clientes WHERE nome IN ('Ana71','Bia71')");
+    });
+
     console.log("\nEstoque e entradas");
 
     await caso("15. cadastro com quantidade cria a entrada 'cadastro inicial'", async () => {
@@ -1020,6 +1117,61 @@ const path = require("path");
       assert.strictEqual(erros.length, 0, `erros no renderer:\n${erros.join("\n")}`);
     });
 
+    // Por último: a migração do passo 14 roda no boot, então precisa de um app
+    // novo. É a que mexe no banco de quem já usa o sistema — sem teste, o erro
+    // só aparece na loja do cliente.
+    // Deixa o banco no estado de quem está atualizando: nomes soltos em
+    // vendas.cliente e nenhum cadastro. Duas vendas do mesmo nome (uma com
+    // espaço sobrando) e uma de balcão.
+    const p72 = await novaPeca("C72", 5, 10000, 20000);
+    await sql("DELETE FROM clientes");
+    await sql("UPDATE vendas SET cliente_id = NULL");
+    await sql("DELETE FROM config WHERE chave = 'migrou_clientes'");
+    for (const [nome, pedido] of [[" Maria Antiga ", 9001], ["Maria Antiga", 9002], ["", 9003]]) {
+      await sql("INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, cliente, pedido_id) VALUES (?,1,20000,10000,?,?)",
+        [p72, nome, pedido]);
+    }
+    // O app tem lock de instância única: o segundo só sobe com o primeiro fechado.
+    await app.close();
+
+    // Uma sessão nova do app, só pra ver o que a migração do boot fez.
+    const boot = async (fn) => {
+      const outro = await _electron.launch({
+        args: ["."], cwd: path.join(__dirname, ".."),
+        env: { ...process.env, SMOKE: "1", ESTOQUE_DB_DIR: tmp },
+      });
+      try {
+        const w = await outro.firstWindow();
+        return await fn((q) => w.evaluate((q) => window.api.query(q), q));
+      } finally {
+        await outro.close();
+      }
+    };
+
+    await caso("72. banco antigo: nomes soltos em vendas.cliente viram cadastro no próximo boot", async () => {
+      await boot(async (q) => {
+        const marias = await q("SELECT * FROM clientes WHERE nome = 'Maria Antiga'");
+        assert.strictEqual(marias.length, 1, "o nome repetido vira um cadastro só, com o espaço aparado");
+        assert(/^C\d{3}$/.test(marias[0].codigo), `migrado sem código: ${marias[0].codigo}`);
+        assert.strictEqual((await q(`SELECT pedido_id FROM vendas WHERE cliente_id = ${marias[0].id}`)).length, 2,
+          "as duas vendas antigas dela ficam vinculadas");
+        assert.strictEqual((await q("SELECT cliente_id FROM vendas WHERE pedido_id = 9003"))[0].cliente_id, null,
+          "venda sem nome não inventa cliente");
+      });
+    });
+
+    await caso("73. migração não roda duas vezes: cliente excluído não volta no boot seguinte", async () => {
+      await boot(async (q) => {
+        const [maria] = await q("SELECT id FROM clientes WHERE nome = 'Maria Antiga'");
+        await q(`UPDATE vendas SET cliente_id = NULL WHERE cliente_id = ${maria.id}`);
+        await q(`DELETE FROM clientes WHERE id = ${maria.id}`);
+      });
+      await boot(async (q) => {
+        assert.strictEqual((await q("SELECT id FROM clientes WHERE nome = 'Maria Antiga'")).length, 0,
+          "o histórico de venda não pode ressuscitar quem o dono excluiu");
+      });
+    });
+
     console.log(falhas ? `\nP0: ${falhas} caso(s) com falha` : "\nP0 OK — todos os casos passaram");
     if (falhas) process.exitCode = 1;
   } catch (e) {
@@ -1027,7 +1179,7 @@ const path = require("path");
     if (erros.length) console.error(`erros no renderer:\n${erros.join("\n")}`);
     process.exitCode = 1;
   } finally {
-    await app.close();
+    await app.close().catch(() => {}); // os casos 72/73 já fecham pra liberar o lock
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 })();

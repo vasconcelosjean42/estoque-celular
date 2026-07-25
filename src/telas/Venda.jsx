@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { fmtReais, parseReais } from "./Estoque.jsx";
 import FiltroData, { calcAtalho, sufixoTitulo } from "./FiltroData.jsx";
 import { NotaModal, reimprimirNota } from "./Nota.jsx";
+import { resolverCliente } from "./Clientes.jsx";
 
 export const FORMAS = {
   especie: "Espécie",
@@ -61,6 +62,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
   const [pecas, setPecas] = useState([]);
   const [vendasHoje, setVendasHoje] = useState([]);
   const [trocasVenda, setTrocasVenda] = useState([]); // trocas vinculadas a vendas (cadeia A → B → C)
+  const [clientes, setClientes] = useState([]);
   const [notasPorPedido, setNotasPorPedido] = useState({}); // pedido_id → nota (p/ reimprimir)
   const [notaVenda, setNotaVenda] = useState(null); // pedido recém-confirmado aguardando nota
   const [flashId, setFlashId] = useState(null); // pedido destacado após confirmar
@@ -75,6 +77,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
 
   const carregar = () => {
     window.api.query("SELECT * FROM pecas ORDER BY nome, modelo").then(setPecas);
+    window.api.query("SELECT id, codigo, nome FROM clientes ORDER BY nome").then(setClientes);
     const conds = [];
     const params = [];
     if (fDe) { conds.push("date(v.criado_em) >= ?"); params.push(fDe); }
@@ -149,17 +152,19 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
       }
     }
     const desconto = calcDesconto(fechando.desc, totalCarrinho + maoDeObra);
+    // Nome novo vira cadastro aqui mesmo; nome já conhecido volta com o id dele.
+    const cli = await resolverCliente(fechando.cliente, clientes);
     const [{ n: pedidoId }] = await window.api.query("SELECT COALESCE(MAX(pedido_id),0)+1 AS n FROM vendas");
     const comandos = [];
     carrinho.forEach((it, i) => {
       comandos.push(["UPDATE pecas SET quantidade = quantidade - ? WHERE id = ?", [Number(it.qtd), it.peca.id]]);
       comandos.push([
         `INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, mao_de_obra,
-                             forma_pagamento, cliente, usuario_id, pedido_id, desconto, desconto_por)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+                             forma_pagamento, cliente, cliente_id, usuario_id, pedido_id, desconto, desconto_por)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
         // Mão de obra e desconto são do pedido: gravam numa linha só pra não somar duas vezes.
         [it.peca.id, Number(it.qtd), parseReais(it.preco), it.peca.preco_compra, i === 0 ? maoDeObra : 0,
-         fechando.forma, fechando.cliente.trim(), usuario?.id ?? null, pedidoId,
+         fechando.forma, cli.nome, cli.id, usuario?.id ?? null, pedidoId,
          i === 0 ? desconto : 0, i === 0 ? fechando.descontoPor : null],
       ]);
     });
@@ -167,7 +172,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
     if (notaOn) {
       setNotaVenda({
         pedido_id: pedidoId,
-        cliente: fechando.cliente.trim(),
+        cliente: cli.nome, // nome do cadastro, não o que foi digitado (pode ter vindo por código)
         descricao: carrinho.map((it) => `${it.qtd}x ${it.peca.nome} ${it.peca.modelo}`.trim()).join("\n")
           + (desconto ? `\nDesconto: -${fmtReais(desconto)}` : ""),
         valor_total: totalCarrinho + maoDeObra - desconto,
@@ -275,8 +280,15 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
         </div>
         <label style={{ display: "block", marginBottom: 12 }}>
           <div style={{ fontWeight: "bold", marginBottom: 4 }}>Cliente (opcional)</div>
-          <input style={inp} placeholder="Nome do cliente" value={fechando.cliente}
-            onChange={(e) => setFechando({ ...fechando, cliente: e.target.value })} />
+          {/* datalist é a sugestão nativa do próprio input — sem componente de autocomplete */}
+          <input style={inp} list="clientes-cadastrados" placeholder="Nome do cliente ou código (C001)"
+            value={fechando.cliente} onChange={(e) => setFechando({ ...fechando, cliente: e.target.value })} />
+          <datalist id="clientes-cadastrados">
+            {clientes.map((c) => <option key={c.id} value={c.nome} label={c.codigo} />)}
+          </datalist>
+          <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
+            Nome novo vira cadastro automático.
+          </div>
         </label>
         {maoDeObraOn && (
           <label style={{ display: "block", marginBottom: 12 }}>

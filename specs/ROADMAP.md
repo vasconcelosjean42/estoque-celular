@@ -36,8 +36,8 @@ cliente: o carrinho (passo 12) muda a estrutura da venda, e o conceito de perda
 | 11 | Fechamento do dia p/ colaborador + vendedor na venda | 7 | — | ✅ aprovado |
 | — | **Bloco B — venda** | | | |
 | 12 | Carrinho: vários itens num pedido | 8 | — | ✅ aprovado |
-| 13 | Desconto com autorização por PIN | 11 | 11, 12 | 🔨 feito, aguardando teste |
-| 14 | Cadastro de clientes e histórico de compras | 2 | 12 | 📝 spec |
+| 13 | Desconto com autorização por PIN | 11 | 11, 12 | ✅ aprovado |
+| 14 | Cadastro de clientes e histórico de compras | 2 | 12 | 🔨 feito, aguardando teste |
 | — | **Bloco C — trocas e perda** | | | |
 | 15 | Troca de peça que está funcionando | 9 | — | 📝 spec |
 | 16 | Perda: troca que não vai pro fornecedor | 6 | — | 📝 spec |
