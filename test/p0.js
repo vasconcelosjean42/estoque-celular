@@ -1443,6 +1443,84 @@ const path = require("path");
         "conta no dia em que o lote foi fechado, não no da troca");
     });
 
+    await caso("115. fornecedor aceitou tudo: crédito cheio e nenhuma perda", async () => {
+      const l = await loteDe("C115-", [12000, 8000]); // 200,00
+      const perdasAntes = (await sql("SELECT id FROM perdas")).length;
+      const saldoAntes = (await um("SELECT COALESCE(SUM(valor),0) AS s FROM creditos")).s;
+      await win.click('button:text("Confirmar fechamento")'); // valor já vem cheio
+      await win.waitForTimeout(600);
+      const lote = await um("SELECT * FROM lotes WHERE id = ?", [l.id]);
+      assert.strictEqual(lote.credito, 20000, "creditou o lote inteiro");
+      assert.strictEqual(lote.perda, 0);
+      assert.strictEqual((await sql("SELECT id FROM perdas")).length, perdasAntes,
+        "aceitar tudo não pode inventar perda");
+      assert.strictEqual((await um("SELECT COALESCE(SUM(valor),0) AS s FROM creditos")).s - saldoAntes, 20000,
+        "o saldo com o fornecedor sobe o valor creditado");
+    });
+
+    console.log("\nDetalhe do lote item a item (passo 20)");
+
+    await caso("116. lote item a item expande mostrando aceitas e recusadas", async () => {
+      const l = await loteDe("C116-", [30000, 20000, 10000]); // 600,00
+      await win.click('button:text-is("Item a item")');
+      await win.click('input[aria-label="Aceita C116-2"]'); // recusa a de 100,00
+      await win.click('button:text("Confirmar fechamento")');
+      await win.waitForTimeout(600);
+
+      const linha = win.locator(`tr:has-text("Lote #${l.id}")`).first();
+      assert.strictEqual(await win.locator('text=✔ C116-0').count(), 0, "começa recolhido");
+      await linha.click();
+      await win.waitForTimeout(300);
+      assert(await win.locator("text=2 itens creditados (R$ 500,00)").count(), "cabeçalho com as aceitas");
+      assert(await win.locator("text=1 perdido (R$ 100,00)").count(), "e com as perdidas");
+      assert(await win.locator("text=✔ C116-0").count(), "aceita marcada");
+      assert(await win.locator("text=✖ C116-2").count(), "recusada marcada");
+      await linha.click();
+      await win.waitForTimeout(300);
+      assert.strictEqual(await win.locator("text=✔ C116-0").count(), 0, "clicar de novo recolhe");
+    });
+
+    await caso("117. lote por valor total expande sem dizer quais peças foram recusadas", async () => {
+      const l = await loteDe("C117-", [20000, 20000]); // 400,00
+      await win.fill('input[aria-label="Valor creditado"]', "250,00");
+      await win.click('button:text("Confirmar fechamento")');
+      await win.waitForTimeout(600);
+
+      await win.locator(`tr:has-text("Lote #${l.id}")`).first().click();
+      await win.waitForTimeout(300);
+      // Nos dois modos aparece crédito E perda; aqui sem marcar item, porque
+      // fechado pelo total ninguém sabe qual peça o fornecedor recusou.
+      assert(await win.locator("text=crédito R$ 250,00").count(), "crédito do lote");
+      assert(await win.locator("text=perda R$ 150,00").count(), "e a perda, nunca só o crédito");
+      assert(await win.locator("text=não dá pra saber quais peças").count(), "avisa a limitação do modo");
+      assert.strictEqual(await win.locator("text=✔ C117-0").count(), 0, "nenhum item marcado como aceito");
+      assert(await win.locator('text=C117-0').count(), "mas os itens aparecem listados");
+    });
+
+    await caso("118. lote sem crédito nenhum também abre, com tudo em perda", async () => {
+      // É o caso que não aparece no histórico de crédito: sem crédito, sem linha lá.
+      const l = await loteDe("C118-", [15000, 15000]);
+      await win.click('button:text-is("Item a item")');
+      for (const i of [0, 1]) await win.click(`input[aria-label="Aceita C118-${i}"]`);
+      await win.click('button:text("Confirmar fechamento")');
+      await win.waitForTimeout(600);
+
+      await win.locator(`tr:has-text("Lote #${l.id}")`).first().click();
+      await win.waitForTimeout(300);
+      assert(await win.locator("text=0 itens creditados (R$ 0,00)").count(), "nenhuma aceita");
+      assert(await win.locator("text=2 perdidos (R$ 300,00)").count(), "lote inteiro perdido");
+    });
+
+    await caso("119. lote ainda enviado não expande", async () => {
+      const l = await loteDe("C119-", [10000]);
+      await win.click('button:text-is("Cancelar")'); // deixa o lote em aberto
+      await win.waitForTimeout(300);
+      await win.locator(`tr:has-text("Lote #${l.id}")`).first().click();
+      await win.waitForTimeout(300);
+      assert.strictEqual(await win.locator("text=itens creditados").count(), 0,
+        "lote que ainda não voltou não tem o que detalhar");
+    });
+
     console.log("\nEstoque e entradas");
 
     await caso("15. cadastro com quantidade cria a entrada 'cadastro inicial'", async () => {

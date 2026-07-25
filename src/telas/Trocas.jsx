@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { fmtReais, parseReais } from "./Estoque.jsx";
 import FiltroData, { calcAtalho, sufixoTitulo } from "./FiltroData.jsx";
-import { FORMAS } from "./Venda.jsx";
+import { FORMAS, setaPedido } from "./Venda.jsx";
 
 const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" };
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
@@ -22,6 +22,8 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
   const [fProd, setFProd] = useState(""); // filtro prateleira por produto (contém)
   const [abate, setAbate] = useState(null); // { valor, descricao } — prompt() não existe no Electron
   const [resolvendo, setResolvendo] = useState(null); // { lote, itens, modo, valorTotal, aceitas }
+  const [itensLote, setItensLote] = useState([]);
+  const [loteAberto, setLoteAberto] = useState(null); // lote expandido na lista
   const [[pSel, pDe, pAte], setFiltroPerdas] = useState(() => ["mes", ...calcAtalho("mes")]);
 
   // Separado do carregar(): mudar o período das perdas não pode limpar a seleção
@@ -57,6 +59,13 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
               FROM lotes l JOIN trocas t ON t.lote_id = l.id
               GROUP BY l.id ORDER BY l.id DESC`)
       .then(setLotes);
+    // Itens de todos os lotes, com a perda de cada um: é o que o dropdown mostra.
+    // ponytail: carrega tudo (poucos lotes numa loja); filtrar por lote se crescer.
+    window.api
+      .query(`SELECT t.id, t.lote_id, t.modelo, t.defeito, t.valor_compra, t.creditada,
+                     (SELECT valor FROM perdas WHERE troca_id = t.id) AS perda_valor
+              FROM trocas t WHERE t.lote_id IS NOT NULL ORDER BY t.lote_id, t.id`)
+      .then(setItensLote);
     window.api.query("SELECT * FROM creditos ORDER BY id DESC").then(setCreditos);
     window.api.query("SELECT DISTINCT fornecedor FROM trocas WHERE fornecedor != '' ORDER BY fornecedor")
       .then((r) => setFornecedores(r.map((x) => x.fornecedor)));
@@ -585,9 +594,22 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
         })()}
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
           <tbody>
-            {lotes.map((l) => (
-              <tr key={l.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
-                <td style={{ padding: 8, fontWeight: "bold" }}>Lote #{l.id}</td>
+            {lotes.map((l) => {
+              const resolvido = l.status === "resolvido";
+              const aberto = loteAberto === l.id;
+              const itens = itensLote.filter((t) => t.lote_id === l.id);
+              const creditadas = itens.filter((t) => t.creditada);
+              const perdidas = itens.filter((t) => !t.creditada && t.perda_valor != null);
+              return (
+              <React.Fragment key={l.id}>
+              <tr
+                onClick={resolvido ? () => setLoteAberto(aberto ? null : l.id) : undefined}
+                title={resolvido ? (aberto ? "Recolher" : "Ver item a item") : undefined}
+                style={{ borderBottom: aberto ? "none" : "1px solid #e2e8f0",
+                  cursor: resolvido ? "pointer" : undefined, background: aberto ? "#f1f5f9" : undefined }}>
+                <td style={{ padding: 8, fontWeight: "bold" }}>
+                  {resolvido && setaPedido(aberto)} Lote #{l.id}
+                </td>
                 <td style={{ padding: 8 }}>{l.qtd} peça{l.qtd === 1 ? "" : "s"} — {fmtReais(l.valor)}</td>
                 <td style={{ padding: 8, color: "#64748b" }}>enviado {l.enviado_em?.slice(8, 10)}/{l.enviado_em?.slice(5, 7)}</td>
                 <td style={{ padding: 8, textAlign: "right" }}>
@@ -607,7 +629,55 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
                   )}
                 </td>
               </tr>
-            ))}
+              {aberto && (
+                <tr style={{ borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
+                  <td colSpan={4} style={{ padding: "8px 8px 12px 24px" }}>
+                    {/* Crédito e perda sempre juntos: ver só o crédito esconde o prejuízo. */}
+                    <div style={{ fontWeight: "bold", marginBottom: 6 }}>
+                      {l.modo === "itens" ? (
+                        <>
+                          <span style={{ color: "#16a34a" }}>
+                            {creditadas.length} {creditadas.length === 1 ? "item creditado" : "itens creditados"}
+                            {" "}({fmtReais(l.credito ?? 0)})
+                          </span>
+                          {" — "}
+                          <span style={{ color: perdidas.length ? "#dc2626" : "#64748b" }}>
+                            {perdidas.length} perdido{perdidas.length === 1 ? "" : "s"} ({fmtReais(l.perda ?? 0)})
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ color: "#16a34a" }}>crédito {fmtReais(l.credito ?? l.valor)}</span>
+                          {" — "}
+                          <span style={{ color: l.perda > 0 ? "#dc2626" : "#64748b" }}>perda {fmtReais(l.perda ?? 0)}</span>
+                          <div style={{ fontWeight: "normal", fontSize: 13, color: "#64748b" }}>
+                            Fechado pelo valor total: não dá pra saber quais peças o fornecedor recusou.
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {itens.map((t) => {
+                      // No valor total ninguém sabe quais foram aceitas: item sem cor.
+                      const cor = l.modo !== "itens" ? "#334155" : t.creditada ? "#16a34a" : "#dc2626";
+                      return (
+                        <div key={t.id} style={{ display: "flex", gap: 8, padding: "3px 0", fontSize: 15, color: cor }}>
+                          <span style={{ flex: 1 }}>
+                            {l.modo === "itens" && (t.creditada ? "✔ " : "✖ ")}
+                            {t.modelo} <span style={{ color: "#94a3b8" }}>— {t.defeito}</span>
+                          </span>
+                          <strong>{fmtReais(t.valor_compra)}</strong>
+                          {l.modo === "itens" && !t.creditada && t.perda_valor != null && (
+                            <span style={{ color: "#dc2626" }}>perda {fmtReais(t.perda_valor)}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </td>
+                </tr>
+              )}
+              </React.Fragment>
+              );
+            })}
             {lotes.length === 0 && (
               <tr><td style={{ padding: 16, color: "#64748b" }}>Nenhum lote fechado ainda.</td></tr>
             )}
