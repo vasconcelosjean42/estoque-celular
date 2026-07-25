@@ -404,6 +404,12 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
           <td style={{ padding: 8, color: "#64748b" }}>{t.recebido_em.slice(11, 16)}</td>
           <td style={{ padding: 8 }} colSpan={2}>
             ↳ trocado por 1x <strong>{t.nova_nome} {t.nova_modelo}</strong>
+            {/* onde o dinheiro da diferença entrou/saiu — o fechamento conta ele */}
+            {!!t.diferenca && (
+              <span style={{ color: t.diferenca > 0 ? "#16a34a" : "#dc2626", fontWeight: "bold" }}>
+                {" "}({t.diferenca > 0 ? "+" : "−"}{fmtReais(Math.abs(t.diferenca))} em {FORMAS[t.forma_pagamento] || t.forma_pagamento})
+              </span>
+            )}
           </td>
           <td style={{ padding: 8, color: "#b45309" }}>{t.defeituosa ? "troca" : "devolveu boa"}</td>
           <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>

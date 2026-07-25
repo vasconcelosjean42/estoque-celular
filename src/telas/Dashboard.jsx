@@ -4,9 +4,11 @@ import { FORMAS, agruparPedidos, setaPedido, totalPedido, lucroPedido, descontoP
 import FiltroData, { isoDia } from "./FiltroData.jsx";
 import Fechamento from "./Fechamento.jsx";
 
-// Desconto entra nas duas: o cliente pagou menos, então faturou e lucrou menos.
-const FAT = "SUM(preco_venda * quantidade + mao_de_obra - desconto)";
-const LUCRO = "SUM((preco_venda - preco_compra) * quantidade + mao_de_obra - desconto)";
+// A view movimentos_caixa (electron/db.js) já resolve o que entra em cada um:
+// desconto abatido, e a diferença de troca soma no faturamento com lucro 0 —
+// é acerto de troca, não margem de venda.
+const FAT = "COALESCE(SUM(valor),0)";
+const LUCRO = "COALESCE(SUM(lucro),0)";
 
 const PERIODOS = [
   ["Hoje", "date(criado_em) = date('now','localtime')"],
@@ -35,7 +37,7 @@ export default function Dashboard() {
     Promise.all(
       PERIODOS.map(([rotulo, where]) =>
         window.api
-          .query(`SELECT ${FAT} AS fat, ${LUCRO} AS lucro FROM vendas WHERE ${where}`)
+          .query(`SELECT ${FAT} AS fat, ${LUCRO} AS lucro FROM movimentos_caixa WHERE ${where}`)
           .then(([r]) => ({ rotulo, fat: r.fat || 0, lucro: r.lucro || 0 }))
       )
     ).then(setCards);
@@ -44,11 +46,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     const sql = {
-      "14d": `SELECT date(criado_em) AS chave, ${FAT} AS total, ${LUCRO} AS lucro FROM vendas
+      "14d": `SELECT date(criado_em) AS chave, ${FAT} AS total, ${LUCRO} AS lucro FROM movimentos_caixa
               WHERE date(criado_em) >= date('now','localtime','-13 days') GROUP BY chave`,
-      mes: `SELECT date(criado_em) AS chave, ${FAT} AS total, ${LUCRO} AS lucro FROM vendas
+      mes: `SELECT date(criado_em) AS chave, ${FAT} AS total, ${LUCRO} AS lucro FROM movimentos_caixa
             WHERE strftime('%Y-%m', criado_em) = strftime('%Y-%m','now','localtime') GROUP BY chave`,
-      ano: `SELECT strftime('%Y-%m', criado_em) AS chave, ${FAT} AS total, ${LUCRO} AS lucro FROM vendas
+      ano: `SELECT strftime('%Y-%m', criado_em) AS chave, ${FAT} AS total, ${LUCRO} AS lucro FROM movimentos_caixa
             WHERE strftime('%Y', criado_em) = strftime('%Y','now','localtime') GROUP BY chave`,
     }[grafMode];
     window.api.query(sql).then(setPorDia);
@@ -138,7 +140,7 @@ export default function Dashboard() {
   const abrirDia = async (b) => {
     if (diaSel?.chave === b.chave) return setDiaSel(null); // clicar de novo na mesma vela fecha
     const formas = await window.api.query(
-      `SELECT forma_pagamento, ${FAT} AS total FROM vendas
+      `SELECT forma_pagamento, ${FAT} AS total FROM movimentos_caixa
        WHERE date(criado_em) BETWEEN ? AND ? GROUP BY forma_pagamento`,
       [b.de, b.ate]
     );

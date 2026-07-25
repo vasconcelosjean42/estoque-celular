@@ -142,12 +142,33 @@ for (const sql of [
   // Passo 15: peça devolvida funcionando volta ao estoque e não vai pra prateleira.
   // Default 1 porque toda troca até aqui era defeito.
   "ALTER TABLE trocas ADD COLUMN defeituosa INTEGER NOT NULL DEFAULT 1",
+  // Passo 17: dinheiro da troca bate no caixa. Positivo = a loja recebeu,
+  // negativo = a loja devolveu. Troca antiga fica em 0 e não mexe em total nenhum.
+  "ALTER TABLE trocas ADD COLUMN diferenca INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE trocas ADD COLUMN forma_pagamento TEXT",
 
 ]) {
   try {
     db.exec(sql);
   } catch {}
 }
+
+// O caixa num lugar só: faturamento e fechamento são venda + diferença de troca.
+// Três telas liam isso — Fechamento, cards e gráfico do Dashboard — e cada uma
+// somando por conta própria uma hora divergia. DROP + CREATE porque o
+// IF NOT EXISTS guardaria a definição velha depois de qualquer mudança aqui.
+db.exec(`
+DROP VIEW IF EXISTS movimentos_caixa;
+CREATE VIEW movimentos_caixa AS
+  SELECT 'venda' AS tipo, criado_em, forma_pagamento,
+         preco_venda * quantidade + mao_de_obra - desconto AS valor,
+         (preco_venda - preco_compra) * quantidade + mao_de_obra - desconto AS lucro
+    FROM vendas
+  UNION ALL
+  -- Diferença de troca é acerto, não margem: entra no faturamento, nunca no lucro.
+  SELECT 'troca', recebido_em, forma_pagamento, diferenca, 0
+    FROM trocas WHERE diferenca != 0 AND forma_pagamento IS NOT NULL;
+`);
 
 // Passo 14: os nomes soltos em vendas.cliente viram cadastro. Roda uma vez só —
 // repetindo a cada boot, um cliente excluído voltaria do histórico de venda.

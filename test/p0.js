@@ -96,6 +96,11 @@ const path = require("path");
     await win.click('button:text-is("Cancelar venda")'); // limpa o carrinho p/ não vazar no próximo caso
   };
   const vender = async (nome, campos) => { await abrirVenda(nome, campos); await confirmarVenda(); };
+  // Mesmo formato da tela, com separador de milhar: acima de R$ 1.000 um
+  // toFixed() cru deixa de casar com o texto exibido.
+  const reaisBR = (centavos) =>
+    (centavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   const trocarUsuario = async (nome, pin) => {
     await win.click('nav button:text-is("Sair")');
     await login(nome, pin);
@@ -762,6 +767,9 @@ const path = require("path");
       await recarregar("Venda");
       await aoCarrinho(nomeA);
       await win.click('button:text("Finalizar venda")');
+      // A venda em si vai pra outra forma quando o caso mede a da diferença,
+      // senão o valor da venda entra na mesma conta e mascara o resultado.
+      if (opts.formaVenda) await win.click(`button:text-is("${opts.formaVenda}")`);
       await confirmarVenda();
       const pid = (await um("SELECT pedido_id FROM vendas WHERE peca_id = (SELECT id FROM pecas WHERE nome = ?) ORDER BY id DESC", [nomeA])).pedido_id;
       await win.click(`#pedido-${pid} button:text-is("Trocar")`);
@@ -773,6 +781,11 @@ const path = require("path");
         await win.fill('label:has-text("Motivo da perda") input', opts.perda);
       }
       await win.selectOption('label:has-text("Trocar por") select', String(idB));
+      // A forma de pagamento da diferença só aparece depois de escolher a reposição.
+      if (opts.formaDif) {
+        await win.waitForSelector("text=Por onde o dinheiro", { timeout: 8000 });
+        await win.click(`div:has-text("Por onde o dinheiro") > div > button:text-is("${opts.formaDif}")`);
+      }
       await win.click('button:text-is("Salvar")');
       await win.waitForSelector("text=Prateleira", { timeout: 8000 });
       return pid;
@@ -871,8 +884,7 @@ const path = require("path");
       const [{ total }] = await sql(`SELECT COALESCE(SUM(valor),0) AS total FROM perdas
                                      WHERE strftime('%Y-%m', criado_em) = strftime('%Y-%m','now','localtime')`);
       const cabecalho = await win.locator('h3:has-text("Perdas")').innerText();
-      const reais = (c) => (c / 100).toFixed(2).replace(".", ",");
-      assert(cabecalho.includes(reais(total)), `total do mês devia ser ${reais(total)}, veio "${cabecalho}"`);
+      assert(cabecalho.includes(reaisBR(total)), `total do mês devia ser ${reaisBR(total)}, veio "${cabecalho}"`);
     });
 
     await caso("82. desfazer a troca apaga a perda junto e devolve o estoque", async () => {
@@ -941,16 +953,139 @@ const path = require("path");
         "perda de mês fechado não entra no mês corrente");
       const [{ mes }] = await sql(`SELECT COALESCE(SUM(valor),0) AS mes FROM perdas
                                    WHERE strftime('%Y-%m', criado_em) = strftime('%Y-%m','now','localtime')`);
-      assert((await total()).includes((mes / 100).toFixed(2).replace(".", ",")), "total do mês");
+      assert((await total()).includes(reaisBR(mes)), "total do mês");
 
       await win.click('h3:has-text("Perdas") button:text-is("Tudo")');
       await win.waitForTimeout(400);
       assert(await bloco.locator('tr:has-text("perda antiga C85")').count(),
         "em Tudo o histórico continua lá: nada é apagado na virada do mês");
       const [{ tudo }] = await sql("SELECT COALESCE(SUM(valor),0) AS tudo FROM perdas");
-      assert((await total()).includes((tudo / 100).toFixed(2).replace(".", ",")), "total de tudo");
+      assert((await total()).includes(reaisBR(tudo)), "total de tudo");
       assert(tudo > mes, "o teste só vale se existir perda fora do mês");
       await sql("DELETE FROM perdas WHERE motivo = 'perda antiga C85'");
+    });
+
+    console.log("\nDiferença da troca no caixa (passo 17)");
+
+    // Fechamento do dia por forma, do jeito que as telas leem.
+    const caixaDoDia = async (forma) =>
+      (await um(`SELECT COALESCE(SUM(valor),0) AS t FROM movimentos_caixa
+                 WHERE date(criado_em) = date('now','localtime') AND forma_pagamento = ?`, [forma])).t;
+
+    await caso("86. troca por peça mais cara: diferença entra no fechamento na forma escolhida", async () => {
+      const a = await novaPeca("C86A", 5, 10000, 20000);
+      const b = await novaPeca("C86B", 5, 15000, 24000); // 40,00 mais cara
+      const antes = await caixaDoDia("pix");
+      await trocarVenda("C86A", b, "Com defeito", { formaDif: "Pix" });
+      const t = await um("SELECT * FROM trocas WHERE peca_id = ?", [a]);
+      assert.strictEqual(t.diferenca, 4000, "24.000 − 20.000 = 40,00 a receber");
+      assert.strictEqual(t.forma_pagamento, "pix");
+      assert.strictEqual((await caixaDoDia("pix")) - antes, 4000, "o Pix do dia sobe 40,00");
+    });
+
+    await caso("87. troca por peça mais barata: diferença devolvida reduz a forma", async () => {
+      const a = await novaPeca("C87A", 5, 10000, 20000);
+      const b = await novaPeca("C87B", 5, 8000, 18500); // 15,00 mais barata
+      const antes = await caixaDoDia("especie");
+      await trocarVenda("C87A", b, "Com defeito", { formaVenda: "Pix", formaDif: "Espécie" });
+      const t = await um("SELECT * FROM trocas WHERE peca_id = ?", [a]);
+      assert.strictEqual(t.diferenca, -1500, "18.500 − 20.000 = 15,00 devolvidos");
+      assert.strictEqual((await caixaDoDia("especie")) - antes, -1500, "a espécie do dia CAI 15,00");
+    });
+
+    await caso("88. troca sem diferença não mexe no caixa e nem pede forma", async () => {
+      const a = await novaPeca("C88A", 5, 10000, 20000);
+      const b = await novaPeca("C88B", 5, 9000, 20000); // mesmo preço de venda
+      const antes = await um(`SELECT COALESCE(SUM(valor),0) AS t FROM movimentos_caixa
+                              WHERE date(criado_em) = date('now','localtime')`);
+      await recarregar("Venda");
+      await aoCarrinho("C88A");
+      await win.click('button:text("Finalizar venda")');
+      await confirmarVenda();
+      const pid = (await vendasDe(a))[0].pedido_id;
+      await win.click(`#pedido-${pid} button:text-is("Trocar")`);
+      await win.waitForSelector("text=Estado da peça devolvida", { timeout: 8000 });
+      await win.fill('label:has-text("Defeito") input', "não liga");
+      await win.selectOption('label:has-text("Trocar por") select', String(b));
+      await win.waitForTimeout(300);
+      assert.strictEqual(await win.locator("text=Por onde o dinheiro").count(), 0,
+        "sem diferença não pergunta forma de pagamento");
+      await win.click('button:text-is("Salvar")');
+      await win.waitForSelector("text=Prateleira", { timeout: 8000 });
+      const t = await um("SELECT * FROM trocas WHERE peca_id = ?", [a]);
+      assert.strictEqual(t.diferenca, 0);
+      assert.strictEqual(t.forma_pagamento, null);
+      const depois = await um(`SELECT COALESCE(SUM(valor),0) AS t FROM movimentos_caixa
+                               WHERE date(criado_em) = date('now','localtime')`);
+      // Só a venda entrou no caixa; a troca em si não mexeu em nada.
+      assert.strictEqual(depois.t - antes.t, 20000);
+    });
+
+    await caso("89. diferença sem forma de pagamento é recusada", async () => {
+      const a = await novaPeca("C89A", 5, 10000, 20000);
+      const b = await novaPeca("C89B", 5, 15000, 24000);
+      await recarregar("Venda");
+      await aoCarrinho("C89A");
+      await win.click('button:text("Finalizar venda")');
+      await confirmarVenda();
+      const pid = (await vendasDe(a))[0].pedido_id;
+      await win.click(`#pedido-${pid} button:text-is("Trocar")`);
+      await win.waitForSelector("text=Estado da peça devolvida", { timeout: 8000 });
+      await win.fill('label:has-text("Defeito") input', "não liga");
+      await win.selectOption('label:has-text("Trocar por") select', String(b));
+      await win.click('button:text-is("Salvar")'); // sem escolher forma
+      await win.waitForTimeout(400);
+      assert(await win.locator("text=Por onde o dinheiro").count(),
+        "tem que continuar no formulário, sem gravar");
+      assert.strictEqual(await um("SELECT id FROM trocas WHERE peca_id = ?", [a]), undefined);
+      assert.strictEqual((await peca(b)).quantidade, 5, "nada de estoque pode ter mexido");
+      await win.click('button:text-is("Cancelar")');
+    });
+
+    await caso("90. fechamento do dia = vendas + diferenças, e o lucro ignora a diferença", async () => {
+      // O que as telas mostram tem que bater com a soma das duas tabelas.
+      const [{ vendas }] = await sql(`SELECT COALESCE(SUM(preco_venda*quantidade + mao_de_obra - desconto),0) AS vendas
+                                      FROM vendas WHERE date(criado_em) = date('now','localtime')`);
+      const [{ difs }] = await sql(`SELECT COALESCE(SUM(diferenca),0) AS difs FROM trocas
+                                    WHERE date(recebido_em) = date('now','localtime') AND forma_pagamento IS NOT NULL`);
+      const [{ caixa }] = await sql(`SELECT COALESCE(SUM(valor),0) AS caixa FROM movimentos_caixa
+                                     WHERE date(criado_em) = date('now','localtime')`);
+      assert.strictEqual(caixa, vendas + difs, "o caixa do dia é venda + diferença de troca");
+      assert(difs !== 0, "o teste só vale se houve diferença hoje");
+
+      const [{ lucroCaixa }] = await sql(`SELECT COALESCE(SUM(lucro),0) AS lucroCaixa FROM movimentos_caixa
+                                          WHERE date(criado_em) = date('now','localtime')`);
+      const [{ lucroVendas }] = await sql(`SELECT COALESCE(SUM((preco_venda-preco_compra)*quantidade + mao_de_obra - desconto),0) AS lucroVendas
+                                           FROM vendas WHERE date(criado_em) = date('now','localtime')`);
+      assert.strictEqual(lucroCaixa, lucroVendas, "diferença é acerto de troca, não margem: fora do lucro");
+
+      // E o bloco na tela tem que mostrar o mesmo número do banco.
+      await recarregar("Dashboard");
+      const bloco = await win.locator('h3:text("Fechamento de hoje")').locator("..").innerText();
+      assert(bloco.includes(reaisBR(caixa)), `Fechamento devia mostrar ${reaisBR(caixa)}:\n${bloco}`);
+    });
+
+    await caso("91. desfazer a troca tira a diferença do caixa junto", async () => {
+      const a = await novaPeca("C91A", 5, 10000, 20000);
+      const b = await novaPeca("C91B", 5, 15000, 24000);
+      const antes = await caixaDoDia("debito");
+      await trocarVenda("C91A", b, "Com defeito", { formaDif: "Débito" });
+      assert.strictEqual((await caixaDoDia("debito")) - antes, 4000);
+      await recarregar("Venda");
+      await win.click('tr:has-text("trocado por 1x C91B") button:text-is("Desfazer")');
+      await win.waitForTimeout(500);
+      assert.strictEqual(await caixaDoDia("debito"), antes, "desfez a troca, o dinheiro sai do caixa");
+    });
+
+    await caso("92. troca antiga (sem diferença) não mexe em total nenhum", async () => {
+      const id = await novaPeca("C92", 5, 10000, 20000);
+      const antes = await um(`SELECT COALESCE(SUM(valor),0) AS t FROM movimentos_caixa
+                              WHERE date(criado_em) = date('now','localtime')`);
+      // Como as que já estavam no banco antes da atualização: diferenca 0, forma NULL.
+      await sql("INSERT INTO trocas (modelo, defeito, valor_compra, peca_id) VALUES ('C92 antiga','não liga',10000,?)", [id]);
+      const depois = await um(`SELECT COALESCE(SUM(valor),0) AS t FROM movimentos_caixa
+                               WHERE date(criado_em) = date('now','localtime')`);
+      assert.strictEqual(depois.t, antes.t, "troca sem diferença fica fora do caixa");
     });
 
     console.log("\nEstoque e entradas");

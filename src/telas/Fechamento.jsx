@@ -10,9 +10,12 @@ export default function Fechamento({ destaque = false }) {
 
   useEffect(() => {
     window.api
-      // Desconto sai do caixa: o que entrou na gaveta é o total já descontado.
-      .query(`SELECT forma_pagamento, SUM(preco_venda * quantidade + mao_de_obra - desconto) AS total, COUNT(*) AS n
-              FROM vendas WHERE date(criado_em) = date('now','localtime') GROUP BY forma_pagamento`)
+      // movimentos_caixa = venda + diferença de troca, com o desconto já abatido:
+      // é o dinheiro que passou pela gaveta. n conta só venda — diferença de troca
+      // é acerto, não venda nova.
+      .query(`SELECT forma_pagamento, SUM(valor) AS total, SUM(tipo = 'venda') AS n
+              FROM movimentos_caixa WHERE date(criado_em) = date('now','localtime')
+              GROUP BY forma_pagamento`)
       .then(setLinhas);
   }, []);
 

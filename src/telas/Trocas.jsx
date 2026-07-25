@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { fmtReais, parseReais } from "./Estoque.jsx";
 import FiltroData, { calcAtalho, sufixoTitulo } from "./FiltroData.jsx";
+import { FORMAS } from "./Venda.jsx";
 
 const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" };
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
 const bloco = { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 16, marginBottom: 20 };
 
-const FORM_VAZIO = { peca_id: "", modelo: "", defeito: "", observacao: "", valor: "", fornecedor: "", entregueiNova: false, defeituosa: true, perda: false };
+const FORM_VAZIO = { peca_id: "", modelo: "", defeito: "", observacao: "", valor: "", fornecedor: "", entregueiNova: false, defeituosa: true, perda: false, formaDif: "" };
 
 export default function Trocas({ vendaTroca, aoConsumir }) {
   const [pecas, setPecas] = useState([]);
@@ -101,11 +102,20 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
         alert("Escolha a peça de reposição (precisa ter estoque).");
         return;
       }
+      // Diferença sem forma de pagamento é dinheiro entrando/saindo da gaveta sem
+      // rastro: o fechamento do dia não fecharia.
+      const diferenca = nova.preco_venda - form.precoPago;
+      if (diferenca !== 0 && !form.formaDif) {
+        alert(`Escolha por onde ${diferenca > 0 ? "entrou" : "saiu"} a diferença de ${fmtReais(Math.abs(diferenca))}.`);
+        return;
+      }
       comandos.push(
-        [`INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, peca_id, venda_id, nova_peca_id, defeituosa)
-          VALUES (?,?,?,?,?,?,?,?,?)`,
+        [`INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, peca_id, venda_id, nova_peca_id, defeituosa,
+                              diferenca, forma_pagamento)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
           [form.modelo.trim(), defeito, form.observacao.trim(), valor, fornecedor, form.peca_id || null,
-           form.venda_id, nova.id, form.defeituosa ? 1 : 0]],
+           form.venda_id, nova.id, form.defeituosa ? 1 : 0,
+           diferenca, diferenca !== 0 ? form.formaDif : null]],
         // last_insert_rowid() é o da troca acima: tem que vir antes de qualquer outro INSERT.
         ...(perda ? [registrarPerda] : []),
         ["UPDATE pecas SET quantidade = quantidade - 1 WHERE id = ?", [nova.id]]
@@ -276,8 +286,24 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
           </label>
         )}
         {form.travada && novaPeca && dif !== 0 && (
-          <div style={{ fontSize: 17, fontWeight: "bold", marginBottom: 16, color: dif > 0 ? "#16a34a" : "#dc2626" }}>
-            Diferença: {dif > 0 ? `você recebe +${fmtReais(dif)}` : `você paga ${fmtReais(dif)}`}
+          <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, marginBottom: 16 }}>
+            <div style={{ fontSize: 17, fontWeight: "bold", marginBottom: 8, color: dif > 0 ? "#16a34a" : "#dc2626" }}>
+              Diferença: {dif > 0 ? `você recebe +${fmtReais(dif)}` : `você devolve ${fmtReais(-dif)}`}
+            </div>
+            <div style={{ fontWeight: "bold", marginBottom: 4 }}>
+              Por onde o dinheiro {dif > 0 ? "entrou" : "saiu"}?
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {Object.entries(FORMAS).map(([valor, rotulo]) => (
+                <button key={valor} onClick={() => setForm({ ...form, formaDif: valor })}
+                  style={{ ...btn, background: form.formaDif === valor ? "#38bdf8" : "#e2e8f0", color: form.formaDif === valor ? "#0f172a" : "#334155" }}>
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 13, color: "#64748b", marginTop: 6 }}>
+              {dif > 0 ? "Entra" : "Sai"} no fechamento do dia nessa forma.
+            </div>
           </div>
         )}
         {form.peca_id && !form.travada && (
@@ -360,6 +386,14 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
                 <td style={{ padding: 8 }}>{t.defeito}{t.observacao && ` — ${t.observacao}`}</td>
                 <td style={{ padding: 8, color: "#64748b" }}>{t.fornecedor || "—"}</td>
                 <td style={{ padding: 8 }}>{fmtReais(t.valor_compra)}</td>
+                <td style={{ padding: 8, whiteSpace: "nowrap", color: t.diferenca > 0 ? "#16a34a" : "#dc2626" }}>
+                  {t.diferenca ? (
+                    <>
+                      {t.diferenca > 0 ? "+" : "−"}{fmtReais(Math.abs(t.diferenca))}
+                      <div style={{ fontSize: 12, color: "#94a3b8" }}>{FORMAS[t.forma_pagamento] || t.forma_pagamento}</div>
+                    </>
+                  ) : ""}
+                </td>
                 <td style={{ padding: 8, fontWeight: t.dias >= 30 ? "bold" : undefined, color: t.dias >= 40 ? "#dc2626" : t.dias >= 30 ? "#d97706" : "#64748b" }}>
                   {t.dias} dia{t.dias === 1 ? "" : "s"}{t.dias >= 40 && " ⚠ prazo!"}
                 </td>
