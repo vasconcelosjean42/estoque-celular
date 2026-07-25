@@ -21,6 +21,7 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
   const [fForn, setFForn] = useState(""); // filtro prateleira por fornecedor ('' = todos)
   const [fProd, setFProd] = useState(""); // filtro prateleira por produto (contém)
   const [abate, setAbate] = useState(null); // { valor, descricao } — prompt() não existe no Electron
+  const [resolvendo, setResolvendo] = useState(null); // { lote, itens, modo, valorTotal, aceitas }
   const [[pSel, pDe, pAte], setFiltroPerdas] = useState(() => ["mes", ...calcAtalho("mes")]);
 
   // Separado do carregar(): mudar o período das perdas não pode limpar a seleção
@@ -181,12 +182,55 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
     carregar();
   };
 
-  const loteRetornou = async (l) => {
-    if (!confirm(`Lote #${l.id} retornou? Gera crédito de ${fmtReais(l.valor)} com o fornecedor.`)) return;
-    await window.api.tx([
-      ["UPDATE lotes SET status = 'resolvido', resolvido_em = datetime('now','localtime') WHERE id = ?", [l.id]],
-      ["INSERT INTO creditos (valor, descricao) VALUES (?,?)", [l.valor, `Retorno do lote #${l.id}`]],
-    ]);
+  // O fornecedor raramente aceita o lote inteiro: abre a tela de fechamento em
+  // vez de creditar a soma cheia direto.
+  const abrirResolucao = async (l) => {
+    const itens = await window.api.query("SELECT * FROM trocas WHERE lote_id = ? ORDER BY id", [l.id]);
+    setResolvendo({
+      lote: l, itens, modo: "total",
+      valorTotal: (l.valor / 100).toFixed(2).replace(".", ","),
+      aceitas: new Set(itens.map((t) => t.id)), // começa tudo aceito: é o caso comum
+    });
+  };
+
+  const creditoDe = (r) =>
+    r.modo === "total"
+      ? parseReais(r.valorTotal)
+      : r.itens.filter((t) => r.aceitas.has(t.id)).reduce((s, t) => s + t.valor_compra, 0);
+
+  const confirmarResolucao = async () => {
+    const { lote, itens, modo, aceitas } = resolvendo;
+    const credito = creditoDe(resolvendo);
+    if (isNaN(credito) || credito < 0) {
+      alert("Valor de crédito inválido.");
+      return;
+    }
+    if (credito > lote.valor) {
+      alert(`O crédito não pode passar do valor do lote (${fmtReais(lote.valor)}).`);
+      return;
+    }
+    const perda = lote.valor - credito;
+    const comandos = [
+      ["UPDATE lotes SET status = 'resolvido', resolvido_em = datetime('now','localtime'), modo = ?, credito = ?, perda = ? WHERE id = ?",
+        [modo, credito, perda, lote.id]],
+    ];
+    if (credito > 0) {
+      comandos.push(["INSERT INTO creditos (valor, descricao) VALUES (?,?)", [credito, `Retorno do lote #${lote.id}`]]);
+    }
+    if (modo === "itens") {
+      // Item a item dá pra dizer QUAL peça o fornecedor recusou: uma perda por peça.
+      itens.forEach((t) => {
+        if (aceitas.has(t.id)) comandos.push(["UPDATE trocas SET creditada = 1 WHERE id = ?", [t.id]]);
+        else comandos.push(["INSERT INTO perdas (troca_id, peca_id, valor, motivo) VALUES (?,?,?,?)",
+          [t.id, t.peca_id, t.valor_compra, `Lote #${lote.id} — fornecedor não aceitou`]]);
+      });
+    } else if (perda > 0) {
+      // No valor total não se sabe quais peças entraram no corte: uma perda só.
+      comandos.push(["INSERT INTO perdas (valor, motivo) VALUES (?,?)",
+        [perda, `Lote #${lote.id} — creditou ${fmtReais(credito)} de ${fmtReais(lote.valor)}`]]);
+    }
+    await window.api.tx(comandos);
+    setResolvendo(null);
     carregar();
   };
 
@@ -477,6 +521,68 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
 
       <div style={bloco}>
         <h3 style={{ marginTop: 0 }}>Lotes</h3>
+        {resolvendo && (() => {
+          const credito = creditoDe(resolvendo);
+          const valido = !isNaN(credito) && credito >= 0 && credito <= resolvendo.lote.valor;
+          const perda = resolvendo.lote.valor - credito;
+          return (
+            <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+              <h4 style={{ margin: "0 0 8px" }}>
+                Lote #{resolvendo.lote.id} retornou — {resolvendo.itens.length} peça
+                {resolvendo.itens.length === 1 ? "" : "s"}, {fmtReais(resolvendo.lote.valor)}
+              </h4>
+              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                {[["total", "Valor total"], ["itens", "Item a item"]].map(([modo, rotulo]) => (
+                  <button key={modo} onClick={() => setResolvendo({ ...resolvendo, modo })}
+                    style={{ ...btn, background: resolvendo.modo === modo ? "#38bdf8" : "#e2e8f0", color: resolvendo.modo === modo ? "#0f172a" : "#334155" }}>
+                    {rotulo}
+                  </button>
+                ))}
+              </div>
+
+              {resolvendo.modo === "total" ? (
+                <label style={{ display: "block", marginBottom: 10 }}>
+                  <div style={{ fontWeight: "bold", marginBottom: 4 }}>Quanto o fornecedor creditou (R$)</div>
+                  <input style={{ ...inp, width: 180 }} autoFocus aria-label="Valor creditado"
+                    value={resolvendo.valorTotal}
+                    onChange={(e) => setResolvendo({ ...resolvendo, valorTotal: e.target.value })} />
+                </label>
+              ) : (
+                <div style={{ marginBottom: 10, maxHeight: 220, overflow: "auto" }}>
+                  {resolvendo.itens.map((t) => (
+                    <label key={t.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0", cursor: "pointer" }}>
+                      <input type="checkbox" style={{ width: 18, height: 18 }}
+                        aria-label={`Aceita ${t.modelo}`}
+                        checked={resolvendo.aceitas.has(t.id)}
+                        onChange={(e) => {
+                          const s = new Set(resolvendo.aceitas);
+                          e.target.checked ? s.add(t.id) : s.delete(t.id);
+                          setResolvendo({ ...resolvendo, aceitas: s });
+                        }} />
+                      <span style={{ flex: 1 }}>{t.modelo} <span style={{ color: "#64748b" }}>— {t.defeito}</span></span>
+                      <strong style={{ color: resolvendo.aceitas.has(t.id) ? "#16a34a" : "#dc2626" }}>
+                        {fmtReais(t.valor_compra)}
+                      </strong>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {/* Ao vivo, antes de confirmar: é o número que o dono confere com o fornecedor. */}
+              <div style={{ fontSize: 17, fontWeight: "bold", marginBottom: 10 }}>
+                crédito <span style={{ color: "#16a34a" }}>{valido ? fmtReais(credito) : "—"}</span>
+                {"  •  "}
+                perda <span style={{ color: perda > 0 ? "#dc2626" : "#64748b" }}>{valido ? fmtReais(perda) : "—"}</span>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={{ ...btn, background: "#22c55e", color: "white" }} onClick={confirmarResolucao}>
+                  Confirmar fechamento
+                </button>
+                <button style={{ ...btn, background: "#e2e8f0" }} onClick={() => setResolvendo(null)}>Cancelar</button>
+              </div>
+            </div>
+          );
+        })()}
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
           <tbody>
             {lotes.map((l) => (
@@ -486,12 +592,17 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
                 <td style={{ padding: 8, color: "#64748b" }}>enviado {l.enviado_em?.slice(8, 10)}/{l.enviado_em?.slice(5, 7)}</td>
                 <td style={{ padding: 8, textAlign: "right" }}>
                   {l.status === "resolvido" ? (
-                    <span style={{ color: "#16a34a", fontWeight: "bold" }}>
-                      ✔ crédito gerado {l.resolvido_em?.slice(8, 10)}/{l.resolvido_em?.slice(5, 7)}
+                    <span style={{ fontWeight: "bold", whiteSpace: "nowrap" }}>
+                      <span style={{ color: "#16a34a" }}>✔ crédito {fmtReais(l.credito ?? l.valor)}</span>
+                      {l.perda > 0 && <span style={{ color: "#dc2626" }}> — perda {fmtReais(l.perda)}</span>}
+                      <div style={{ fontSize: 12, fontWeight: "normal", color: "#94a3b8" }}>
+                        {l.resolvido_em?.slice(8, 10)}/{l.resolvido_em?.slice(5, 7)}
+                        {l.modo === "itens" ? " • item a item" : l.modo === "total" ? " • valor total" : ""}
+                      </div>
                     </span>
                   ) : (
-                    <button style={{ ...btn, padding: "8px 14px", fontSize: 14, background: "#22c55e", color: "white" }} onClick={() => loteRetornou(l)}>
-                      Lote retornou → gerar crédito
+                    <button style={{ ...btn, padding: "8px 14px", fontSize: 14, background: "#22c55e", color: "white" }} onClick={() => abrirResolucao(l)}>
+                      Lote retornou → fechar
                     </button>
                   )}
                 </td>
@@ -517,7 +628,8 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
             {perdas.map((p) => (
               <tr key={p.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
                 <td style={{ padding: 8, color: "#64748b" }}>{p.criado_em.slice(8, 10)}/{p.criado_em.slice(5, 7)}</td>
-                <td style={{ padding: 8, fontWeight: "bold" }}>{`${p.nome || ""} ${p.modelo || ""}`.trim() || "peça excluída"}</td>
+                {/* perda de lote no modo "valor total" não aponta pra peça: o motivo explica */}
+                <td style={{ padding: 8, fontWeight: "bold" }}>{`${p.nome || ""} ${p.modelo || ""}`.trim() || "—"}</td>
                 <td style={{ padding: 8, color: "#64748b" }}>{p.motivo || "—"}</td>
                 <td style={{ padding: 8, fontWeight: "bold", color: "#dc2626", textAlign: "right" }}>−{fmtReais(p.valor)}</td>
               </tr>

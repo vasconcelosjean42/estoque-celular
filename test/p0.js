@@ -1307,6 +1307,142 @@ const path = require("path");
         "o histórico marca a venda como estornada, com o valor");
     });
 
+    await caso("108. estorno de venda de ontem sai do caixa de hoje, e ontem não muda", async () => {
+      const id = await novaPeca("C108", 5, 100000, 200000);
+      const ontem = async () =>
+        (await um(`SELECT COALESCE(SUM(valor),0) AS v FROM movimentos
+                   WHERE date(criado_em) = date('now','localtime','-1 day')`)).v;
+      await sql(`INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, pedido_id, forma_pagamento, criado_em)
+                 VALUES (?,1,200000,100000,1080,'pix', datetime('now','localtime','-1 day'))`, [id]);
+      const [ontemAntes, hojeAntes] = [await ontem(), await caixaDoDia("pix")];
+
+      await recarregar("Venda");
+      await win.click('button:text-is("Ontem")'); // a venda de ontem não aparece no filtro padrão
+      await win.waitForSelector("#pedido-1080", { timeout: 8000 });
+      await win.click('#pedido-1080 button:text-is("Trocar")');
+      await win.waitForSelector("text=Estado da peça devolvida", { timeout: 8000 });
+      await win.fill('label:has-text("Defeito") input', "não liga");
+      await win.click('button:text-is("Estornar o valor")');
+      await win.waitForSelector("text=Valor a devolver", { timeout: 8000 });
+      await win.click('div:has-text("Por onde o dinheiro saiu") > div > button:text-is("Pix")');
+      await win.click('button:text-is("Salvar")');
+      await win.waitForSelector("text=Prateleira", { timeout: 8000 });
+
+      assert.strictEqual(await ontem(), ontemAntes, "o faturamento de ontem não pode encolher");
+      assert.strictEqual((await caixaDoDia("pix")) - hojeAntes, -200000, "o dinheiro sai do caixa de hoje");
+    });
+
+    await caso("109. desfazer o estorno devolve o dinheiro pro caixa", async () => {
+      const id = await novaPeca("C109", 5, 100000, 200000);
+      const antes = await caixaDoDia("pix");
+      await estornar("C109", { formaVenda: "Pix", forma: "Pix" });
+      assert.strictEqual(await caixaDoDia("pix"), antes, "venda e estorno se anulam");
+      await recarregar("Venda");
+      await win.click('tr:has-text("estornado") button:text-is("Desfazer")');
+      await win.waitForTimeout(500);
+      // Sem o estorno sobra só a venda: o Pix do dia sobe os 2.000 dela.
+      assert.strictEqual((await caixaDoDia("pix")) - antes, 200000, "desfez o estorno, o dinheiro volta");
+      assert.strictEqual(await um("SELECT id FROM trocas WHERE peca_id = ?", [id]), undefined);
+    });
+
+    console.log("\nCrédito parcial do lote (passo 19)");
+
+    // Põe N peças na prateleira, fecha o lote e abre a tela de fechamento dele.
+    const loteDe = async (prefixo, custos) => {
+      for (const [i, c] of custos.entries()) {
+        await sql("INSERT INTO trocas (modelo, defeito, valor_compra, defeituosa) VALUES (?,?,?,1)",
+          [`${prefixo}${i}`, "não liga", c]);
+      }
+      await recarregar("Trocas");
+      for (const [i] of custos.entries()) {
+        await win.click(`tr:has-text("${prefixo}${i}") input[type="checkbox"]`);
+      }
+      await win.click('button:text("Fechar lote e enviar")');
+      await win.waitForTimeout(600);
+      const l = await um("SELECT * FROM lotes ORDER BY id DESC");
+      await win.click(`tr:has-text("Lote #${l.id}") button:text("Lote retornou")`);
+      await win.waitForSelector("text=Confirmar fechamento", { timeout: 8000 });
+      return l;
+    };
+
+    await caso("110. valor total: o que o fornecedor não creditou vira perda", async () => {
+      const l = await loteDe("C110-", [20000, 15000, 10000, 5000]); // 500,00 no total
+      await win.fill('input[aria-label="Valor creditado"]', "320,00");
+      await win.waitForTimeout(300);
+      assert(await win.locator("text=perda R$ 180,00").count(), "o rodapé mostra a perda antes de confirmar");
+      await win.click('button:text("Confirmar fechamento")');
+      await win.waitForTimeout(600);
+
+      const lote = await um("SELECT * FROM lotes WHERE id = ?", [l.id]);
+      assert.strictEqual(lote.status, "resolvido");
+      assert.strictEqual(lote.credito, 32000);
+      assert.strictEqual(lote.perda, 18000);
+      assert.strictEqual((await um("SELECT valor FROM creditos ORDER BY id DESC")).valor, 32000, "crédito só do valor aceito");
+      const p = await um("SELECT * FROM perdas ORDER BY id DESC");
+      assert.strictEqual(p.valor, 18000, "a diferença vira perda");
+      assert.strictEqual(p.troca_id, null, "no valor total não dá pra dizer qual peça foi recusada");
+    });
+
+    await caso("111. item a item: crédito das aceitas, uma perda por recusada", async () => {
+      const l = await loteDe("C111-", [20000, 15000, 10000, 5000]);
+      await win.click('button:text-is("Item a item")');
+      await win.click('input[aria-label="Aceita C111-3"]'); // desmarca a de 50,00
+      await win.waitForTimeout(300);
+      assert(await win.locator("text=crédito R$ 450,00").count(), "crédito das 3 aceitas");
+      assert(await win.locator("text=perda R$ 50,00").count(), "perda da recusada");
+      await win.click('button:text("Confirmar fechamento")');
+      await win.waitForTimeout(600);
+
+      const lote = await um("SELECT * FROM lotes WHERE id = ?", [l.id]);
+      assert.strictEqual(lote.credito, 45000);
+      assert.strictEqual(lote.perda, 5000);
+      const aceitas = await sql("SELECT COUNT(*) AS n FROM trocas WHERE lote_id = ? AND creditada = 1", [l.id]);
+      assert.strictEqual(aceitas[0].n, 3, "as 3 aceitas ficam marcadas");
+      const perdas = await sql("SELECT * FROM perdas WHERE motivo LIKE ?", [`Lote #${l.id}%`]);
+      assert.strictEqual(perdas.length, 1, "uma perda por peça recusada");
+      assert.strictEqual(perdas[0].valor, 5000);
+      assert(perdas[0].troca_id, "aqui dá pra dizer qual peça foi: a perda aponta pra troca");
+    });
+
+    await caso("112. lote sem nenhum item aceito: crédito zero, tudo em perda", async () => {
+      const l = await loteDe("C112-", [30000, 20000]);
+      await win.click('button:text-is("Item a item")');
+      for (const i of [0, 1]) await win.click(`input[aria-label="Aceita C112-${i}"]`);
+      await win.waitForTimeout(300);
+      const creditosAntes = (await sql("SELECT id FROM creditos")).length;
+      await win.click('button:text("Confirmar fechamento")');
+      await win.waitForTimeout(600);
+
+      const lote = await um("SELECT * FROM lotes WHERE id = ?", [l.id]);
+      assert.strictEqual(lote.credito, 0);
+      assert.strictEqual(lote.perda, 50000, "o lote inteiro virou prejuízo");
+      assert.strictEqual((await sql("SELECT id FROM creditos")).length, creditosAntes,
+        "crédito zero não gera linha no histórico de crédito");
+    });
+
+    await caso("113. crédito maior que o valor do lote é recusado", async () => {
+      const l = await loteDe("C113-", [10000]);
+      await win.fill('input[aria-label="Valor creditado"]', "500,00"); // lote é 100,00
+      await win.click('button:text("Confirmar fechamento")');
+      await win.waitForTimeout(400);
+      assert(await win.locator("text=Confirmar fechamento").count(), "tem que continuar aberto");
+      assert.strictEqual((await um("SELECT status FROM lotes WHERE id = ?", [l.id])).status, "enviado",
+        "o lote não pode ter sido fechado");
+      await win.click('button:text-is("Cancelar")');
+    });
+
+    await caso("114. perda do lote entra no lucro pela data em que o lote foi resolvido", async () => {
+      const antes = await lucroHoje();
+      const l = await loteDe("C114-", [25000, 25000]);
+      await win.fill('input[aria-label="Valor creditado"]', "300,00"); // de 500,00 → perda 200,00
+      await win.click('button:text("Confirmar fechamento")');
+      await win.waitForTimeout(600);
+      assert.strictEqual((await lucroHoje()) - antes, -20000, "a perda do lote abate o lucro de hoje");
+      const p = await um("SELECT * FROM perdas WHERE motivo LIKE ?", [`Lote #${l.id}%`]);
+      assert.strictEqual(p.criado_em.slice(0, 10), (await um("SELECT date('now','localtime') AS d")).d,
+        "conta no dia em que o lote foi fechado, não no da troca");
+    });
+
     console.log("\nEstoque e entradas");
 
     await caso("15. cadastro com quantidade cria a entrada 'cadastro inicial'", async () => {

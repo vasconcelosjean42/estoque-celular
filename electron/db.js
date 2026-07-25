@@ -153,6 +153,13 @@ for (const sql of [
   // Passo 18: estorno — devolveu o dinheiro em vez de repor a peça. Usa o
   // forma_pagamento do passo 17 (por onde o dinheiro saiu).
   "ALTER TABLE trocas ADD COLUMN estorno INTEGER NOT NULL DEFAULT 0",
+  // Passo 19: o fornecedor não aceita o lote inteiro. creditada = 1 quando ele
+  // aceitou aquela peça; o resto vira perda. modo/credito/perda guardam como o
+  // lote foi fechado, pro histórico não depender de recalcular depois.
+  "ALTER TABLE trocas ADD COLUMN creditada INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE lotes ADD COLUMN modo TEXT",
+  "ALTER TABLE lotes ADD COLUMN credito INTEGER",
+  "ALTER TABLE lotes ADD COLUMN perda INTEGER",
 
 ]) {
   try {
