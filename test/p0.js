@@ -336,6 +336,32 @@ const path = require("path");
       assert.strictEqual(await win.locator(`#pedido-${v.pedido_id} button:text-is("Desfazer")`).count(), 1);
     });
 
+    await caso("51. Dashboard agrupa o histórico por pedido, com os totais do pedido", async () => {
+      const a = await novaPeca("C51A", 5, 10000, 20000);
+      const b = await novaPeca("C51B", 5, 3000, 8000);
+      await recarregar("Venda");
+      await aoCarrinho("C51A", { qtd: 2 });
+      await aoCarrinho("C51B");
+      await win.click('button:text("Finalizar venda")');
+      await win.fill('label:has-text("Mão de obra") input', "30,00");
+      await confirmarVenda();
+      const pid = (await vendasDe(a))[0].pedido_id;
+
+      await aba("Dashboard");
+      await win.waitForSelector("text=Histórico de vendas", { timeout: 8000 });
+      const tabela = await win.locator("tbody").last().innerText();
+      assert(tabela.includes("Pedido com 2 itens"), "o pedido tem que virar um cabeçalho");
+      assert(tabela.includes("↳ 2x C51A"), "com os itens embaixo");
+      assert(tabela.includes("↳ 1x C51B"));
+      // total do pedido = 2×200,00 + 80,00 + 30,00 de mão de obra
+      assert(tabela.includes("510,00"), "o cabeçalho mostra o total do pedido");
+      // lucro = (200,00−100,00)×2 + (80,00−30,00) + 30,00 de mão de obra = 280,00
+      assert(tabela.includes("280,00"), "e o lucro do pedido");
+      const resumo = await win.locator("text=/no período/").first().innerText();
+      assert(resumo.includes("itens"), `o resumo separa pedidos de itens: ${resumo}`);
+      assert(pid > 0, "o pedido foi criado");
+    });
+
     console.log("\nEstoque e entradas");
 
     await caso("15. cadastro com quantidade cria a entrada 'cadastro inicial'", async () => {

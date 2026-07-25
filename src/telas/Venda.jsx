@@ -11,6 +11,19 @@ export const FORMAS = {
   credito_parcelado: "Crédito parcelado",
 };
 
+// Uma linha por item no banco; as telas agrupam por pedido. Recebe as vendas em
+// ordem decrescente de id e devolve [[pedido_id, itens na ordem em que entraram]].
+export const agruparPedidos = (vendas) => {
+  const ordem = [];
+  const por = {};
+  vendas.forEach((v) => {
+    const pid = v.pedido_id ?? v.id;
+    if (!por[pid]) { por[pid] = []; ordem.push(pid); }
+    por[pid].push(v);
+  });
+  return ordem.map((pid) => [pid, por[pid].slice().reverse()]);
+};
+
 const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" };
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
 const btnMini = { ...btn, padding: "6px 12px", fontSize: 14 };
@@ -237,14 +250,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
   const trocasPorVenda = {};
   trocasVenda.forEach((t) => (trocasPorVenda[t.venda_id] ||= []).push(t));
 
-  // Uma linha por item no banco; a tela agrupa por pedido.
-  const pedidos = [];
-  const porPedido = {};
-  vendasHoje.forEach((v) => {
-    const pid = v.pedido_id ?? v.id;
-    if (!porPedido[pid]) { porPedido[pid] = []; pedidos.push(pid); }
-    porPedido[pid].push(v);
-  });
+  const pedidos = agruparPedidos(vendasHoje);
 
   const acoesTroca = (v) => (
     dono && (
@@ -373,8 +379,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
         </h3>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
           <tbody>
-            {pedidos.map((pid) => {
-              const itens = porPedido[pid].slice().reverse();
+            {pedidos.map(([pid, itens]) => {
               const total = itens.reduce((s, v) => s + v.preco_venda * v.quantidade + v.mao_de_obra, 0);
               const temTroca = itens.some((v) => (trocasPorVenda[v.id] || []).length > 0);
               const fundo = flashId === pid ? "#86efac" : temTroca ? "#fffbeb" : undefined;

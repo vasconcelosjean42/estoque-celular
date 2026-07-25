@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { fmtReais } from "./Estoque.jsx";
-import { FORMAS } from "./Venda.jsx";
+import { FORMAS, agruparPedidos } from "./Venda.jsx";
 import FiltroData, { isoDia } from "./FiltroData.jsx";
 import Fechamento from "./Fechamento.jsx";
 
@@ -71,6 +71,7 @@ export default function Dashboard() {
     setPagina(0);
   }, [de, ate, vendedor]);
 
+  const pedidos = agruparPedidos(historico);
   const totalFiltro = historico.reduce((s, v) => s + v.preco_venda * v.quantidade + v.mao_de_obra, 0);
   const lucroFiltro = historico.reduce((s, v) => s + (v.preco_venda - v.preco_compra) * v.quantidade + v.mao_de_obra, 0);
 
@@ -233,7 +234,8 @@ export default function Dashboard() {
         </button>
       </div>
       <div style={{ marginBottom: 8, fontSize: 15, color: "#475569" }}>
-        {historico.length} venda{historico.length === 1 ? "" : "s"} no período — total{" "}
+        {pedidos.length} venda{pedidos.length === 1 ? "" : "s"} no período
+        {historico.length !== pedidos.length && ` (${historico.length} itens)`} — total{" "}
         <strong>{fmtReais(totalFiltro)}</strong> — lucro <strong style={{ color: "#16a34a" }}>{fmtReais(lucroFiltro)}</strong>
       </div>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
@@ -245,34 +247,75 @@ export default function Dashboard() {
           </tr>
         </thead>
         <tbody>
-          {historico.slice(pagina * 50, pagina * 50 + 50).map((v) => (
-            <tr key={v.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
-              <td style={{ padding: 8, color: "#64748b" }}>{v.criado_em.slice(8, 10)}/{v.criado_em.slice(5, 7)} {v.criado_em.slice(11, 16)}</td>
-              <td style={{ padding: 8 }}>{v.quantidade}x {v.nome} {v.modelo}</td>
-              <td style={{ padding: 8 }}>{v.quantidade}</td>
-              <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(v.preco_venda * v.quantidade + v.mao_de_obra)}</td>
-              <td style={{ padding: 8 }}>{FORMAS[v.forma_pagamento] || v.forma_pagamento}</td>
-              <td style={{ padding: 8, color: v.vendedor ? undefined : "#94a3b8" }}>{v.vendedor || "não informado"}</td>
-              <td style={{ padding: 8, color: "#16a34a", fontWeight: "bold" }}>
-                {fmtReais((v.preco_venda - v.preco_compra) * v.quantidade + v.mao_de_obra)}
-              </td>
-            </tr>
-          ))}
+          {/* Agrupado por pedido, como na tela de Venda: o gestor lê a compra
+              inteira numa linha em vez de item espalhado. Pedido de 1 item
+              continua numa linha só. */}
+          {pedidos.slice(pagina * 50, pagina * 50 + 50).map(([pid, itens]) => {
+            const total = itens.reduce((s, v) => s + v.preco_venda * v.quantidade + v.mao_de_obra, 0);
+            const lucro = itens.reduce((s, v) => s + (v.preco_venda - v.preco_compra) * v.quantidade + v.mao_de_obra, 0);
+            const v0 = itens[0];
+            const quando = `${v0.criado_em.slice(8, 10)}/${v0.criado_em.slice(5, 7)} ${v0.criado_em.slice(11, 16)}`;
+            const vendedor = (
+              <td style={{ padding: 8, color: v0.vendedor ? undefined : "#94a3b8" }}>{v0.vendedor || "não informado"}</td>
+            );
+            if (itens.length === 1) {
+              return (
+                <tr key={pid} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                  <td style={{ padding: 8, color: "#64748b" }}>{quando}</td>
+                  <td style={{ padding: 8 }}>{v0.quantidade}x {v0.nome} {v0.modelo}</td>
+                  <td style={{ padding: 8 }}>{v0.quantidade}</td>
+                  <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(total)}</td>
+                  <td style={{ padding: 8 }}>{FORMAS[v0.forma_pagamento] || v0.forma_pagamento}</td>
+                  {vendedor}
+                  <td style={{ padding: 8, color: "#16a34a", fontWeight: "bold" }}>{fmtReais(lucro)}</td>
+                </tr>
+              );
+            }
+            const qtdTotal = itens.reduce((s, v) => s + v.quantidade, 0);
+            return (
+              <React.Fragment key={pid}>
+                <tr style={{ background: "#f1f5f9" }}>
+                  <td style={{ padding: 8, color: "#64748b" }}>{quando}</td>
+                  <td style={{ padding: 8, fontWeight: "bold" }}>
+                    Pedido com {itens.length} itens
+                    {v0.cliente && <span style={{ color: "#64748b", fontWeight: "normal" }}> — {v0.cliente}</span>}
+                  </td>
+                  <td style={{ padding: 8 }}>{qtdTotal}</td>
+                  <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(total)}</td>
+                  <td style={{ padding: 8 }}>{FORMAS[v0.forma_pagamento] || v0.forma_pagamento}</td>
+                  {vendedor}
+                  <td style={{ padding: 8, color: "#16a34a", fontWeight: "bold" }}>{fmtReais(lucro)}</td>
+                </tr>
+                {itens.map((v, i) => (
+                  <tr key={v.id} style={{ borderBottom: i === itens.length - 1 ? "1px solid #e2e8f0" : "none" }}>
+                    <td />
+                    <td style={{ padding: "6px 8px", paddingLeft: 24 }}>↳ {v.quantidade}x {v.nome} {v.modelo}</td>
+                    <td style={{ padding: "6px 8px" }}>{v.quantidade}</td>
+                    <td style={{ padding: "6px 8px" }}>{fmtReais(v.preco_venda * v.quantidade + v.mao_de_obra)}</td>
+                    <td colSpan={2} />
+                    <td style={{ padding: "6px 8px", color: "#16a34a" }}>
+                      {fmtReais((v.preco_venda - v.preco_compra) * v.quantidade + v.mao_de_obra)}
+                    </td>
+                  </tr>
+                ))}
+              </React.Fragment>
+            );
+          })}
           {historico.length === 0 && (
             <tr><td colSpan={7} style={{ padding: 16, color: "#64748b" }}>Nenhuma venda registrada.</td></tr>
           )}
         </tbody>
       </table>
-      {historico.length > 50 && (
+      {pedidos.length > 50 && (
         <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "center", padding: 12 }}>
           <button disabled={pagina === 0} onClick={() => setPagina(pagina - 1)}
             style={{ padding: "8px 14px", fontSize: 14, fontWeight: "bold", border: "none", borderRadius: 6, cursor: "pointer", background: "#e2e8f0" }}>
             ‹ Anterior
           </button>
           <span style={{ fontSize: 15, color: "#475569" }}>
-            página {pagina + 1} de {Math.ceil(historico.length / 50)}
+            página {pagina + 1} de {Math.ceil(pedidos.length / 50)}
           </span>
-          <button disabled={(pagina + 1) * 50 >= historico.length} onClick={() => setPagina(pagina + 1)}
+          <button disabled={(pagina + 1) * 50 >= pedidos.length} onClick={() => setPagina(pagina + 1)}
             style={{ padding: "8px 14px", fontSize: 14, fontWeight: "bold", border: "none", borderRadius: 6, cursor: "pointer", background: "#e2e8f0" }}>
             Próxima ›
           </button>
