@@ -57,8 +57,19 @@ app.whenReady().then(() => {
   });
 
   // Vários comandos numa transação única (venda = baixa estoque + registro).
+  // O erro cru do SQLite não diz qual comando quebrou — numa tx de 10 linhas isso
+  // vira caça ao tesouro. Anexa o SQL e os parâmetros do que falhou.
   ipcMain.handle("db-tx", (_e, comandos) =>
-    db.transaction(() => comandos.map(([sql, params = []]) => db.prepare(sql).run(...params)))()
+    db.transaction(() =>
+      comandos.map(([sql, params = []]) => {
+        try {
+          return db.prepare(sql).run(...params);
+        } catch (e) {
+          e.message = `${e.message}\n\nSQL: ${sql.trim()}\nparams: ${JSON.stringify(params)}`;
+          throw e;
+        }
+      })
+    )()
   );
 
   ipcMain.handle("escolher-pasta", async () => {

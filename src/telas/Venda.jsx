@@ -91,9 +91,13 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
       .then(setVendasHoje);
     window.api
       .query(
-        `SELECT t.*, p.nome AS nova_nome, p.modelo AS nova_modelo,
-                p.preco_compra AS nova_compra, p.preco_venda AS nova_preco
-         FROM trocas t JOIN pecas p ON p.id = t.nova_peca_id
+        // LEFT JOIN: com JOIN interno, troca cuja peça de reposição sumiu (o
+        // desativar demo zera nova_peca_id) desaparecia da tela — e é essa lista
+        // que esconde o botão Desfazer. A venda parecia livre e o DELETE batia na FK.
+        `SELECT t.*, COALESCE(p.nome, '(peça removida)') AS nova_nome,
+                COALESCE(p.modelo, '') AS nova_modelo,
+                COALESCE(p.preco_compra, 0) AS nova_compra, COALESCE(p.preco_venda, 0) AS nova_preco
+         FROM trocas t LEFT JOIN pecas p ON p.id = t.nova_peca_id
          WHERE t.venda_id IS NOT NULL ORDER BY t.id`
       )
       .then(setTrocasVenda);

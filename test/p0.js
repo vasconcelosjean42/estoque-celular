@@ -1088,6 +1088,37 @@ const path = require("path");
       assert.strictEqual(depois.t, antes.t, "troca sem diferença fica fora do caixa");
     });
 
+    await caso("93. troca com peça de reposição sumida ainda bloqueia o Desfazer da venda", async () => {
+      const a = await novaPeca("C93A", 5, 10000, 20000);
+      const b = await novaPeca("C93B", 5, 10000, 20000);
+      await trocarVenda("C93A", b, "Com defeito");
+      const pid = (await vendasDe(a))[0].pedido_id;
+      // É o que o "desativar demo" faz quando a reposição era peça fictícia.
+      await sql("UPDATE trocas SET nova_peca_id = NULL WHERE peca_id = ?", [a]);
+      await recarregar("Venda");
+      // Com JOIN interno a troca sumia da tela, o Desfazer voltava e o DELETE
+      // batia na FK de trocas.venda_id — a venda parecia livre e não era.
+      assert.strictEqual(await win.locator(`#pedido-${pid} button:text-is("Desfazer")`).count(), 0,
+        "venda com troca não pode oferecer Desfazer");
+      assert(await win.locator(`#pedido-${pid}`).innerText().then((t) => t.includes("trocada")),
+        "e tem que continuar marcada como trocada");
+    });
+
+    await caso("94. peça com perda não pode ser excluída", async () => {
+      const id = await novaPeca("C94", 5, 4000, 9000);
+      // Perda sem troca do lado: é a forma que a perda de lote vai ter (passo 19).
+      await sql("INSERT INTO perdas (peca_id, valor, motivo) VALUES (?, 4000, 'perda solta')", [id]);
+      await recarregar("Estoque");
+      const errosAntes = erros.length;
+      await win.click('tr:has-text("C94") button:text-is("Excluir")');
+      await win.waitForTimeout(500);
+      assert(await peca(id), "a peça tinha que continuar no estoque");
+      // Sobreviver não basta: sem o aviso o DELETE ia até o banco e morria na FK,
+      // o que também deixa a peça viva — mas com erro na cara do usuário.
+      assert.strictEqual(erros.length, errosAntes, "tinha que ser recusado no aviso, não estourar no SQL");
+      await sql("DELETE FROM perdas WHERE motivo = 'perda solta'");
+    });
+
     console.log("\nEstoque e entradas");
 
     await caso("15. cadastro com quantidade cria a entrada 'cadastro inicial'", async () => {

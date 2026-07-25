@@ -179,13 +179,17 @@ export default function Estoque({ dono = true }) {
   // Venda/troca é histórico: o banco barra o DELETE (FK) e antes disso o clique não
   // fazia nada. Entrada sozinha não é histórico — sai junto com a peça.
   const excluir = async (p) => {
+    // perdas também aponta pra pecas: sem contar aqui, o DELETE passava do aviso
+    // e morria na chave estrangeira. Vale pra perda de lote (passo 19), que nem
+    // tem troca do lado.
     const [{ n }] = await window.api.query(
       `SELECT (SELECT COUNT(*) FROM vendas WHERE peca_id = ?)
-            + (SELECT COUNT(*) FROM trocas WHERE peca_id = ? OR nova_peca_id = ?) AS n`,
-      [p.id, p.id, p.id]
+            + (SELECT COUNT(*) FROM trocas WHERE peca_id = ? OR nova_peca_id = ?)
+            + (SELECT COUNT(*) FROM perdas WHERE peca_id = ?) AS n`,
+      [p.id, p.id, p.id, p.id]
     );
     if (n) {
-      alert(`"${p.nome} ${p.modelo}" já tem ${n} venda(s)/troca(s) registrada(s) e não pode ser excluído — o histórico e o lucro do período seriam perdidos.\n\nSe a peça saiu de linha, deixe a quantidade em 0.`);
+      alert(`"${p.nome} ${p.modelo}" tem ${n} movimento(s) registrado(s) (venda, troca ou perda) e não pode ser excluído — o histórico e o lucro do período seriam perdidos.\n\nSe a peça saiu de linha, deixe a quantidade em 0.`);
       return;
     }
     if (!confirm(`Excluir "${p.nome} ${p.modelo}"?`)) return;
