@@ -732,6 +732,96 @@ const path = require("path");
       await sql("DELETE FROM clientes WHERE nome IN ('Ana71','Bia71')");
     });
 
+    await caso("74. campos da edição de cliente não invadem a coluna vizinha", async () => {
+      await sql("INSERT INTO clientes (codigo, nome, contato) VALUES ('C990','Maria Aparecida da Silva','(11) 98765-4321')");
+      await recarregar("Config");
+      await win.click('button[aria-label="Editar Maria Aparecida da Silva"]');
+      await win.waitForSelector('input[aria-label="Contato do cliente"]', { timeout: 8000 });
+      try {
+        // Sem boxSizing o input estourava a célula e cobria o campo da esquerda.
+        const caixas = [];
+        for (const rotulo of ["Código do cliente", "Nome do cliente", "Contato do cliente"]) {
+          caixas.push(await win.locator(`input[aria-label="${rotulo}"]`).boundingBox());
+        }
+        caixas.push(await win.locator('button:text-is("Salvar")').boundingBox());
+        for (let i = 1; i < caixas.length; i++) {
+          assert(caixas[i].x >= caixas[i - 1].x + caixas[i - 1].width,
+            `campo ${i} começa em ${caixas[i].x} e o anterior termina em ${caixas[i - 1].x + caixas[i - 1].width}`);
+        }
+      } finally {
+        await win.click('button:text-is("Cancelar")');
+        await sql("DELETE FROM clientes WHERE codigo = 'C990'");
+      }
+    });
+
+    console.log("\nTroca de peça funcionando (passo 15)");
+
+    // Vende A, clica em Trocar na venda e repõe com a peça idB. estado: "Funcionando" | "Com defeito".
+    const trocarVenda = async (nomeA, idB, estado) => {
+      await recarregar("Venda");
+      await aoCarrinho(nomeA);
+      await win.click('button:text("Finalizar venda")');
+      await confirmarVenda();
+      const pid = (await um("SELECT pedido_id FROM vendas WHERE peca_id = (SELECT id FROM pecas WHERE nome = ?) ORDER BY id DESC", [nomeA])).pedido_id;
+      await win.click(`#pedido-${pid} button:text-is("Trocar")`);
+      await win.waitForSelector("text=Estado da peça devolvida", { timeout: 8000 });
+      await win.click(`button:text-is("${estado}")`);
+      if (estado === "Com defeito") await win.fill('label:has-text("Defeito") input', "não liga");
+      await win.selectOption('label:has-text("Trocar por") select', String(idB));
+      await win.click('button:text-is("Salvar")');
+      await win.waitForSelector("text=Prateleira", { timeout: 8000 });
+      return pid;
+    };
+
+    await caso("75. peça devolvida funcionando volta ao estoque e a reposição sai", async () => {
+      const a = await novaPeca("C75A", 5, 10000, 20000);
+      const b = await novaPeca("C75B", 5, 10000, 20000);
+      await trocarVenda("C75A", b, "Funcionando");
+      // A: 5 −1 da venda +1 da devolução = 5. B: 5 −1 da reposição = 4.
+      assert.strictEqual((await peca(a)).quantidade, 5, "a devolvida boa volta pro estoque");
+      assert.strictEqual((await peca(b)).quantidade, 4, "a reposição sai do estoque");
+      const t = await um("SELECT * FROM trocas WHERE peca_id = ?", [a]);
+      assert.strictEqual(t.defeituosa, 0);
+      assert.strictEqual(t.fornecedor, "", "peça boa não tem fornecedor");
+    });
+
+    await caso("76. peça funcionando não aparece na prateleira nem entra em lote", async () => {
+      await aba("Trocas");
+      assert.strictEqual(await win.locator('tr:has-text("C75A")').count(), 0, "não pode sujar a prateleira");
+      const naPrateleira = await sql("SELECT id FROM trocas WHERE lote_id IS NULL AND defeituosa = 1 AND modelo LIKE 'C75A%'");
+      assert.strictEqual(naPrateleira.length, 0, "não pode ser fechada em lote");
+    });
+
+    await caso("77. desfazer a troca reverte os dois movimentos de estoque", async () => {
+      const a = await novaPeca("C77A", 5, 10000, 20000);
+      const b = await novaPeca("C77B", 5, 10000, 20000);
+      const pid = await trocarVenda("C77A", b, "Funcionando");
+      assert.strictEqual((await peca(a)).quantidade, 5);
+      assert.strictEqual((await peca(b)).quantidade, 4);
+      await recarregar("Venda");
+      // O pedido trocado perde o Desfazer dele; quem desfaz a troca é a linha da troca.
+      await win.click('tr:has-text("trocado por 1x C77B") button:text-is("Desfazer")');
+      await win.waitForTimeout(500);
+      // Volta ao estado logo depois da venda: A vendida (4), B intacta (5).
+      assert.strictEqual((await peca(a)).quantidade, 4, "a devolvida boa sai do estoque de novo");
+      assert.strictEqual((await peca(b)).quantidade, 5, "a reposição volta");
+      assert.strictEqual(await um("SELECT id FROM trocas WHERE peca_id = ?", [a]), undefined);
+    });
+
+    await caso("78. com defeito continua indo pra prateleira, como antes", async () => {
+      const a = await novaPeca("C78A", 5, 10000, 20000);
+      const b = await novaPeca("C78B", 5, 10000, 20000);
+      await trocarVenda("C78A", b, "Com defeito");
+      // A não volta: ficou na prateleira. 5 −1 da venda = 4.
+      assert.strictEqual((await peca(a)).quantidade, 4, "defeituosa não volta pro estoque");
+      assert.strictEqual((await peca(b)).quantidade, 4);
+      const t = await um("SELECT * FROM trocas WHERE peca_id = ?", [a]);
+      assert.strictEqual(t.defeituosa, 1);
+      assert.strictEqual(t.defeito, "não liga");
+      await aba("Trocas");
+      assert(await win.locator('tr:has-text("C78A")').count(), "tem que estar na prateleira");
+    });
+
     console.log("\nEstoque e entradas");
 
     await caso("15. cadastro com quantidade cria a entrada 'cadastro inicial'", async () => {

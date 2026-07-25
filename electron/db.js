@@ -128,6 +128,9 @@ for (const sql of [
   // Passo 14: vendas.cliente (texto) fica pro histórico antigo; cliente_id é o vínculo.
   "ALTER TABLE vendas ADD COLUMN cliente_id INTEGER REFERENCES clientes(id)",
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_codigo ON clientes(codigo) WHERE codigo != ''",
+  // Passo 15: peça devolvida funcionando volta ao estoque e não vai pra prateleira.
+  // Default 1 porque toda troca até aqui era defeito.
+  "ALTER TABLE trocas ADD COLUMN defeituosa INTEGER NOT NULL DEFAULT 1",
 
 ]) {
   try {

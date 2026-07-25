@@ -5,7 +5,7 @@ const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cb
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
 const bloco = { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 16, marginBottom: 20 };
 
-const FORM_VAZIO = { peca_id: "", modelo: "", defeito: "", observacao: "", valor: "", fornecedor: "", entregueiNova: false };
+const FORM_VAZIO = { peca_id: "", modelo: "", defeito: "", observacao: "", valor: "", fornecedor: "", entregueiNova: false, defeituosa: true };
 
 export default function Trocas({ vendaTroca, aoConsumir }) {
   const [pecas, setPecas] = useState([]);
@@ -22,8 +22,9 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
   const carregar = () => {
     window.api.query("SELECT * FROM pecas ORDER BY nome, modelo").then(setPecas);
     window.api
+      // Só defeituosa vai pro fornecedor: peça funcionando não conta prazo nem entra em lote.
       .query(`SELECT *, CAST(julianday('now','localtime') - julianday(recebido_em) AS INTEGER) AS dias
-              FROM trocas WHERE lote_id IS NULL ORDER BY recebido_em`)
+              FROM trocas WHERE lote_id IS NULL AND defeituosa = 1 ORDER BY recebido_em`)
       .then(setPrateleira);
     window.api
       .query(`SELECT l.*, COUNT(t.id) AS qtd, SUM(t.valor_compra) AS valor
@@ -58,10 +59,13 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
 
   const salvar = async () => {
     const valor = parseReais(form.valor);
-    if (!form.modelo.trim() || !form.defeito.trim() || isNaN(valor)) {
-      alert("Preencha modelo, defeito e valor de compra.");
+    if (!form.modelo.trim() || (form.defeituosa && !form.defeito.trim()) || isNaN(valor)) {
+      alert(form.defeituosa ? "Preencha modelo, defeito e valor de compra." : "Preencha modelo e valor de compra.");
       return;
     }
+    // A peça funcionando não tem defeito nem fornecedor: nunca vai pro lote.
+    const defeito = form.defeituosa ? form.defeito.trim() : "devolvida funcionando";
+    const fornecedor = form.defeituosa ? form.fornecedor.trim() : "";
     const comandos = [];
     if (form.travada) {
       const nova = pecas.find((p) => p.id === Number(form.trocarPor));
@@ -70,16 +74,23 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
         return;
       }
       comandos.push(
-        ["INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, peca_id, venda_id, nova_peca_id) VALUES (?,?,?,?,?,?,?,?)",
-          [form.modelo.trim(), form.defeito.trim(), form.observacao.trim(), valor, form.fornecedor.trim(), form.peca_id || null, form.venda_id, nova.id]],
+        [`INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, peca_id, venda_id, nova_peca_id, defeituosa)
+          VALUES (?,?,?,?,?,?,?,?,?)`,
+          [form.modelo.trim(), defeito, form.observacao.trim(), valor, fornecedor, form.peca_id || null,
+           form.venda_id, nova.id, form.defeituosa ? 1 : 0]],
         ["UPDATE pecas SET quantidade = quantidade - 1 WHERE id = ?", [nova.id]]
       );
     } else {
-      comandos.push(["INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, peca_id) VALUES (?,?,?,?,?,?)",
-        [form.modelo.trim(), form.defeito.trim(), form.observacao.trim(), valor, form.fornecedor.trim(), form.peca_id || null]]);
+      comandos.push([`INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, peca_id, defeituosa)
+                      VALUES (?,?,?,?,?,?,?)`,
+        [form.modelo.trim(), defeito, form.observacao.trim(), valor, fornecedor, form.peca_id || null, form.defeituosa ? 1 : 0]]);
       if (form.entregueiNova && form.peca_id) {
         comandos.push(["UPDATE pecas SET quantidade = quantidade - 1 WHERE id = ?", [form.peca_id]]);
       }
+    }
+    // Voltou boa: entra de volta no estoque em vez de ir pra prateleira.
+    if (!form.defeituosa && form.peca_id) {
+      comandos.push(["UPDATE pecas SET quantidade = quantidade + 1 WHERE id = ?", [form.peca_id]]);
     }
     await window.api.tx(comandos);
     setForm(null);
@@ -151,7 +162,7 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
     const dif = novaPeca ? novaPeca.preco_venda - form.precoPago : 0;
     return (
       <div style={{ maxWidth: 520 }}>
-        <h2>{form.travada ? "Trocar peça" : "Registrar peça defeituosa"}</h2>
+        <h2>{form.travada ? "Trocar peça" : form.defeituosa ? "Registrar peça defeituosa" : "Registrar devolução"}</h2>
         <label style={{ display: "block", marginBottom: 12 }}>
           <div style={{ fontWeight: "bold", marginBottom: 4 }}>
             {form.travada ? "Peça devolvida (da venda)" : "Peça do estoque (opcional — preenche modelo e valor)"}
@@ -163,21 +174,38 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
             ))}
           </select>
         </label>
+        <div style={{ fontWeight: "bold", marginBottom: 4 }}>Estado da peça devolvida</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+          {[[true, "Com defeito"], [false, "Funcionando"]].map(([valor, rotulo]) => (
+            <button key={rotulo} onClick={() => setForm({ ...form, defeituosa: valor })}
+              style={{ ...btn, background: form.defeituosa === valor ? "#38bdf8" : "#e2e8f0", color: form.defeituosa === valor ? "#0f172a" : "#334155" }}>
+              {rotulo}
+            </button>
+          ))}
+        </div>
+        {!form.defeituosa && (
+          <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 15, color: "#166534" }}>
+            A peça devolvida volta pro estoque. Não vai pra prateleira do fornecedor.
+          </div>
+        )}
         {[...(form.peca_id ? [] : [["Modelo", "modelo"]]),
-          ["Defeito", "defeito"], ["Observação (opcional)", "observacao"], ["Valor de compra (R$)", "valor"]].map(([rotulo, chave]) => (
+          ...(form.defeituosa ? [["Defeito", "defeito"]] : []),
+          ["Observação (opcional)", "observacao"], ["Valor de compra (R$)", "valor"]].map(([rotulo, chave]) => (
           <label key={chave} style={{ display: "block", marginBottom: 12 }}>
             <div style={{ fontWeight: "bold", marginBottom: 4 }}>{rotulo}</div>
             <input style={inp} value={form[chave]} onChange={(e) => setForm({ ...form, [chave]: e.target.value })} />
           </label>
         ))}
-        <label style={{ display: "block", marginBottom: 12 }}>
-          <div style={{ fontWeight: "bold", marginBottom: 4 }}>Fornecedor</div>
-          <input style={inp} list="lista-fornecedores" placeholder="Escolha ou digite um novo"
-            value={form.fornecedor} onChange={(e) => setForm({ ...form, fornecedor: e.target.value })} />
-          <datalist id="lista-fornecedores">
-            {fornecedores.map((f) => <option key={f} value={f} />)}
-          </datalist>
-        </label>
+        {form.defeituosa && (
+          <label style={{ display: "block", marginBottom: 12 }}>
+            <div style={{ fontWeight: "bold", marginBottom: 4 }}>Fornecedor</div>
+            <input style={inp} list="lista-fornecedores" placeholder="Escolha ou digite um novo"
+              value={form.fornecedor} onChange={(e) => setForm({ ...form, fornecedor: e.target.value })} />
+            <datalist id="lista-fornecedores">
+              {fornecedores.map((f) => <option key={f} value={f} />)}
+            </datalist>
+          </label>
+        )}
         {form.travada && (
           <label style={{ display: "block", marginBottom: 12 }}>
             <div style={{ fontWeight: "bold", marginBottom: 4 }}>Trocar por (sai 1 do estoque)</div>

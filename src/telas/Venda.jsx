@@ -234,11 +234,16 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
   };
 
   const desfazerTroca = async (t) => {
-    if (!confirm(`Desfazer a troca? ${t.nova_nome} ${t.nova_modelo} volta ao estoque e a peça sai da aba Trocas.`)) return;
-    await window.api.tx([
+    const boa = !t.defeituosa; // peça devolvida funcionando tinha voltado ao estoque
+    if (!confirm(`Desfazer a troca? ${t.nova_nome} ${t.nova_modelo} volta ao estoque${
+      boa ? " e a peça devolvida sai dele de novo" : " e a peça sai da aba Trocas"}.`)) return;
+    const comandos = [
       ["DELETE FROM trocas WHERE id = ?", [t.id]],
       ["UPDATE pecas SET quantidade = quantidade + 1 WHERE id = ?", [t.nova_peca_id]],
-    ]);
+    ];
+    // Desfazer reverte os dois movimentos, senão a devolvida boa fica somada pra sempre.
+    if (boa && t.peca_id) comandos.push(["UPDATE pecas SET quantidade = quantidade - 1 WHERE id = ?", [t.peca_id]]);
+    await window.api.tx(comandos);
     carregar();
   };
 
@@ -399,7 +404,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
           <td style={{ padding: 8 }} colSpan={2}>
             ↳ trocado por 1x <strong>{t.nova_nome} {t.nova_modelo}</strong>
           </td>
-          <td style={{ padding: 8, color: "#b45309" }}>troca</td>
+          <td style={{ padding: 8, color: "#b45309" }}>{t.defeituosa ? "troca" : "devolveu boa"}</td>
           <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
             {t.lote_id ? (
               <span style={{ color: "#64748b", fontSize: 14 }}>no lote #{t.lote_id}</span>
