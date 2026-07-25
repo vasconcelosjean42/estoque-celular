@@ -927,6 +927,32 @@ const path = require("path");
       assert.strictEqual((await peca(a)).quantidade, 5);
     });
 
+    await caso("85. perda de mês fechado sai do total do mês mas continua em Tudo", async () => {
+      const id = await novaPeca("C85", 5, 4000, 9000);
+      // Perda de 45 dias atrás: cai fora de "Este mês" em qualquer dia do mês.
+      await sql(`INSERT INTO perdas (peca_id, valor, motivo, criado_em)
+                 VALUES (?, 4000, 'perda antiga C85', datetime('now','localtime','-45 days'))`, [id]);
+      await recarregar("Trocas");
+      const bloco = win.locator('table[aria-label="Perdas"]');
+      const total = () => win.locator('h3:has-text("Perdas")').innerText();
+
+      // Padrão é "Este mês": a antiga não pode aparecer nem contar.
+      assert.strictEqual(await bloco.locator('tr:has-text("perda antiga C85")').count(), 0,
+        "perda de mês fechado não entra no mês corrente");
+      const [{ mes }] = await sql(`SELECT COALESCE(SUM(valor),0) AS mes FROM perdas
+                                   WHERE strftime('%Y-%m', criado_em) = strftime('%Y-%m','now','localtime')`);
+      assert((await total()).includes((mes / 100).toFixed(2).replace(".", ",")), "total do mês");
+
+      await win.click('h3:has-text("Perdas") button:text-is("Tudo")');
+      await win.waitForTimeout(400);
+      assert(await bloco.locator('tr:has-text("perda antiga C85")').count(),
+        "em Tudo o histórico continua lá: nada é apagado na virada do mês");
+      const [{ tudo }] = await sql("SELECT COALESCE(SUM(valor),0) AS tudo FROM perdas");
+      assert((await total()).includes((tudo / 100).toFixed(2).replace(".", ",")), "total de tudo");
+      assert(tudo > mes, "o teste só vale se existir perda fora do mês");
+      await sql("DELETE FROM perdas WHERE motivo = 'perda antiga C85'");
+    });
+
     console.log("\nEstoque e entradas");
 
     await caso("15. cadastro com quantidade cria a entrada 'cadastro inicial'", async () => {

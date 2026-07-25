@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { fmtReais, parseReais } from "./Estoque.jsx";
+import FiltroData, { calcAtalho, sufixoTitulo } from "./FiltroData.jsx";
 
 const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" };
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
@@ -19,6 +20,22 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
   const [fForn, setFForn] = useState(""); // filtro prateleira por fornecedor ('' = todos)
   const [fProd, setFProd] = useState(""); // filtro prateleira por produto (contém)
   const [abate, setAbate] = useState(null); // { valor, descricao } — prompt() não existe no Electron
+  const [[pSel, pDe, pAte], setFiltroPerdas] = useState(() => ["mes", ...calcAtalho("mes")]);
+
+  // Separado do carregar(): mudar o período das perdas não pode limpar a seleção
+  // da prateleira que o dono já tinha montado pro lote.
+  const carregarPerdas = () => {
+    const conds = [];
+    const params = [];
+    if (pDe) { conds.push("date(p.criado_em) >= ?"); params.push(pDe); }
+    if (pAte) { conds.push("date(p.criado_em) <= ?"); params.push(pAte); }
+    window.api
+      .query(`SELECT p.*, pc.nome, pc.modelo FROM perdas p LEFT JOIN pecas pc ON pc.id = p.peca_id
+              ${conds.length ? `WHERE ${conds.join(" AND ")}` : ""} ORDER BY p.id DESC`, params)
+      .then(setPerdas);
+  };
+
+  useEffect(carregarPerdas, [pDe, pAte]);
 
   const carregar = () => {
     window.api.query("SELECT * FROM pecas ORDER BY nome, modelo").then(setPecas);
@@ -32,10 +49,7 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
                 AND NOT EXISTS (SELECT 1 FROM perdas WHERE troca_id = t.id)
               ORDER BY t.recebido_em`)
       .then(setPrateleira);
-    window.api
-      .query(`SELECT p.*, pc.nome, pc.modelo FROM perdas p LEFT JOIN pecas pc ON pc.id = p.peca_id
-              ORDER BY p.id DESC`)
-      .then(setPerdas);
+    carregarPerdas();
     window.api
       .query(`SELECT l.*, COUNT(t.id) AS qtd, SUM(t.valor_compra) AS valor
               FROM lotes l JOIN trocas t ON t.lote_id = l.id
@@ -154,10 +168,8 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
   };
 
   const saldo = creditos.reduce((s, c) => s + c.valor, 0);
-  // Mês local, não UTC: dia 31 às 21h em Brasília o toISOString() já mostraria o mês seguinte.
-  const hoje = new Date();
-  const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
-  const perdasDoMes = perdas.filter((p) => p.criado_em.slice(0, 7) === mesAtual).reduce((s, p) => s + p.valor, 0);
+  // A consulta já vem filtrada pelo período: somar a lista inteira é somar o período.
+  const totalPerdas = perdas.reduce((s, p) => s + p.valor, 0);
 
   const fornsPrateleira = [...new Set(prateleira.map((t) => t.fornecedor).filter(Boolean))].sort();
   const prod = fProd.trim().toLowerCase();
@@ -397,10 +409,11 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
       </div>
 
       <div style={bloco}>
-        <h3 style={{ marginTop: 0, display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+        <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           Perdas
+          <FiltroData sel={pSel} aoEscolher={(chave, d, a) => setFiltroPerdas([chave, d, a])} />
           <span style={{ fontSize: 16, fontWeight: "normal", color: "#64748b" }}>
-            no mês: <strong style={{ color: perdasDoMes ? "#dc2626" : "#64748b" }}>{fmtReais(perdasDoMes)}</strong>
+            total {sufixoTitulo(pSel)}: <strong style={{ color: totalPerdas ? "#dc2626" : "#64748b" }}>{fmtReais(totalPerdas)}</strong>
           </span>
         </h3>
         <table aria-label="Perdas" style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
@@ -414,7 +427,9 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
               </tr>
             ))}
             {perdas.length === 0 && (
-              <tr><td style={{ padding: 16, color: "#64748b" }}>Nenhuma perda registrada.</td></tr>
+              <tr><td style={{ padding: 16, color: "#64748b" }}>
+                Nenhuma perda {pSel === "tudo" ? "registrada" : "no período"}.
+              </td></tr>
             )}
           </tbody>
         </table>
