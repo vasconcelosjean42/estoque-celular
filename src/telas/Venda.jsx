@@ -24,10 +24,33 @@ export const agruparPedidos = (vendas) => {
   return ordem.map((pid) => [pid, por[pid].slice().reverse()]);
 };
 
+// Totais do pedido num lugar só: mão de obra e desconto ficam gravados em uma
+// linha do pedido, então somar item a item por fora sempre erra em alguma tela.
+export const totalPedido = (itens) =>
+  itens.reduce((s, v) => s + v.preco_venda * v.quantidade + v.mao_de_obra - v.desconto, 0);
+export const lucroPedido = (itens) =>
+  itens.reduce((s, v) => s + (v.preco_venda - v.preco_compra) * v.quantidade + v.mao_de_obra - v.desconto, 0);
+export const descontoPedido = (itens) => itens.reduce((s, v) => s + v.desconto, 0);
+
+// Etiqueta do pedido com desconto — a mesma na Venda e no Dashboard.
+export const tagDesconto = (valor) => (
+  <span style={{ background: "#fef3c7", color: "#b45309", borderRadius: 4, padding: "1px 6px", fontSize: 12, fontWeight: "bold", marginLeft: 6 }}>
+    desconto {fmtReais(valor)}
+  </span>
+);
+
 // Mesma seta no Dashboard e na Venda: o pedido abre e fecha igual nos dois.
 export const setaPedido = (aberto) => (
   <span style={{ display: "inline-block", width: 16, color: "#64748b", fontSize: 12 }}>{aberto ? "▼" : "▶"}</span>
 );
+
+// Guarda o que o operador escolheu (% ou valor final) e deriva os centavos na
+// hora — mexer na mão de obra depois do desconto não deixa o valor desatualizado.
+export const calcDesconto = (desc, bruto) => {
+  if (!desc) return 0;
+  const d = desc.pct != null ? Math.round((bruto * desc.pct) / 100) : bruto - desc.final;
+  return Math.min(Math.max(d, 0), bruto);
+};
 
 const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" };
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
@@ -45,7 +68,8 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
   // ponytail: carrinho vive nesta tela, então trocar de aba no meio da venda o
   // esvazia. Subir o estado pro App resolve, se o cliente reclamar.
   const [carrinho, setCarrinho] = useState([]); // [{ peca, qtd, preco }]
-  const [fechando, setFechando] = useState(null); // { maoDeObra, forma, cliente }
+  const [fechando, setFechando] = useState(null); // { maoDeObra, forma, cliente, desc, descontoPor }
+  const [descUI, setDescUI] = useState(null); // painel de desconto aberto: { modo, valor, pin }
   const [abertos, setAbertos] = useState(new Set()); // pedidos expandidos na lista
   const [[fSel, fDe, fAte], setFiltroData] = useState(() => ["hoje", ...calcAtalho("hoje")]);
 
@@ -124,16 +148,19 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
         return;
       }
     }
+    const desconto = calcDesconto(fechando.desc, totalCarrinho + maoDeObra);
     const [{ n: pedidoId }] = await window.api.query("SELECT COALESCE(MAX(pedido_id),0)+1 AS n FROM vendas");
     const comandos = [];
     carrinho.forEach((it, i) => {
       comandos.push(["UPDATE pecas SET quantidade = quantidade - ? WHERE id = ?", [Number(it.qtd), it.peca.id]]);
       comandos.push([
         `INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, mao_de_obra,
-                             forma_pagamento, cliente, usuario_id, pedido_id) VALUES (?,?,?,?,?,?,?,?,?)`,
-        // Mão de obra é do pedido: grava numa linha só pra não somar duas vezes.
+                             forma_pagamento, cliente, usuario_id, pedido_id, desconto, desconto_por)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        // Mão de obra e desconto são do pedido: gravam numa linha só pra não somar duas vezes.
         [it.peca.id, Number(it.qtd), parseReais(it.preco), it.peca.preco_compra, i === 0 ? maoDeObra : 0,
-         fechando.forma, fechando.cliente.trim(), usuario?.id ?? null, pedidoId],
+         fechando.forma, fechando.cliente.trim(), usuario?.id ?? null, pedidoId,
+         i === 0 ? desconto : 0, i === 0 ? fechando.descontoPor : null],
       ]);
     });
     await window.api.tx(comandos);
@@ -141,12 +168,14 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
       setNotaVenda({
         pedido_id: pedidoId,
         cliente: fechando.cliente.trim(),
-        descricao: carrinho.map((it) => `${it.qtd}x ${it.peca.nome} ${it.peca.modelo}`.trim()).join("\n"),
-        valor_total: totalCarrinho + maoDeObra,
+        descricao: carrinho.map((it) => `${it.qtd}x ${it.peca.nome} ${it.peca.modelo}`.trim()).join("\n")
+          + (desconto ? `\nDesconto: -${fmtReais(desconto)}` : ""),
+        valor_total: totalCarrinho + maoDeObra - desconto,
       });
     }
     setCarrinho([]);
     setFechando(null);
+    setDescUI(null);
     setBusca("");
     carregar();
     setFlashId(pedidoId);
@@ -154,16 +183,48 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
     setTimeout(() => setFlashId(null), 1600);
   };
 
+  // Administrador aplica direto; colaborador precisa do PIN de permissão de um
+  // administrador, e é esse administrador que fica gravado como autorizador.
+  const aplicarDesconto = async (bruto) => {
+    const desc = descUI.modo === "pct"
+      ? { pct: Number(String(descUI.valor).replace(",", ".")) }
+      : { final: parseReais(descUI.valor) };
+    if (descUI.modo === "pct" && (!(desc.pct > 0) || desc.pct > 100)) {
+      alert("Porcentagem inválida (entre 0 e 100).");
+      return;
+    }
+    if (descUI.modo === "final" && (isNaN(desc.final) || desc.final < 0 || desc.final > bruto)) {
+      alert(`Valor final inválido (no máximo ${fmtReais(bruto)}).`);
+      return;
+    }
+    let autorizador = usuario?.id ?? null;
+    if (!dono) {
+      const [admin] = await window.api.query(
+        "SELECT id FROM usuarios WHERE papel = 'dono' AND pin_permissao = ? AND pin_permissao != ''",
+        [descUI.pin.trim()]
+      );
+      if (!admin) {
+        alert("PIN de permissão inválido. Desconto não aplicado.");
+        return;
+      }
+      autorizador = admin.id;
+    }
+    setFechando({ ...fechando, desc, descontoPor: autorizador });
+    setDescUI(null);
+  };
+
   // --- vendas já registradas -------------------------------------------------
 
   const notaClick = (pid, itens) => {
     const existente = notasPorPedido[pid];
     if (existente) return reimprimirNota(existente, cfg);
+    const desconto = descontoPedido(itens);
     setNotaVenda({
       pedido_id: pid,
       cliente: itens[0].cliente || "",
-      descricao: itens.map((v) => `${v.quantidade}x ${v.nome} ${v.modelo}`.trim()).join("\n"),
-      valor_total: itens.reduce((s, v) => s + v.preco_venda * v.quantidade + v.mao_de_obra, 0),
+      descricao: itens.map((v) => `${v.quantidade}x ${v.nome} ${v.modelo}`.trim()).join("\n")
+        + (desconto ? `\nDesconto: -${fmtReais(desconto)}` : ""),
+      valor_total: totalPedido(itens),
     });
   };
 
@@ -193,6 +254,8 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
 
   if (fechando) {
     const maoDeObra = parseReais(fechando.maoDeObra) || 0;
+    const bruto = totalCarrinho + maoDeObra;
+    const desconto = calcDesconto(fechando.desc, bruto);
     return (
       <div style={{ maxWidth: 520 }}>
         <h2 style={{ marginTop: 0 }}>Confirmar venda</h2>
@@ -231,14 +294,55 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
             </button>
           ))}
         </div>
-        <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 16 }}>Total: {fmtReais(totalCarrinho + maoDeObra)}</div>
+        {desconto > 0 ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, color: "#b45309", fontSize: 17, fontWeight: "bold" }}>
+            <span>Desconto: −{fmtReais(desconto)}</span>
+            {fechando.desc.pct != null && <span style={{ fontWeight: "normal", color: "#64748b" }}>({fechando.desc.pct}%)</span>}
+            <button style={{ ...btnMini, background: "#e2e8f0", color: "#334155" }}
+              onClick={() => setFechando({ ...fechando, desc: null, descontoPor: null })}>
+              Remover desconto
+            </button>
+          </div>
+        ) : descUI ? (
+          <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+              {[["pct", "Porcentagem"], ["final", "Valor final"]].map(([modo, rotulo]) => (
+                <button key={modo} onClick={() => setDescUI({ ...descUI, modo, valor: "" })}
+                  style={{ ...btnMini, background: descUI.modo === modo ? "#38bdf8" : "#e2e8f0", color: descUI.modo === modo ? "#0f172a" : "#334155" }}>
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+            <input style={{ ...inp, marginBottom: 8 }} autoFocus
+              aria-label={descUI.modo === "pct" ? "Porcentagem de desconto" : "Valor final do pedido"}
+              placeholder={descUI.modo === "pct" ? "ex.: 10" : `ex.: ${fmtReais(bruto).replace("R$ ", "")}`}
+              value={descUI.valor} onChange={(e) => setDescUI({ ...descUI, valor: e.target.value })} />
+            {!dono && (
+              <input style={{ ...inp, marginBottom: 8 }} type="password" inputMode="numeric" maxLength={4}
+                aria-label="PIN de permissão" placeholder="PIN de permissão do administrador"
+                value={descUI.pin} onChange={(e) => setDescUI({ ...descUI, pin: e.target.value.replace(/\D/g, "") })} />
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button style={{ ...btn, background: "#22c55e", color: "white", flex: 1 }} onClick={() => aplicarDesconto(bruto)}>
+                Aplicar
+              </button>
+              <button style={{ ...btn, background: "#e2e8f0" }} onClick={() => setDescUI(null)}>Cancelar</button>
+            </div>
+          </div>
+        ) : (
+          <button style={{ ...btnMini, background: "#fef3c7", color: "#b45309", marginBottom: 12 }}
+            onClick={() => setDescUI({ modo: "pct", valor: "", pin: "" })}>
+            Aplicar desconto
+          </button>
+        )}
+        <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 16 }}>Total: {fmtReais(bruto - desconto)}</div>
         <div style={{ display: "flex", gap: 8 }}>
           <button style={{ ...btn, background: "#22c55e", color: "white", flex: 1, fontSize: 20 }} onClick={finalizar}>
             Confirmar venda
           </button>
           <button style={{ ...btn, background: "#e2e8f0" }} onClick={() => setFechando(null)}>Voltar</button>
           <button style={{ ...btn, background: "#fee2e2", color: "#dc2626" }}
-            onClick={() => { setFechando(null); setCarrinho([]); }}>
+            onClick={() => { setFechando(null); setDescUI(null); setCarrinho([]); }}>
             Cancelar venda
           </button>
         </div>
@@ -373,7 +477,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
             </div>
             <div style={{ fontSize: 20, fontWeight: "bold", margin: "12px 0" }}>Total: {fmtReais(totalCarrinho)}</div>
             <button style={{ ...btn, background: "#22c55e", color: "white", fontSize: 18 }}
-              onClick={() => setFechando({ maoDeObra: "", forma: "especie", cliente: "" })}>
+              onClick={() => { setFechando({ maoDeObra: "", forma: "especie", cliente: "", desc: null, descontoPor: null }); setDescUI(null); }}>
               Finalizar venda ({carrinho.length} {carrinho.length === 1 ? "item" : "itens"})
             </button>
             <button style={{ ...btn, background: "transparent", color: "#64748b", fontSize: 14, marginTop: 4 }}
@@ -392,7 +496,8 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
           <tbody>
             {pedidos.map(([pid, itens]) => {
-              const total = itens.reduce((s, v) => s + v.preco_venda * v.quantidade + v.mao_de_obra, 0);
+              const total = totalPedido(itens);
+              const desconto = descontoPedido(itens);
               const temTroca = itens.some((v) => (trocasPorVenda[v.id] || []).length > 0);
               const fundo = flashId === pid ? "#86efac" : temTroca ? "#fffbeb" : undefined;
               const botaoNota = notaOn && (
@@ -418,6 +523,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
                       <td style={{ padding: 8 }}>
                         {v.quantidade}x {v.nome} {v.modelo}
                         {v.cliente && <span style={{ color: "#64748b" }}> — {v.cliente}</span>}
+                        {desconto > 0 && tagDesconto(desconto)}
                       </td>
                       <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(total)}</td>
                       <td style={{ padding: 8 }}>{FORMAS[v.forma_pagamento] || v.forma_pagamento}</td>
@@ -441,6 +547,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
                     <td style={{ padding: 8, fontWeight: "bold" }}>
                       {setaPedido(aberto)} Pedido com {itens.length} itens
                       {itens[0].cliente && <span style={{ color: "#64748b", fontWeight: "normal" }}> — {itens[0].cliente}</span>}
+                      {desconto > 0 && tagDesconto(desconto)}
                     </td>
                     <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(total)}</td>
                     <td style={{ padding: 8 }}>{FORMAS[itens[0].forma_pagamento] || itens[0].forma_pagamento}</td>

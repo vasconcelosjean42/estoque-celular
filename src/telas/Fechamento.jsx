@@ -10,7 +10,8 @@ export default function Fechamento({ destaque = false }) {
 
   useEffect(() => {
     window.api
-      .query(`SELECT forma_pagamento, SUM(preco_venda * quantidade + mao_de_obra) AS total, COUNT(*) AS n
+      // Desconto sai do caixa: o que entrou na gaveta é o total já descontado.
+      .query(`SELECT forma_pagamento, SUM(preco_venda * quantidade + mao_de_obra - desconto) AS total, COUNT(*) AS n
               FROM vendas WHERE date(criado_em) = date('now','localtime') GROUP BY forma_pagamento`)
       .then(setLinhas);
   }, []);

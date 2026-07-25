@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { fmtReais } from "./Estoque.jsx";
-import { FORMAS, agruparPedidos, setaPedido } from "./Venda.jsx";
+import { FORMAS, agruparPedidos, setaPedido, totalPedido, lucroPedido, descontoPedido, tagDesconto } from "./Venda.jsx";
 import FiltroData, { isoDia } from "./FiltroData.jsx";
 import Fechamento from "./Fechamento.jsx";
 
-const FAT = "SUM(preco_venda * quantidade + mao_de_obra)";
-const LUCRO = "SUM((preco_venda - preco_compra) * quantidade + mao_de_obra)";
+// Desconto entra nas duas: o cliente pagou menos, então faturou e lucrou menos.
+const FAT = "SUM(preco_venda * quantidade + mao_de_obra - desconto)";
+const LUCRO = "SUM((preco_venda - preco_compra) * quantidade + mao_de_obra - desconto)";
 
 const PERIODOS = [
   ["Hoje", "date(criado_em) = date('now','localtime')"],
@@ -27,6 +28,7 @@ export default function Dashboard() {
   const [pagina, setPagina] = useState(0);
   const [diaSel, setDiaSel] = useState(null); // { chave, rotulo, formas: [{forma_pagamento, total}] }
   const [abertos, setAbertos] = useState(new Set()); // pedidos expandidos no histórico
+  const [soDesconto, setSoDesconto] = useState(false);
   const [grafMode, setGrafMode] = useState("14d"); // 14d | mes | ano
 
   useEffect(() => {
@@ -62,9 +64,10 @@ export default function Dashboard() {
     const where = condicoes.length ? `WHERE ${condicoes.join(" AND ")}` : "";
     window.api
       .query(
-        `SELECT v.*, p.nome, p.modelo, u.nome AS vendedor
+        `SELECT v.*, p.nome, p.modelo, u.nome AS vendedor, a.nome AS autorizador
          FROM vendas v JOIN pecas p ON p.id = v.peca_id
          LEFT JOIN usuarios u ON u.id = v.usuario_id
+         LEFT JOIN usuarios a ON a.id = v.desconto_por
          ${where} ORDER BY v.id DESC`,
         params
       )
@@ -72,25 +75,29 @@ export default function Dashboard() {
     setPagina(0);
   }, [de, ate, vendedor]);
 
-  const pedidos = agruparPedidos(historico);
+  // O desconto mora numa linha do pedido, então filtrar no SQL por v.desconto > 0
+  // deixaria os outros itens do mesmo pedido de fora — filtra depois de agrupar.
+  const pedidos = agruparPedidos(historico).filter(([, itens]) => !soDesconto || descontoPedido(itens) > 0);
+  const itensVisiveis = pedidos.flatMap(([, itens]) => itens);
   const alternar = (pid) => {
     const s = new Set(abertos);
     s.has(pid) ? s.delete(pid) : s.add(pid);
     setAbertos(s);
   };
-  const totalFiltro = historico.reduce((s, v) => s + v.preco_venda * v.quantidade + v.mao_de_obra, 0);
-  const lucroFiltro = historico.reduce((s, v) => s + (v.preco_venda - v.preco_compra) * v.quantidade + v.mao_de_obra, 0);
+  const totalFiltro = totalPedido(itensVisiveis);
+  const lucroFiltro = lucroPedido(itensVisiveis);
 
   const exportarExcel = () => {
     const num = (centavos) => (centavos / 100).toFixed(2).replace(".", ",");
     const linhas = [
-      ["Data", "Hora", "Peça", "Modelo", "Qtd", "Preço unit.", "Mão de obra", "Total", "Forma de pagamento", "Vendedor", "Custo unit.", "Lucro"],
-      ...historico.map((v) => [
+      ["Data", "Hora", "Peça", "Modelo", "Qtd", "Preço unit.", "Mão de obra", "Desconto", "Desconto autorizado por",
+       "Total", "Forma de pagamento", "Vendedor", "Custo unit.", "Lucro"],
+      ...itensVisiveis.map((v) => [
         `${v.criado_em.slice(8, 10)}/${v.criado_em.slice(5, 7)}/${v.criado_em.slice(0, 4)}`,
         v.criado_em.slice(11, 16), v.nome, v.modelo, v.quantidade,
-        num(v.preco_venda), num(v.mao_de_obra), num(v.preco_venda * v.quantidade + v.mao_de_obra),
-        FORMAS[v.forma_pagamento] || v.forma_pagamento, v.vendedor || "não informado", num(v.preco_compra),
-        num((v.preco_venda - v.preco_compra) * v.quantidade + v.mao_de_obra),
+        num(v.preco_venda), num(v.mao_de_obra), num(v.desconto), v.autorizador || "",
+        num(totalPedido([v])), FORMAS[v.forma_pagamento] || v.forma_pagamento,
+        v.vendedor || "não informado", num(v.preco_compra), num(lucroPedido([v])),
       ]),
     ];
     // CSV pt-BR: separador ; e BOM p/ o Excel abrir com acento certo.
@@ -234,20 +241,25 @@ export default function Dashboard() {
           <option value="">Todos os vendedores</option>
           {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
         </select>
-        <button onClick={exportarExcel} disabled={!historico.length}
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 15, cursor: "pointer" }}>
+          <input type="checkbox" style={{ width: 18, height: 18 }}
+            checked={soDesconto} onChange={(e) => { setSoDesconto(e.target.checked); setPagina(0); }} />
+          Só com desconto
+        </label>
+        <button onClick={exportarExcel} disabled={!itensVisiveis.length}
           style={{ padding: "8px 14px", fontSize: 14, fontWeight: "bold", border: "none", borderRadius: 6, cursor: "pointer", background: "#16a34a", color: "white", marginLeft: "auto" }}>
           ⬇ Exportar Excel
         </button>
       </div>
       <div style={{ marginBottom: 8, fontSize: 15, color: "#475569" }}>
         {pedidos.length} venda{pedidos.length === 1 ? "" : "s"} no período
-        {historico.length !== pedidos.length && ` (${historico.length} itens)`} — total{" "}
+        {itensVisiveis.length !== pedidos.length && ` (${itensVisiveis.length} itens)`} — total{" "}
         <strong>{fmtReais(totalFiltro)}</strong> — lucro <strong style={{ color: "#16a34a" }}>{fmtReais(lucroFiltro)}</strong>
       </div>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
         <thead>
           <tr style={{ textAlign: "left", borderBottom: "2px solid #cbd5e1" }}>
-            {["Data", "Peça", "Qtd", "Total", "Forma", "Vendedor", "Lucro"].map((h) => (
+            {["Data", "Peça", "Qtd", "Desconto", "Total", "Forma", "Vendedor", "Lucro"].map((h) => (
               <th key={h} style={{ padding: 8 }}>{h}</th>
             ))}
           </tr>
@@ -257,19 +269,35 @@ export default function Dashboard() {
               inteira numa linha em vez de item espalhado. Pedido de 1 item
               continua numa linha só. */}
           {pedidos.slice(pagina * 50, pagina * 50 + 50).map(([pid, itens]) => {
-            const total = itens.reduce((s, v) => s + v.preco_venda * v.quantidade + v.mao_de_obra, 0);
-            const lucro = itens.reduce((s, v) => s + (v.preco_venda - v.preco_compra) * v.quantidade + v.mao_de_obra, 0);
+            const total = totalPedido(itens);
+            const lucro = lucroPedido(itens);
+            const desconto = descontoPedido(itens);
             const v0 = itens[0];
             const quando = `${v0.criado_em.slice(8, 10)}/${v0.criado_em.slice(5, 7)} ${v0.criado_em.slice(11, 16)}`;
             const vendedor = (
               <td style={{ padding: 8, color: v0.vendedor ? undefined : "#94a3b8" }}>{v0.vendedor || "não informado"}</td>
             );
+            // Quem autorizou vem junto do valor: desconto sem rastro é o que o passo evita.
+            const colDesconto = (
+              <td style={{ padding: 8, color: "#b45309", whiteSpace: "nowrap" }}>
+                {desconto > 0 ? (
+                  <>
+                    −{fmtReais(desconto)}
+                    <div style={{ fontSize: 12, color: "#94a3b8" }}>{itens.find((v) => v.autorizador)?.autorizador || "—"}</div>
+                  </>
+                ) : ""}
+              </td>
+            );
             if (itens.length === 1) {
               return (
                 <tr key={pid} style={{ borderBottom: "1px solid #e2e8f0" }}>
                   <td style={{ padding: 8, color: "#64748b" }}>{quando}</td>
-                  <td style={{ padding: 8 }}>{v0.quantidade}x {v0.nome} {v0.modelo}</td>
+                  <td style={{ padding: 8 }}>
+                    {v0.quantidade}x {v0.nome} {v0.modelo}
+                    {desconto > 0 && tagDesconto(desconto)}
+                  </td>
                   <td style={{ padding: 8 }}>{v0.quantidade}</td>
+                  {colDesconto}
                   <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(total)}</td>
                   <td style={{ padding: 8 }}>{FORMAS[v0.forma_pagamento] || v0.forma_pagamento}</td>
                   {vendedor}
@@ -287,8 +315,10 @@ export default function Dashboard() {
                   <td style={{ padding: 8, fontWeight: "bold" }}>
                     {setaPedido(aberto)} Pedido com {itens.length} itens
                     {v0.cliente && <span style={{ color: "#64748b", fontWeight: "normal" }}> — {v0.cliente}</span>}
+                    {desconto > 0 && tagDesconto(desconto)}
                   </td>
                   <td style={{ padding: 8 }}>{qtdTotal}</td>
+                  {colDesconto}
                   <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(total)}</td>
                   <td style={{ padding: 8 }}>{FORMAS[v0.forma_pagamento] || v0.forma_pagamento}</td>
                   {vendedor}
@@ -299,6 +329,8 @@ export default function Dashboard() {
                     <td />
                     <td style={{ padding: "6px 8px", paddingLeft: 24 }}>↳ {v.quantidade}x {v.nome} {v.modelo}</td>
                     <td style={{ padding: "6px 8px" }}>{v.quantidade}</td>
+                    {/* desconto é do pedido, não do item: fica só no cabeçalho */}
+                    <td />
                     <td style={{ padding: "6px 8px" }}>{fmtReais(v.preco_venda * v.quantidade + v.mao_de_obra)}</td>
                     <td colSpan={2} />
                     <td style={{ padding: "6px 8px", color: "#16a34a" }}>
@@ -309,8 +341,10 @@ export default function Dashboard() {
               </React.Fragment>
             );
           })}
-          {historico.length === 0 && (
-            <tr><td colSpan={7} style={{ padding: 16, color: "#64748b" }}>Nenhuma venda registrada.</td></tr>
+          {pedidos.length === 0 && (
+            <tr><td colSpan={8} style={{ padding: 16, color: "#64748b" }}>
+              Nenhuma venda {soDesconto ? "com desconto " : ""}registrada.
+            </td></tr>
           )}
         </tbody>
       </table>

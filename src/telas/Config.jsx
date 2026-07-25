@@ -83,6 +83,22 @@ export default function Config({ aoMudar }) {
     if (/^\d{4}$/.test(p)) await window.api.query("UPDATE usuarios SET pin = ? WHERE id = ?", [p, u.id]);
   };
 
+  // É o PIN de permissão que identifica quem liberou o desconto, então repetido
+  // não pode: dois administradores com o mesmo PIN apagam o rastro.
+  const salvarPinPermissao = async (u, valor) => {
+    const p = valor.replace(/\D/g, "").slice(0, 4);
+    setUsuarios(usuarios.map((x) => (x.id === u.id ? { ...x, pin_permissao: p } : x)));
+    if (!/^\d{4}$/.test(p)) return;
+    const [dono] = await window.api.query(
+      "SELECT nome FROM usuarios WHERE pin_permissao = ? AND id != ?", [p, u.id]);
+    if (dono) {
+      alert(`O PIN de permissão ${p} já é de ${dono.nome}. Escolha outro.`);
+      carregarUsuarios();
+      return;
+    }
+    await window.api.query("UPDATE usuarios SET pin_permissao = ? WHERE id = ?", [p, u.id]);
+  };
+
   const removerUsuario = async (u) => {
     if (u.papel === "dono" && usuarios.filter((x) => x.papel === "dono").length === 1) {
       alert("Precisa existir pelo menos um administrador.");
@@ -90,9 +106,11 @@ export default function Config({ aoMudar }) {
     }
     if (!confirm(`Tem certeza que quer excluir o usuário "${u.nome}"?`)) return;
     // As vendas dele continuam no histórico, só perdem o nome do vendedor —
-    // sem isto a FK barraria a exclusão de quem já vendeu.
+    // sem isto a FK barraria a exclusão de quem já vendeu. desconto_por aponta
+    // pra usuarios do mesmo jeito: quem já autorizou desconto também tem que sair.
     await window.api.tx([
       ["UPDATE vendas SET usuario_id = NULL WHERE usuario_id = ?", [u.id]],
+      ["UPDATE vendas SET desconto_por = NULL WHERE desconto_por = ?", [u.id]],
       ["DELETE FROM usuarios WHERE id = ?", [u.id]],
     ]);
     carregarUsuarios();
@@ -356,6 +374,15 @@ export default function Config({ aoMudar }) {
             <input value={u.pin} aria-label={`PIN de ${u.nome}`}
               onChange={(e) => salvarPinUsuario(u, e.target.value)} onBlur={carregarUsuarios}
               style={{ padding: 6, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1", width: 64, textAlign: "center" }} />
+            {/* Só administrador libera desconto, então só ele tem PIN de permissão. */}
+            {u.papel === "dono" && (
+              <>
+                <span>Permissão:</span>
+                <input value={u.pin_permissao || ""} aria-label={`PIN de permissão de ${u.nome}`} placeholder="—"
+                  onChange={(e) => salvarPinPermissao(u, e.target.value)} onBlur={carregarUsuarios}
+                  style={{ padding: 6, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1", width: 64, textAlign: "center" }} />
+              </>
+            )}
             <button aria-label={`Remover ${u.nome}`} style={{ ...btn, padding: "6px 12px", fontSize: 14, background: "#fee2e2", color: "#dc2626" }} onClick={() => removerUsuario(u)}>
               Remover
             </button>
@@ -384,6 +411,8 @@ export default function Config({ aoMudar }) {
         )}
         <div style={{ fontSize: 14, color: "#64748b", marginTop: 10 }}>
           Colaborador só acessa Estoque e Venda, não vê preço de compra/margem/lucro e não edita preços.
+          O PIN de permissão é o que o administrador digita pra liberar desconto na venda do colaborador —
+          diferente do PIN de login, e único por administrador.
         </div>
       </div>
 

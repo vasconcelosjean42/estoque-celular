@@ -96,6 +96,21 @@ const path = require("path");
     await win.click('button:text-is("Cancelar venda")'); // limpa o carrinho p/ não vazar no próximo caso
   };
   const vender = async (nome, campos) => { await abrirVenda(nome, campos); await confirmarVenda(); };
+  const trocarUsuario = async (nome, pin) => {
+    await win.click('nav button:text-is("Sair")');
+    await login(nome, pin);
+    await win.waitForTimeout(300);
+  };
+  // Passo 13: abre o painel de desconto, escolhe o modo e aplica. pin só p/ colaborador.
+  const descontar = async ({ pct, final, pin }, abrir = true) => {
+    if (abrir) await win.click('button:text("Aplicar desconto")');
+    if (final !== undefined) await win.click('button:text-is("Valor final")');
+    await win.fill(`input[aria-label="${pct !== undefined ? "Porcentagem de desconto" : "Valor final do pedido"}"]`,
+      pct !== undefined ? pct : final);
+    if (pin !== undefined) await win.fill('input[aria-label="PIN de permissão"]', pin);
+    await win.click('button:text-is("Aplicar")');
+    await win.waitForTimeout(300);
+  };
   // O cfg só chega na Venda pelo App, que relê ao gravar: tem que passar pelo checkbox.
   const ligarNota = async (on) => {
     await aba("Config");
@@ -442,6 +457,184 @@ const path = require("path");
       }
     });
 
+    console.log("\nDesconto (passo 13)");
+
+    await caso("55. administrador aplica 10% direto e o desconto grava numa linha só", async () => {
+      const a = await novaPeca("C55A", 5, 10000, 20000);
+      const b = await novaPeca("C55B", 5, 3000, 8000);
+      await recarregar("Venda");
+      await aoCarrinho("C55A");
+      await aoCarrinho("C55B");
+      await win.click('button:text("Finalizar venda")');
+      await descontar({ pct: "10" });
+      // 200,00 + 80,00 = 280,00 → 10% = 28,00
+      assert((await win.locator("text=Desconto: −R$ 28,00").count()) > 0, "mostra o desconto aplicado");
+      assert((await win.locator("text=Total: R$ 252,00").count()) > 0, "total já vem descontado");
+      await confirmarVenda();
+
+      const itens = await sql("SELECT * FROM vendas WHERE peca_id IN (?,?) ORDER BY id", [a, b]);
+      assert.strictEqual(itens.reduce((s, v) => s + v.desconto, 0), 2800, "28,00 uma vez só no pedido");
+      assert.strictEqual(itens.filter((v) => v.desconto > 0).length, 1, "grava numa linha só, como a mão de obra");
+      const admin = await um("SELECT id FROM usuarios WHERE papel = 'dono'");
+      assert.strictEqual(itens[0].desconto_por, admin.id, "administrador autoriza o próprio desconto");
+    });
+
+    await caso("56. valor final chega no mesmo desconto que a porcentagem", async () => {
+      const id = await novaPeca("C56", 5, 10000, 20000);
+      await recarregar("Venda");
+      await aoCarrinho("C56");
+      await win.click('button:text("Finalizar venda")');
+      await descontar({ final: "180,00" }); // 200,00 → 180,00 = 20,00 de desconto
+      await confirmarVenda();
+      assert.strictEqual((await vendasDe(id))[0].desconto, 2000);
+    });
+
+    await caso("57. desconto acompanha a mão de obra digitada depois", async () => {
+      const id = await novaPeca("C57", 5, 10000, 20000);
+      await recarregar("Venda");
+      await aoCarrinho("C57");
+      await win.click('button:text("Finalizar venda")');
+      await descontar({ pct: "10" }); // 10% de 200,00 = 20,00
+      await win.fill('label:has-text("Mão de obra") input', "50,00");
+      await win.waitForTimeout(200);
+      await confirmarVenda();
+      // Base virou 250,00: o desconto tem que ser 25,00, não os 20,00 de antes.
+      assert.strictEqual((await vendasDe(id))[0].desconto, 2500, "10% recalcula sobre o total novo");
+    });
+
+    await caso("58. porcentagem fora da faixa e valor final acima do total são recusados", async () => {
+      const id = await novaPeca("C58", 5, 10000, 20000);
+      await recarregar("Venda");
+      await aoCarrinho("C58");
+      await win.click('button:text("Finalizar venda")');
+      for (const campos of [{ pct: "150" }, { pct: "0" }, { final: "300,00" }]) {
+        await descontar(campos);
+        assert.strictEqual(await win.locator("text=Remover desconto").count(), 0,
+          `${JSON.stringify(campos)} não podia ser aceito`);
+        await win.click('button:text-is("Cancelar")');
+      }
+      await confirmarVenda();
+      assert.strictEqual((await vendasDe(id))[0].desconto, 0);
+    });
+
+    await caso("59. remover desconto volta o total cheio", async () => {
+      const id = await novaPeca("C59", 5, 10000, 20000);
+      await recarregar("Venda");
+      await aoCarrinho("C59");
+      await win.click('button:text("Finalizar venda")');
+      await descontar({ pct: "10" });
+      await win.click('button:text("Remover desconto")');
+      assert((await win.locator("text=Total: R$ 200,00").count()) > 0);
+      await confirmarVenda();
+      const [v] = await vendasDe(id);
+      assert.strictEqual(v.desconto, 0);
+      assert.strictEqual(v.desconto_por, null, "sem desconto não fica autorizador pendurado");
+    });
+
+    await caso("60. faturamento, lucro e fechamento do dia descontam", async () => {
+      const id = await novaPeca("C60", 5, 10000, 20000);
+      const antes = await um(`SELECT SUM(preco_venda * quantidade + mao_de_obra - desconto) AS fat,
+                                     SUM((preco_venda - preco_compra) * quantidade + mao_de_obra - desconto) AS lucro
+                              FROM vendas WHERE date(criado_em) = date('now','localtime')`);
+      await recarregar("Venda");
+      await aoCarrinho("C60");
+      await win.click('button:text("Finalizar venda")');
+      await win.click('button:text-is("Pix")');
+      await descontar({ pct: "25" }); // 200,00 → desconto 50,00
+      await confirmarVenda();
+      const depois = await um(`SELECT SUM(preco_venda * quantidade + mao_de_obra - desconto) AS fat,
+                                      SUM((preco_venda - preco_compra) * quantidade + mao_de_obra - desconto) AS lucro
+                               FROM vendas WHERE date(criado_em) = date('now','localtime')`);
+      assert.strictEqual(depois.fat - antes.fat, 15000, "faturou 150,00, não 200,00");
+      assert.strictEqual(depois.lucro - antes.lucro, 5000, "lucrou 50,00 (100,00 de margem − 50,00)");
+      // O que entrou na gaveta é o valor descontado: a tela tem que mostrar o mesmo.
+      await recarregar("Dashboard");
+      assert.strictEqual((await vendasDe(id))[0].desconto, 5000);
+    });
+
+    await caso("61. Dashboard marca o pedido, mostra quem autorizou e filtra só com desconto", async () => {
+      const comDesc = await novaPeca("C61A", 5, 10000, 20000);
+      const semDesc = await novaPeca("C61B", 5, 10000, 20000);
+      await recarregar("Venda");
+      await aoCarrinho("C61A");
+      await win.click('button:text("Finalizar venda")');
+      await descontar({ pct: "10" });
+      await confirmarVenda();
+      await vender("C61B");
+      const pidCom = (await vendasDe(comDesc))[0].pedido_id;
+      const pidSem = (await vendasDe(semDesc))[0].pedido_id;
+
+      await recarregar("Dashboard");
+      // :has-text normaliza o espaço do "R$ " (toLocaleString usa NBSP); includes não.
+      assert(await win.locator('tr:has-text("C61A"):has-text("desconto R$ 20,00")').count(), "etiqueta com o valor");
+      assert(await win.locator('tr:has-text("C61A"):has-text("Administrador")').count(), "mostra quem autorizou");
+      assert(await win.locator('tr:has-text("C61B")').count(), "a venda sem desconto aparece antes do filtro");
+
+      await win.click('label:has-text("Só com desconto") input');
+      await win.waitForTimeout(300);
+      assert(await win.locator('tr:has-text("C61A")').count(), "o pedido com desconto fica");
+      assert.strictEqual(await win.locator('tr:has-text("C61B")').count(), 0, "o sem desconto sai da lista");
+      await win.click('label:has-text("Só com desconto") input'); // desliga p/ os próximos casos
+      assert(pidCom !== pidSem);
+    });
+
+    await caso("62. PIN de permissão repetido é recusado, e colaborador não tem esse campo", async () => {
+      const novoUsuario = async (nome, papel) => {
+        await win.click('button:text("+ Novo usuário")');
+        await win.fill('input[placeholder="Nome"]', nome);
+        await win.fill('input[placeholder="PIN (4 dígitos)"]', "5678");
+        await win.selectOption("select", papel);
+        await win.click('button:text-is("Adicionar")');
+        await win.waitForSelector(`text=${nome}`, { timeout: 8000 });
+      };
+      await aba("Config");
+      await novoUsuario("Admin62", "dono");
+      await novoUsuario("Colab62", "funcionario");
+      try {
+        await win.fill('input[aria-label="PIN de permissão de Administrador"]', "9999");
+        await win.waitForTimeout(300);
+        await win.fill('input[aria-label="PIN de permissão de Admin62"]', "9999"); // repetido
+        await win.waitForTimeout(400);
+        const pins = await sql("SELECT nome, pin_permissao FROM usuarios WHERE papel = 'dono'");
+        assert.strictEqual(pins.filter((u) => u.pin_permissao === "9999").length, 1, "só um admin fica com o PIN");
+        assert.strictEqual(pins.find((u) => u.nome === "Admin62").pin_permissao, "", "o repetido não é gravado");
+        // Só administrador libera desconto: colaborador nem exibe o campo.
+        assert.strictEqual(await win.locator('input[aria-label="PIN de permissão de Colab62"]').count(), 0);
+      } finally {
+        await sql("DELETE FROM usuarios WHERE nome IN ('Admin62','Colab62')");
+        await sql("UPDATE usuarios SET pin_permissao = '' WHERE papel = 'dono'");
+      }
+    });
+
+    await caso("63. colaborador só consegue desconto com o PIN de um administrador", async () => {
+      const id = await novaPeca("C63", 5, 10000, 20000);
+      await sql("UPDATE usuarios SET pin_permissao = '4321' WHERE papel = 'dono'");
+      const admin = await um("SELECT id FROM usuarios WHERE papel = 'dono'");
+      await sql("INSERT INTO usuarios (nome, pin, papel) VALUES ('Colab63','7777','funcionario')");
+      await trocarUsuario("Colab63", "7777");
+      try {
+        await aba("Venda");
+        await aoCarrinho("C63");
+        await win.click('button:text("Finalizar venda")');
+
+        await descontar({ pct: "10", pin: "0000" }); // PIN errado
+        assert.strictEqual(await win.locator("text=Remover desconto").count(), 0, "PIN errado não pode aplicar");
+        await descontar({ pct: "10", pin: "4321" }, false); // painel já está aberto
+        assert((await win.locator("text=Desconto: −R$ 20,00").count()) > 0, "PIN certo aplica");
+        await confirmarVenda();
+
+        const [v] = await vendasDe(id);
+        assert.strictEqual(v.desconto, 2000);
+        assert.strictEqual(v.desconto_por, admin.id, "grava o administrador do PIN, não o colaborador");
+        assert.notStrictEqual(v.usuario_id, admin.id, "quem vendeu continua sendo o colaborador");
+      } finally {
+        await trocarUsuario("Administrador", "1234");
+        await sql("UPDATE vendas SET usuario_id = NULL WHERE usuario_id = (SELECT id FROM usuarios WHERE nome = 'Colab63')");
+        await sql("DELETE FROM usuarios WHERE nome = 'Colab63'");
+        await sql("UPDATE usuarios SET pin_permissao = '' WHERE papel = 'dono'");
+      }
+    });
+
     console.log("\nEstoque e entradas");
 
     await caso("15. cadastro com quantidade cria a entrada 'cadastro inicial'", async () => {
@@ -710,7 +903,9 @@ const path = require("path");
     await caso("42. excluir usuário que já vendeu preserva a venda", async () => {
       const u = (await sql("INSERT INTO usuarios (nome, pin, papel) VALUES ('Temp','9999','funcionario')")).lastInsertRowid;
       const id = await novaPeca("P42", 5, 10000, 20000);
-      await sql("INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, usuario_id) VALUES (?,1,20000,10000,?)", [id, u]);
+      // usuario_id e desconto_por: as duas FKs apontam pra usuarios e barram o DELETE.
+      await sql(`INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, usuario_id, desconto, desconto_por)
+                 VALUES (?,1,20000,10000,?,1000,?)`, [id, u, u]);
       await aba("Config");
       await win.click('button[aria-label="Remover Temp"]');
       await win.waitForSelector('button[aria-label="Remover Temp"]', { state: "detached", timeout: 8000 });
@@ -718,6 +913,8 @@ const path = require("path");
       const [v] = await vendasDe(id);
       assert(v, "a venda dele não pode sumir junto");
       assert.strictEqual(v.usuario_id, null, "só perde o nome do vendedor");
+      assert.strictEqual(v.desconto_por, null, "e o rastro de quem autorizou o desconto");
+      assert.strictEqual(v.desconto, 1000, "o valor do desconto continua no histórico");
     });
 
     await caso("43. Dashboard mostra o mesmo fechamento e marca venda sem vendedor", async () => {

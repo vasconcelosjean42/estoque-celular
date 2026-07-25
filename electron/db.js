@@ -110,6 +110,13 @@ for (const sql of [
   "UPDATE notas SET pedido_id = venda_id WHERE pedido_id IS NULL",
   // Parcial: os produtos ainda sem código ('') não colidem entre si.
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_pecas_codigo ON pecas(codigo) WHERE codigo != ''",
+  // Passo 13: desconto do pedido, gravado em uma linha só (igual mão de obra).
+  "ALTER TABLE vendas ADD COLUMN desconto INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE vendas ADD COLUMN desconto_por INTEGER REFERENCES usuarios(id)", // quem autorizou
+  // PIN de permissão: diferente do PIN de login, e é ele que identifica quem
+  // liberou o desconto — parcial, porque quem não tem fica com '' e não colide.
+  "ALTER TABLE usuarios ADD COLUMN pin_permissao TEXT NOT NULL DEFAULT ''",
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_pin_permissao ON usuarios(pin_permissao) WHERE pin_permissao != ''",
 
 ]) {
   try {
