@@ -23,7 +23,9 @@ export const resolverCliente = async (texto, clientes) => {
 };
 
 const btn = { padding: "8px 14px", fontSize: 14, fontWeight: "bold", border: "none", borderRadius: 6, cursor: "pointer" };
-const inp = { padding: 8, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1" };
+// boxSizing: sem ele o width:100% soma padding e borda e o input vaza por cima
+// da célula vizinha na linha de edição.
+const inp = { padding: 8, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1", boxSizing: "border-box" };
 const th = { padding: 8, textAlign: "left", cursor: "pointer", userSelect: "none" };
 
 const COLUNAS = [
@@ -181,7 +183,7 @@ export default function Clientes() {
                     onChange={(e) => setEditando({ ...editando, nome: e.target.value })} />
                 </td>
                 <td style={{ padding: 6 }} colSpan={4}>
-                  <input style={{ ...inp, width: "100%" }} aria-label="Contato do cliente" placeholder="telefone ou email"
+                  <input style={{ ...inp, width: "100%", maxWidth: 220 }} aria-label="Contato do cliente" placeholder="telefone ou email"
                     value={editando.contato} onChange={(e) => setEditando({ ...editando, contato: e.target.value })} />
                 </td>
                 <td style={{ padding: 6, textAlign: "right", whiteSpace: "nowrap" }}>

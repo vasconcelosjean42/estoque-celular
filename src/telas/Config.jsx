@@ -245,7 +245,7 @@ export default function Config({ aoMudar }) {
   };
 
   return (
-    <div style={{ maxWidth: 640 }}>
+    <div style={{ maxWidth: 880 }}>
       <div style={bloco}>
         <h3 style={{ marginTop: 0 }}>Sobre / Atualização</h3>
         <div style={{ fontSize: 16, marginBottom: 10 }}>
