@@ -756,8 +756,9 @@ const path = require("path");
 
     console.log("\nTroca de peça funcionando (passo 15)");
 
-    // Vende A, clica em Trocar na venda e repõe com a peça idB. estado: "Funcionando" | "Com defeito".
-    const trocarVenda = async (nomeA, idB, estado) => {
+    // Vende A, clica em Trocar na venda e repõe com a peça idB. estado: "Funcionando" |
+    // "Com defeito". opts.perda = motivo → marca descarte em vez de mandar pro fornecedor.
+    const trocarVenda = async (nomeA, idB, estado, opts = {}) => {
       await recarregar("Venda");
       await aoCarrinho(nomeA);
       await win.click('button:text("Finalizar venda")');
@@ -767,6 +768,10 @@ const path = require("path");
       await win.waitForSelector("text=Estado da peça devolvida", { timeout: 8000 });
       await win.click(`button:text-is("${estado}")`);
       if (estado === "Com defeito") await win.fill('label:has-text("Defeito") input', "não liga");
+      if (opts.perda) {
+        await win.click('button:text-is("Descarte → perda")');
+        await win.fill('label:has-text("Motivo da perda") input', opts.perda);
+      }
       await win.selectOption('label:has-text("Trocar por") select', String(idB));
       await win.click('button:text-is("Salvar")');
       await win.waitForSelector("text=Prateleira", { timeout: 8000 });
@@ -820,6 +825,106 @@ const path = require("path");
       assert.strictEqual(t.defeito, "não liga");
       await aba("Trocas");
       assert(await win.locator('tr:has-text("C78A")').count(), "tem que estar na prateleira");
+    });
+
+    await caso("79. registro avulso funcionando: devolvida entra e a entregue sai, saldo zero", async () => {
+      const id = await novaPeca("C79", 5, 1200, 3000);
+      await recarregar("Trocas");
+      await win.click('button:text("+ Registrar defeituosa")');
+      await win.waitForSelector("text=Estado da peça devolvida", { timeout: 8000 });
+      await win.click('button:text-is("Funcionando")');
+      await win.selectOption('label:has-text("Peça do estoque") select', String(id));
+      await win.click('label:has-text("Entreguei peça nova") input');
+      await win.click('button:text-is("Salvar")');
+      await win.waitForSelector("text=Prateleira", { timeout: 8000 });
+      // Voltou uma boa (+1) e saiu uma do estoque pro cliente (−1): fica igual.
+      assert.strictEqual((await peca(id)).quantidade, 5, "devolveu boa e entregou outra: saldo zero");
+      const t = await um("SELECT * FROM trocas WHERE peca_id = ?", [id]);
+      assert.strictEqual(t.defeituosa, 0);
+      assert.strictEqual(await win.locator('tr:has-text("C79")').count(), 0, "não vai pra prateleira");
+    });
+
+    console.log("\nPerda (passo 16)");
+
+    await caso("80. descarte vira perda a preço de compra e não vai pra prateleira", async () => {
+      const a = await novaPeca("C80A", 5, 1200, 3000);
+      const b = await novaPeca("C80B", 5, 1200, 3000);
+      await trocarVenda("C80A", b, "Com defeito", { perda: "cabo sem troca com fornecedor" });
+      const t = await um("SELECT * FROM trocas WHERE peca_id = ?", [a]);
+      const p = await um("SELECT * FROM perdas WHERE troca_id = ?", [t.id]);
+      assert(p, "tinha que registrar a perda");
+      assert.strictEqual(p.valor, 1200, "perda é o preço de COMPRA, não o de venda");
+      assert.strictEqual(p.peca_id, a);
+      assert.strictEqual(p.motivo, "cabo sem troca com fornecedor");
+      assert.strictEqual(t.fornecedor, "", "descarte não tem fornecedor");
+      await aba("Trocas");
+      const prateleira = win.locator('table[aria-label="Prateleira"]');
+      assert.strictEqual(await prateleira.locator('tr:has-text("C80A")').count(), 0, "não pode sujar a prateleira");
+    });
+
+    await caso("81. bloco Perdas mostra a perda e soma o total do mês", async () => {
+      await recarregar("Trocas");
+      const bloco = win.locator('table[aria-label="Perdas"]');
+      assert(await bloco.locator('tr:has-text("C80A")').count(), "a perda tem que aparecer na lista");
+      assert(await bloco.locator('tr:has-text("cabo sem troca com fornecedor")').count(), "com o motivo");
+      // O total do mês tem que bater com a soma do banco, não com um número solto.
+      const [{ total }] = await sql(`SELECT COALESCE(SUM(valor),0) AS total FROM perdas
+                                     WHERE strftime('%Y-%m', criado_em) = strftime('%Y-%m','now','localtime')`);
+      const cabecalho = await win.locator('h3:has-text("Perdas")').innerText();
+      const reais = (c) => (c / 100).toFixed(2).replace(".", ",");
+      assert(cabecalho.includes(reais(total)), `total do mês devia ser ${reais(total)}, veio "${cabecalho}"`);
+    });
+
+    await caso("82. desfazer a troca apaga a perda junto e devolve o estoque", async () => {
+      const a = await novaPeca("C82A", 5, 1200, 3000);
+      const b = await novaPeca("C82B", 5, 1200, 3000);
+      await trocarVenda("C82A", b, "Com defeito", { perda: "descartado" });
+      const t = await um("SELECT * FROM trocas WHERE peca_id = ?", [a]);
+      assert(await um("SELECT id FROM perdas WHERE troca_id = ?", [t.id]), "perda criada");
+      assert.strictEqual((await peca(b)).quantidade, 4);
+
+      await recarregar("Venda");
+      await win.click('tr:has-text("trocado por 1x C82B") button:text-is("Desfazer")');
+      await win.waitForTimeout(500);
+      assert.strictEqual(await um("SELECT id FROM perdas WHERE troca_id = ?", [t.id]), undefined,
+        "a perda some junto com a troca");
+      assert.strictEqual((await peca(b)).quantidade, 5, "a reposição volta pro estoque");
+    });
+
+    await caso("83. troca normal com fornecedor continua sem gerar perda", async () => {
+      const a = await novaPeca("C83A", 5, 1200, 3000);
+      const b = await novaPeca("C83B", 5, 1200, 3000);
+      await trocarVenda("C83A", b, "Com defeito");
+      const t = await um("SELECT * FROM trocas WHERE peca_id = ?", [a]);
+      assert.strictEqual(await um("SELECT id FROM perdas WHERE troca_id = ?", [t.id]), undefined,
+        "fornecedor não é perda: o dinheiro volta como crédito");
+      await aba("Trocas");
+      assert(await win.locator('table[aria-label="Prateleira"] tr:has-text("C83A")').count(),
+        "continua indo pra prateleira");
+    });
+
+    await caso("84. peça funcionando não pode virar perda", async () => {
+      const a = await novaPeca("C84A", 5, 1200, 3000);
+      const b = await novaPeca("C84B", 5, 1200, 3000);
+      await recarregar("Venda");
+      await aoCarrinho("C84A");
+      await win.click('button:text("Finalizar venda")');
+      await confirmarVenda();
+      const pid = (await vendasDe(a))[0].pedido_id;
+      await win.click(`#pedido-${pid} button:text-is("Trocar")`);
+      await win.waitForSelector("text=Estado da peça devolvida", { timeout: 8000 });
+      // Marca descarte e DEPOIS troca pra Funcionando: o destino não pode sobrar.
+      await win.click('button:text-is("Descarte → perda")');
+      await win.click('button:text-is("Funcionando")');
+      assert.strictEqual(await win.locator('button:text-is("Descarte → perda")').count(), 0,
+        "peça boa não escolhe destino: ela volta pro estoque");
+      await win.selectOption('label:has-text("Trocar por") select', String(b));
+      await win.click('button:text-is("Salvar")');
+      await win.waitForSelector("text=Prateleira", { timeout: 8000 });
+      const t = await um("SELECT * FROM trocas WHERE peca_id = ?", [a]);
+      assert.strictEqual(await um("SELECT id FROM perdas WHERE troca_id = ?", [t.id]), undefined,
+        "voltou boa pro estoque: não houve prejuízo");
+      assert.strictEqual((await peca(a)).quantidade, 5);
     });
 
     console.log("\nEstoque e entradas");

@@ -73,6 +73,17 @@ CREATE TABLE IF NOT EXISTS usuarios (
   papel TEXT NOT NULL DEFAULT 'funcionario' -- dono | funcionario
 );
 
+-- Livro único de perdas: sempre a preço de CUSTO, nunca de venda. Perder um cabo
+-- custa o que foi pago nele. Os passos 19 e 20 gravam aqui também.
+CREATE TABLE IF NOT EXISTS perdas (
+  id        INTEGER PRIMARY KEY,
+  troca_id  INTEGER REFERENCES trocas(id),
+  peca_id   INTEGER REFERENCES pecas(id),
+  valor     INTEGER NOT NULL, -- centavos, preço de compra
+  motivo    TEXT NOT NULL DEFAULT '',
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS clientes (
   id        INTEGER PRIMARY KEY,
   codigo    TEXT NOT NULL DEFAULT '', -- C001, C002… sequencial e editável

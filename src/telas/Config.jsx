@@ -207,6 +207,9 @@ export default function Config({ aoMudar }) {
         [`DELETE FROM entradas WHERE id IN (${em(ids.entradas)}) OR peca_id IN (${p})`, []],
         [`UPDATE trocas SET peca_id = NULL      WHERE peca_id IN (${p})`, []],
         [`UPDATE trocas SET nova_peca_id = NULL WHERE nova_peca_id IN (${p})`, []],
+        // perdas aponta pra trocas e pecas: some com a da demo e solta a real.
+        [`DELETE FROM perdas WHERE troca_id IN (${em(ids.trocas)})`, []],
+        [`UPDATE perdas SET peca_id = NULL WHERE peca_id IN (${p})`, []],
         [`DELETE FROM trocas WHERE id IN (${em(ids.trocas)})`, []],
         [`UPDATE trocas SET lote_id = NULL WHERE lote_id IN (${em(ids.lotes)})`, []],
         [`DELETE FROM lotes    WHERE id IN (${em(ids.lotes)})`, []],
@@ -228,6 +231,7 @@ export default function Config({ aoMudar }) {
       await window.api.tx([
         ["DELETE FROM notas", []],
         ["DELETE FROM creditos", []],
+        ["DELETE FROM perdas", []], // antes de trocas e pecas: referencia as duas
         ["DELETE FROM trocas", []],
         ["DELETE FROM lotes", []],
         ["DELETE FROM entradas", []],

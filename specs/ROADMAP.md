@@ -39,8 +39,8 @@ cliente: o carrinho (passo 12) muda a estrutura da venda, e o conceito de perda
 | 13 | Desconto com autorização por PIN | 11 | 11, 12 | ✅ aprovado |
 | 14 | Cadastro de clientes e histórico de compras | 2 | 12 | ✅ aprovado |
 | — | **Bloco C — trocas e perda** | | | |
-| 15 | Troca de peça que está funcionando | 9 | — | 🔨 feito, aguardando teste |
-| 16 | Perda: troca que não vai pro fornecedor | 6 | — | 📝 spec |
+| 15 | Troca de peça que está funcionando | 9 | — | ✅ aprovado |
+| 16 | Perda: troca que não vai pro fornecedor | 6 | — | 🔨 feito, aguardando teste |
 | 17 | Forma de pagamento na diferença da troca | 3 | — | 📝 spec |
 | 18 | Estorno (devolver o dinheiro) | 10 | 15, 17 | 📝 spec |
 | 19 | Crédito parcial do lote (total ou item a item) | 4 | 16 | 📝 spec |

@@ -238,6 +238,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
     if (!confirm(`Desfazer a troca? ${t.nova_nome} ${t.nova_modelo} volta ao estoque${
       boa ? " e a peça devolvida sai dele de novo" : " e a peça sai da aba Trocas"}.`)) return;
     const comandos = [
+      ["DELETE FROM perdas WHERE troca_id = ?", [t.id]], // antes da troca: a FK aponta pra ela
       ["DELETE FROM trocas WHERE id = ?", [t.id]],
       ["UPDATE pecas SET quantidade = quantidade + 1 WHERE id = ?", [t.nova_peca_id]],
     ];

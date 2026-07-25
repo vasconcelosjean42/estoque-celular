@@ -5,13 +5,14 @@ const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cb
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
 const bloco = { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 16, marginBottom: 20 };
 
-const FORM_VAZIO = { peca_id: "", modelo: "", defeito: "", observacao: "", valor: "", fornecedor: "", entregueiNova: false, defeituosa: true };
+const FORM_VAZIO = { peca_id: "", modelo: "", defeito: "", observacao: "", valor: "", fornecedor: "", entregueiNova: false, defeituosa: true, perda: false };
 
 export default function Trocas({ vendaTroca, aoConsumir }) {
   const [pecas, setPecas] = useState([]);
   const [prateleira, setPrateleira] = useState([]);
   const [lotes, setLotes] = useState([]);
   const [creditos, setCreditos] = useState([]);
+  const [perdas, setPerdas] = useState([]);
   const [fornecedores, setFornecedores] = useState([]); // sugestões do datalist
   const [form, setForm] = useState(null);
   const [marcadas, setMarcadas] = useState(new Set());
@@ -22,10 +23,19 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
   const carregar = () => {
     window.api.query("SELECT * FROM pecas ORDER BY nome, modelo").then(setPecas);
     window.api
-      // Só defeituosa vai pro fornecedor: peça funcionando não conta prazo nem entra em lote.
-      .query(`SELECT *, CAST(julianday('now','localtime') - julianday(recebido_em) AS INTEGER) AS dias
-              FROM trocas WHERE lote_id IS NULL AND defeituosa = 1 ORDER BY recebido_em`)
+      // Só vai pro fornecedor o que é defeito E não virou perda. Peça funcionando
+      // e peça descartada não contam prazo nem entram em lote. A própria linha em
+      // perdas é o marcador — sem coluna extra em trocas pra sair do sincronismo.
+      .query(`SELECT t.*, CAST(julianday('now','localtime') - julianday(t.recebido_em) AS INTEGER) AS dias
+              FROM trocas t
+              WHERE t.lote_id IS NULL AND t.defeituosa = 1
+                AND NOT EXISTS (SELECT 1 FROM perdas WHERE troca_id = t.id)
+              ORDER BY t.recebido_em`)
       .then(setPrateleira);
+    window.api
+      .query(`SELECT p.*, pc.nome, pc.modelo FROM perdas p LEFT JOIN pecas pc ON pc.id = p.peca_id
+              ORDER BY p.id DESC`)
+      .then(setPerdas);
     window.api
       .query(`SELECT l.*, COUNT(t.id) AS qtd, SUM(t.valor_compra) AS valor
               FROM lotes l JOIN trocas t ON t.lote_id = l.id
@@ -65,7 +75,11 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
     }
     // A peça funcionando não tem defeito nem fornecedor: nunca vai pro lote.
     const defeito = form.defeituosa ? form.defeito.trim() : "devolvida funcionando";
-    const fornecedor = form.defeituosa ? form.fornecedor.trim() : "";
+    const perda = form.defeituosa && form.perda; // peça boa não é perda: voltou pro estoque
+    const fornecedor = form.defeituosa && !perda ? form.fornecedor.trim() : "";
+    // Perda é sempre a preço de CUSTO — é o mesmo número do campo "Valor de compra".
+    const registrarPerda = ["INSERT INTO perdas (troca_id, peca_id, valor, motivo) VALUES (last_insert_rowid(),?,?,?)",
+      [form.peca_id || null, valor, form.observacao.trim()]];
     const comandos = [];
     if (form.travada) {
       const nova = pecas.find((p) => p.id === Number(form.trocarPor));
@@ -78,12 +92,15 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
           VALUES (?,?,?,?,?,?,?,?,?)`,
           [form.modelo.trim(), defeito, form.observacao.trim(), valor, fornecedor, form.peca_id || null,
            form.venda_id, nova.id, form.defeituosa ? 1 : 0]],
+        // last_insert_rowid() é o da troca acima: tem que vir antes de qualquer outro INSERT.
+        ...(perda ? [registrarPerda] : []),
         ["UPDATE pecas SET quantidade = quantidade - 1 WHERE id = ?", [nova.id]]
       );
     } else {
       comandos.push([`INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, peca_id, defeituosa)
                       VALUES (?,?,?,?,?,?,?)`,
         [form.modelo.trim(), defeito, form.observacao.trim(), valor, fornecedor, form.peca_id || null, form.defeituosa ? 1 : 0]]);
+      if (perda) comandos.push(registrarPerda);
       if (form.entregueiNova && form.peca_id) {
         comandos.push(["UPDATE pecas SET quantidade = quantidade - 1 WHERE id = ?", [form.peca_id]]);
       }
@@ -99,7 +116,10 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
 
   const excluir = async (t) => {
     if (!confirm(`Excluir "${t.modelo} — ${t.defeito}" da prateleira?`)) return;
-    await window.api.query("DELETE FROM trocas WHERE id = ?", [t.id]);
+    await window.api.tx([
+      ["DELETE FROM perdas WHERE troca_id = ?", [t.id]], // antes da troca: a FK aponta pra ela
+      ["DELETE FROM trocas WHERE id = ?", [t.id]],
+    ]);
     carregar();
   };
 
@@ -134,6 +154,10 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
   };
 
   const saldo = creditos.reduce((s, c) => s + c.valor, 0);
+  // Mês local, não UTC: dia 31 às 21h em Brasília o toISOString() já mostraria o mês seguinte.
+  const hoje = new Date();
+  const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
+  const perdasDoMes = perdas.filter((p) => p.criado_em.slice(0, 7) === mesAtual).reduce((s, p) => s + p.valor, 0);
 
   const fornsPrateleira = [...new Set(prateleira.map((t) => t.fornecedor).filter(Boolean))].sort();
   const prod = fProd.trim().toLowerCase();
@@ -188,15 +212,35 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
             A peça devolvida volta pro estoque. Não vai pra prateleira do fornecedor.
           </div>
         )}
+        {form.defeituosa && (
+          <>
+            <div style={{ fontWeight: "bold", marginBottom: 4 }}>Destino da peça</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+              {[[false, "Vai para o fornecedor"], [true, "Descarte → perda"]].map(([valor, rotulo]) => (
+                <button key={rotulo} onClick={() => setForm({ ...form, perda: valor })}
+                  style={{ ...btn, background: form.perda === valor ? "#38bdf8" : "#e2e8f0", color: form.perda === valor ? "#0f172a" : "#334155" }}>
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+            {form.perda && (
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 15, color: "#991b1b" }}>
+                Peça sem troca com fornecedor: a loja come o prejuízo. Entra em Perdas pelo preço de
+                compra {form.valor && `(${fmtReais(parseReais(form.valor) || 0)})`}, não vai pra prateleira.
+              </div>
+            )}
+          </>
+        )}
         {[...(form.peca_id ? [] : [["Modelo", "modelo"]]),
           ...(form.defeituosa ? [["Defeito", "defeito"]] : []),
-          ["Observação (opcional)", "observacao"], ["Valor de compra (R$)", "valor"]].map(([rotulo, chave]) => (
+          [form.perda && form.defeituosa ? "Motivo da perda" : "Observação (opcional)", "observacao"],
+          ["Valor de compra (R$)", "valor"]].map(([rotulo, chave]) => (
           <label key={chave} style={{ display: "block", marginBottom: 12 }}>
             <div style={{ fontWeight: "bold", marginBottom: 4 }}>{rotulo}</div>
             <input style={inp} value={form[chave]} onChange={(e) => setForm({ ...form, [chave]: e.target.value })} />
           </label>
         ))}
-        {form.defeituosa && (
+        {form.defeituosa && !form.perda && (
           <label style={{ display: "block", marginBottom: 12 }}>
             <div style={{ fontWeight: "bold", marginBottom: 4 }}>Fornecedor</div>
             <input style={inp} list="lista-fornecedores" placeholder="Escolha ou digite um novo"
@@ -288,7 +332,7 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
             </button>
           )}
         </div>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
+        <table aria-label="Prateleira" style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
           <tbody>
             {prateleiraFiltrada.map((t) => (
               <tr key={t.id} style={{ borderBottom: "1px solid #e2e8f0", background: t.dias >= 40 ? "#fef2f2" : t.dias >= 30 ? "#fffbeb" : undefined }}>
@@ -347,6 +391,30 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
             ))}
             {lotes.length === 0 && (
               <tr><td style={{ padding: 16, color: "#64748b" }}>Nenhum lote fechado ainda.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={bloco}>
+        <h3 style={{ marginTop: 0, display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+          Perdas
+          <span style={{ fontSize: 16, fontWeight: "normal", color: "#64748b" }}>
+            no mês: <strong style={{ color: perdasDoMes ? "#dc2626" : "#64748b" }}>{fmtReais(perdasDoMes)}</strong>
+          </span>
+        </h3>
+        <table aria-label="Perdas" style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
+          <tbody>
+            {perdas.map((p) => (
+              <tr key={p.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                <td style={{ padding: 8, color: "#64748b" }}>{p.criado_em.slice(8, 10)}/{p.criado_em.slice(5, 7)}</td>
+                <td style={{ padding: 8, fontWeight: "bold" }}>{`${p.nome || ""} ${p.modelo || ""}`.trim() || "peça excluída"}</td>
+                <td style={{ padding: 8, color: "#64748b" }}>{p.motivo || "—"}</td>
+                <td style={{ padding: 8, fontWeight: "bold", color: "#dc2626", textAlign: "right" }}>−{fmtReais(p.valor)}</td>
+              </tr>
+            ))}
+            {perdas.length === 0 && (
+              <tr><td style={{ padding: 16, color: "#64748b" }}>Nenhuma perda registrada.</td></tr>
             )}
           </tbody>
         </table>
