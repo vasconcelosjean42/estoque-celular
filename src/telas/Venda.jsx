@@ -40,6 +40,12 @@ export const tagDesconto = (valor) => (
   </span>
 );
 
+export const tagEstorno = (valor) => (
+  <span style={{ background: "#fee2e2", color: "#dc2626", borderRadius: 4, padding: "1px 6px", fontSize: 12, fontWeight: "bold", marginLeft: 6 }}>
+    estornada {fmtReais(valor)}
+  </span>
+);
+
 // Mesma seta no Dashboard e na Venda: o pedido abre e fecha igual nos dois.
 export const setaPedido = (aberto) => (
   <span style={{ display: "inline-block", width: 16, color: "#64748b", fontSize: 12 }}>{aberto ? "▼" : "▶"}</span>
@@ -407,15 +413,23 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
         <tr key={`t${t.id}`} style={{ borderBottom: ultima ? "1px solid #e2e8f0" : "none", background: "#fffbeb" }}>
           <td style={{ padding: 8, color: "#64748b" }}>{t.recebido_em.slice(11, 16)}</td>
           <td style={{ padding: 8 }} colSpan={2}>
-            ↳ trocado por 1x <strong>{t.nova_nome} {t.nova_modelo}</strong>
-            {/* onde o dinheiro da diferença entrou/saiu — o fechamento conta ele */}
-            {!!t.diferenca && (
-              <span style={{ color: t.diferenca > 0 ? "#16a34a" : "#dc2626", fontWeight: "bold" }}>
-                {" "}({t.diferenca > 0 ? "+" : "−"}{fmtReais(Math.abs(t.diferenca))} em {FORMAS[t.forma_pagamento] || t.forma_pagamento})
-              </span>
+            {t.estorno > 0 ? (
+              <>↳ <strong style={{ color: "#dc2626" }}>estornado {fmtReais(t.estorno)}</strong> em {FORMAS[t.forma_pagamento] || t.forma_pagamento}</>
+            ) : (
+              <>
+                ↳ trocado por 1x <strong>{t.nova_nome} {t.nova_modelo}</strong>
+                {/* onde o dinheiro da diferença entrou/saiu — o fechamento conta ele */}
+                {!!t.diferenca && (
+                  <span style={{ color: t.diferenca > 0 ? "#16a34a" : "#dc2626", fontWeight: "bold" }}>
+                    {" "}({t.diferenca > 0 ? "+" : "−"}{fmtReais(Math.abs(t.diferenca))} em {FORMAS[t.forma_pagamento] || t.forma_pagamento})
+                  </span>
+                )}
+              </>
             )}
           </td>
-          <td style={{ padding: 8, color: "#b45309" }}>{t.defeituosa ? "troca" : "devolveu boa"}</td>
+          <td style={{ padding: 8, color: "#b45309" }}>
+            {t.estorno > 0 ? "estorno" : t.defeituosa ? "troca" : "devolveu boa"}
+          </td>
           <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
             {t.lote_id ? (
               <span style={{ color: "#64748b", fontSize: 14 }}>no lote #{t.lote_id}</span>

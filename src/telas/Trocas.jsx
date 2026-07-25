@@ -7,7 +7,7 @@ const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cb
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
 const bloco = { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 16, marginBottom: 20 };
 
-const FORM_VAZIO = { peca_id: "", modelo: "", defeito: "", observacao: "", valor: "", fornecedor: "", entregueiNova: false, defeituosa: true, perda: false, formaDif: "" };
+const FORM_VAZIO = { peca_id: "", modelo: "", defeito: "", observacao: "", valor: "", fornecedor: "", entregueiNova: false, defeituosa: true, perda: false, formaDif: "", estornar: false, estornoValor: "" };
 
 export default function Trocas({ vendaTroca, aoConsumir }) {
   const [pecas, setPecas] = useState([]);
@@ -78,6 +78,7 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
       venda_id: vendaTroca.venda_id,
       trocarPor: String(vendaTroca.peca_id),
       precoPago: vendaTroca.preco_venda, // unitário, já com desconto se teve
+      estornoValor: (vendaTroca.preco_venda / 100).toFixed(2).replace(".", ","),
     });
     aoConsumir();
   }, [vendaTroca]);
@@ -96,7 +97,26 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
     const registrarPerda = ["INSERT INTO perdas (troca_id, peca_id, valor, motivo) VALUES (last_insert_rowid(),?,?,?)",
       [form.peca_id || null, valor, form.observacao.trim()]];
     const comandos = [];
-    if (form.travada) {
+    if (form.travada && form.estornar) {
+      // Estorno: nenhuma peça de reposição sai do estoque. A venda original fica
+      // no histórico — faturamento de mês passado não muda por devolução de hoje.
+      const est = parseReais(form.estornoValor);
+      if (isNaN(est) || est <= 0) {
+        alert("Valor do estorno inválido.");
+        return;
+      }
+      if (!form.formaDif) {
+        alert(`Escolha por onde saíram os ${fmtReais(est)} devolvidos ao cliente.`);
+        return;
+      }
+      comandos.push([
+        `INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, peca_id, venda_id, defeituosa,
+                             estorno, forma_pagamento) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        [form.modelo.trim(), defeito, form.observacao.trim(), valor, fornecedor, form.peca_id || null,
+         form.venda_id, form.defeituosa ? 1 : 0, est, form.formaDif],
+      ]);
+      if (perda) comandos.push(registrarPerda);
+    } else if (form.travada) {
       const nova = pecas.find((p) => p.id === Number(form.trocarPor));
       if (!nova || nova.quantidade < 1) {
         alert("Escolha a peça de reposição (precisa ter estoque).");
@@ -275,6 +295,44 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
           </label>
         )}
         {form.travada && (
+          <>
+            <div style={{ fontWeight: "bold", marginBottom: 4 }}>Desfecho</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+              {[[false, "Repor peça"], [true, "Estornar o valor"]].map(([valor, rotulo]) => (
+                <button key={rotulo} onClick={() => setForm({ ...form, estornar: valor, formaDif: "" })}
+                  style={{ ...btn, background: form.estornar === valor ? "#38bdf8" : "#e2e8f0", color: form.estornar === valor ? "#0f172a" : "#334155" }}>
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        {form.travada && form.estornar && (
+          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: 12, marginBottom: 16 }}>
+            <label style={{ display: "block", marginBottom: 8 }}>
+              <div style={{ fontWeight: "bold", marginBottom: 4 }}>Valor a devolver (R$)</div>
+              <input style={inp} aria-label="Valor do estorno" value={form.estornoValor}
+                onChange={(e) => setForm({ ...form, estornoValor: e.target.value })} />
+              <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
+                Veio do valor pago na venda ({fmtReais(form.precoPago)}), já com desconto. Pode editar.
+              </div>
+            </label>
+            <div style={{ fontWeight: "bold", marginBottom: 4 }}>Por onde o dinheiro saiu?</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {Object.entries(FORMAS).map(([valor, rotulo]) => (
+                <button key={valor} onClick={() => setForm({ ...form, formaDif: valor })}
+                  style={{ ...btn, background: form.formaDif === valor ? "#38bdf8" : "#e2e8f0", color: form.formaDif === valor ? "#0f172a" : "#334155" }}>
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 13, color: "#64748b", marginTop: 6 }}>
+              Sai do fechamento de hoje. Nenhuma peça de reposição sai do estoque, e a venda
+              original continua no histórico.
+            </div>
+          </div>
+        )}
+        {form.travada && !form.estornar && (
           <label style={{ display: "block", marginBottom: 12 }}>
             <div style={{ fontWeight: "bold", marginBottom: 4 }}>Trocar por (sai 1 do estoque)</div>
             <select style={inp} value={form.trocarPor} onChange={(e) => setForm({ ...form, trocarPor: e.target.value })}>
@@ -287,7 +345,7 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
             </select>
           </label>
         )}
-        {form.travada && novaPeca && dif !== 0 && (
+        {form.travada && !form.estornar && novaPeca && dif !== 0 && (
           <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, marginBottom: 16 }}>
             <div style={{ fontSize: 17, fontWeight: "bold", marginBottom: 8, color: dif > 0 ? "#16a34a" : "#dc2626" }}>
               Diferença: {dif > 0 ? `você recebe +${fmtReais(dif)}` : `você devolve ${fmtReais(-dif)}`}
@@ -389,9 +447,11 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
                 <td style={{ padding: 8, color: "#64748b" }}>{t.fornecedor || "—"}</td>
                 <td style={{ padding: 8 }}>{fmtReais(t.valor_compra)}</td>
                 <td style={{ padding: 8, whiteSpace: "nowrap", color: t.diferenca > 0 ? "#16a34a" : "#dc2626" }}>
-                  {t.diferenca ? (
+                  {t.estorno > 0 || t.diferenca ? (
                     <>
-                      {t.diferenca > 0 ? "+" : "−"}{fmtReais(Math.abs(t.diferenca))}
+                      {t.estorno > 0
+                        ? `estorno −${fmtReais(t.estorno)}`
+                        : `${t.diferenca > 0 ? "+" : "−"}${fmtReais(Math.abs(t.diferenca))}`}
                       <div style={{ fontSize: 12, color: "#94a3b8" }}>{FORMAS[t.forma_pagamento] || t.forma_pagamento}</div>
                     </>
                   ) : ""}

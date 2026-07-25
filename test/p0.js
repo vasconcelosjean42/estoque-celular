@@ -1193,6 +1193,120 @@ const path = require("path");
       assert(v >= 50000, "mas o dinheiro dela continua no faturamento");
     });
 
+    await caso("100. reposição mais barata: devolve pouco e sobra margem", async () => {
+      // A custa 1000/vende 2000; B custa 600/vende 1800 — a loja devolve 200 e
+      // fica com uma peça 400 mais barata. Os dois sinais invertidos de uma vez.
+      const a = await novaPeca("C100A", 5, 100000, 200000);
+      const b = await novaPeca("C100B", 5, 60000, 180000);
+      const antes = await lucroHoje();
+      await trocarVenda("C100A", b, "Com defeito", { formaVenda: "Pix", formaDif: "Pix" });
+      const t = await um("SELECT * FROM trocas WHERE peca_id = ?", [a]);
+      assert.strictEqual(t.diferenca, -20000, "1.800 − 2.000 = 200 devolvidos");
+      // Venda 1000 de margem + (−200 devolvidos + 400 de custo economizado) = 1200.
+      assert.strictEqual((await lucroHoje()) - antes, 120000,
+        "devolver 200 e entregar peça 400 mais barata sobra 200 de margem");
+    });
+
+    await caso("101. desfazer a troca tira a margem dela do lucro", async () => {
+      const a = await novaPeca("C101A", 5, 100000, 200000);
+      const b = await novaPeca("C101B", 5, 100000, 250000);
+      const soVenda = await lucroHoje();
+      await trocarVenda("C101A", b, "Com defeito", { formaVenda: "Pix", formaDif: "Pix" });
+      const comTroca = await lucroHoje();
+      assert.strictEqual(comTroca - soVenda, 150000, "venda 1.000 + margem da troca 500");
+      await recarregar("Venda");
+      await win.click('tr:has-text("trocado por 1x C101B") button:text-is("Desfazer")');
+      await win.waitForTimeout(500);
+      // Volta a ser só a venda: os 500 da troca somem junto com ela.
+      assert.strictEqual((await lucroHoje()) - soVenda, 100000, "sem a troca, sobra só a margem da venda");
+    });
+
+    console.log("\nEstorno (passo 18)");
+
+    // Vende A e, na troca, devolve o dinheiro em vez de repor peça.
+    const estornar = async (nomeA, opts = {}) => {
+      await recarregar("Venda");
+      await aoCarrinho(nomeA);
+      await win.click('button:text("Finalizar venda")');
+      if (opts.formaVenda) await win.click(`button:text-is("${opts.formaVenda}")`);
+      await confirmarVenda();
+      const pid = (await um("SELECT pedido_id FROM vendas WHERE peca_id = (SELECT id FROM pecas WHERE nome = ?) ORDER BY id DESC", [nomeA])).pedido_id;
+      await win.click(`#pedido-${pid} button:text-is("Trocar")`);
+      await win.waitForSelector("text=Estado da peça devolvida", { timeout: 8000 });
+      if (opts.funcionando) await win.click('button:text-is("Funcionando")');
+      else await win.fill('label:has-text("Defeito") input', "não liga");
+      if (opts.perda) {
+        await win.click('button:text-is("Descarte → perda")');
+        await win.fill('label:has-text("Motivo da perda") input', opts.perda);
+      }
+      await win.click('button:text-is("Estornar o valor")');
+      await win.waitForSelector("text=Valor a devolver", { timeout: 8000 });
+      if (opts.valor !== undefined) await win.fill('input[aria-label="Valor do estorno"]', opts.valor);
+      if (opts.forma) await win.click(`div:has-text("Por onde o dinheiro saiu") > div > button:text-is("${opts.forma}")`);
+      await win.click('button:text-is("Salvar")');
+      if (!opts.esperaRecusa) await win.waitForSelector("text=Prateleira", { timeout: 8000 });
+      return pid;
+    };
+
+    await caso("102. estorno sai do caixa na forma escolhida e não repõe peça", async () => {
+      const a = await novaPeca("C102", 5, 100000, 200000);
+      const antes = await caixaDoDia("pix");
+      await estornar("C102", { formaVenda: "Pix", forma: "Pix" });
+      const t = await um("SELECT * FROM trocas WHERE peca_id = ?", [a]);
+      assert.strictEqual(t.estorno, 200000, "devolveu o valor pago");
+      assert.strictEqual(t.nova_peca_id, null, "estorno não tem peça de reposição");
+      // Entrou 2.000 da venda e saiu 2.000 do estorno: o Pix do dia fica igual.
+      assert.strictEqual(await caixaDoDia("pix"), antes, "venda e estorno se anulam no caixa");
+    });
+
+    await caso("103. estorno com a peça voltando boa zera o lucro da venda", async () => {
+      const a = await novaPeca("C103", 5, 100000, 200000);
+      const antes = await lucroHoje();
+      await estornar("C103", { formaVenda: "Pix", forma: "Pix", funcionando: true });
+      // Vendeu (+1.000 de margem), devolveu 2.000 e recuperou a peça de 1.000.
+      assert.strictEqual((await lucroHoje()) - antes, 0, "a operação inteira se anula");
+      assert.strictEqual((await peca(a)).quantidade, 5, "a peça boa volta pro estoque");
+    });
+
+    await caso("104. estorno com a peça descartada deixa o prejuízo do custo", async () => {
+      const a = await novaPeca("C104", 5, 100000, 200000);
+      const antes = await lucroHoje();
+      await estornar("C104", { formaVenda: "Pix", forma: "Pix", perda: "quebrada" });
+      // Devolveu o dinheiro e ainda perdeu a peça: sobra o custo dela no negativo.
+      assert.strictEqual((await lucroHoje()) - antes, -100000, "prejuízo = custo da peça que virou lixo");
+      assert.strictEqual((await peca(a)).quantidade, 4, "a peça descartada não volta pro estoque");
+    });
+
+    await caso("105. estorno parcial devolve exatamente o valor digitado", async () => {
+      const a = await novaPeca("C105", 5, 100000, 200000);
+      const antes = await caixaDoDia("debito");
+      await estornar("C105", { formaVenda: "Débito", forma: "Débito", valor: "180,00" });
+      assert.strictEqual((await um("SELECT estorno FROM trocas WHERE peca_id = ?", [a])).estorno, 18000);
+      // Entrou 2.000, saiu 180: sobra 1.820 no débito do dia.
+      assert.strictEqual((await caixaDoDia("debito")) - antes, 182000);
+    });
+
+    await caso("106. estorno sem forma de pagamento é recusado", async () => {
+      const a = await novaPeca("C106", 5, 100000, 200000);
+      await estornar("C106", { formaVenda: "Pix", esperaRecusa: true }); // sem escolher forma
+      await win.waitForTimeout(400);
+      assert(await win.locator("text=Valor a devolver").count(), "tinha que continuar no formulário");
+      assert.strictEqual(await um("SELECT id FROM trocas WHERE peca_id = ?", [a]), undefined, "nada gravado");
+      await win.click('button:text-is("Cancelar")');
+    });
+
+    await caso("107. a venda estornada continua no histórico, marcada", async () => {
+      const a = await novaPeca("C107", 5, 100000, 200000);
+      const pid = await estornar("C107", { formaVenda: "Pix", forma: "Pix" });
+      // O faturamento do dia da venda não pode encolher por causa da devolução.
+      const [v] = await vendasDe(a);
+      assert(v, "a venda não pode sumir do histórico");
+      assert.strictEqual(v.preco_venda, 200000, "nem ser reescrita");
+      await recarregar("Dashboard");
+      assert(await win.locator(`tr:has-text("C107"):has-text("estornada R$ 2.000,00")`).count(),
+        "o histórico marca a venda como estornada, com o valor");
+    });
+
     console.log("\nEstoque e entradas");
 
     await caso("15. cadastro com quantidade cria a entrada 'cadastro inicial'", async () => {

@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { fmtReais } from "./Estoque.jsx";
-import { FORMAS, agruparPedidos, setaPedido, totalPedido, lucroPedido, descontoPedido, tagDesconto } from "./Venda.jsx";
+import { FORMAS, agruparPedidos, setaPedido, totalPedido, lucroPedido, descontoPedido, tagDesconto, tagEstorno } from "./Venda.jsx";
 import FiltroData, { isoDia } from "./FiltroData.jsx";
 import Fechamento from "./Fechamento.jsx";
 
-// A view movimentos (electron/db.js) já resolve o que entra em cada um:
-// desconto abatido, e a diferença de troca soma no faturamento com lucro 0 —
-// é acerto de troca, não margem de venda.
+// A view movimentos (electron/db.js) já resolve o que entra em cada um: desconto
+// abatido, margem real da troca (não a diferença inteira), estorno saindo e perda
+// abatendo só o lucro. Raciocínio: specs/passo-17b-lucro-exato-da-troca.md.
 const FAT = "COALESCE(SUM(valor),0)";
 const LUCRO = "COALESCE(SUM(lucro),0)";
 
@@ -70,7 +70,10 @@ export default function Dashboard() {
     const where = condicoes.length ? `WHERE ${condicoes.join(" AND ")}` : "";
     window.api
       .query(
-        `SELECT v.*, p.nome, p.modelo, u.nome AS vendedor, a.nome AS autorizador
+        // A venda estornada continua no histórico, só marcada — devolução de hoje
+        // não pode reescrever o faturamento do mês em que a venda aconteceu.
+        `SELECT v.*, p.nome, p.modelo, u.nome AS vendedor, a.nome AS autorizador,
+                COALESCE((SELECT SUM(estorno) FROM trocas WHERE venda_id = v.id), 0) AS estornado
          FROM vendas v JOIN pecas p ON p.id = v.peca_id
          LEFT JOIN usuarios u ON u.id = v.usuario_id
          LEFT JOIN usuarios a ON a.id = v.desconto_por
@@ -281,6 +284,9 @@ export default function Dashboard() {
             const total = totalPedido(itens);
             const lucro = lucroPedido(itens);
             const desconto = descontoPedido(itens);
+            // A venda estornada continua contando no faturamento do dia dela; a
+            // etiqueta é só pra ninguém achar que aquele dinheiro ficou na loja.
+            const estornado = itens.reduce((s, v) => s + v.estornado, 0);
             const v0 = itens[0];
             const quando = `${v0.criado_em.slice(8, 10)}/${v0.criado_em.slice(5, 7)} ${v0.criado_em.slice(11, 16)}`;
             const vendedor = (
@@ -304,6 +310,7 @@ export default function Dashboard() {
                   <td style={{ padding: 8 }}>
                     {v0.quantidade}x {v0.nome} {v0.modelo}
                     {desconto > 0 && tagDesconto(desconto)}
+                    {estornado > 0 && tagEstorno(estornado)}
                   </td>
                   <td style={{ padding: 8 }}>{v0.quantidade}</td>
                   {colDesconto}
@@ -325,6 +332,7 @@ export default function Dashboard() {
                     {setaPedido(aberto)} Pedido com {itens.length} itens
                     {v0.cliente && <span style={{ color: "#64748b", fontWeight: "normal" }}> — {v0.cliente}</span>}
                     {desconto > 0 && tagDesconto(desconto)}
+                    {estornado > 0 && tagEstorno(estornado)}
                   </td>
                   <td style={{ padding: 8 }}>{qtdTotal}</td>
                   {colDesconto}

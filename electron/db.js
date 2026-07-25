@@ -150,6 +150,9 @@ for (const sql of [
   // peça que voltou). Sem os dois lados não dá pra saber quanto da diferença é
   // margem e quanto é só o custo a mais. NULL = troca anterior a esta coluna.
   "ALTER TABLE trocas ADD COLUMN nova_preco_compra INTEGER",
+  // Passo 18: estorno — devolveu o dinheiro em vez de repor a peça. Usa o
+  // forma_pagamento do passo 17 (por onde o dinheiro saiu).
+  "ALTER TABLE trocas ADD COLUMN estorno INTEGER NOT NULL DEFAULT 0",
 
 ]) {
   try {
@@ -175,10 +178,14 @@ CREATE VIEW movimentos AS
   -- reposição ser mais cara. Margem = diferença − (custo que saiu − custo que voltou).
   -- Vale mesmo com diferença 0: trocar por peça de custo maior de graça é prejuízo.
   -- Troca antiga (sem o custo da reposição congelado) continua valendo 0 de lucro.
-  SELECT 'troca', recebido_em, forma_pagamento, diferenca,
-         CASE WHEN nova_preco_compra IS NULL THEN 0
+  -- Estorno sai da gaveta (valor negativo). No lucro ele devolve o dinheiro mas
+  -- recupera a peça: -estorno + valor_compra. Com a peça voltando inteira a
+  -- venda se anula; se ela virar perda, a linha de perda tira o resto.
+  SELECT 'troca', recebido_em, forma_pagamento, diferenca - estorno,
+         CASE WHEN estorno > 0 THEN valor_compra - estorno
+              WHEN nova_preco_compra IS NULL THEN 0
               ELSE diferenca - (nova_preco_compra - valor_compra) END
-    FROM trocas WHERE diferenca != 0 OR nova_preco_compra IS NOT NULL
+    FROM trocas WHERE diferenca != 0 OR estorno != 0 OR nova_preco_compra IS NOT NULL
   UNION ALL
   -- Perda não passa pela gaveta (valor 0), mas come lucro: é peça comprada que
   -- virou lixo. Sem isto o Dashboard erra PRA CIMA, que é o lado perigoso.

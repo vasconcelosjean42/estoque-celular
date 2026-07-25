@@ -42,8 +42,8 @@ cliente: o carrinho (passo 12) muda a estrutura da venda, e o conceito de perda
 | 15 | Troca de peça que está funcionando | 9 | — | ✅ aprovado |
 | 16 | Perda: troca que não vai pro fornecedor | 6 | — | ✅ aprovado |
 | 17 | Forma de pagamento na diferença da troca | 3 | — | ✅ aprovado |
-| 17b | Lucro exato da troca + perdas na margem | — (dúvida do cliente) | 16, 17 | 🔨 feito, aguardando teste |
-| 18 | Estorno (devolver o dinheiro) | 10 | 15, 17 | 📝 spec |
+| 17b | Lucro exato da troca + perdas na margem | — (dúvida do cliente) | 16, 17 | ✅ aprovado |
+| 18 | Estorno (devolver o dinheiro) | 10 | 15, 17 | 🔨 feito, aguardando teste |
 | 19 | Crédito parcial do lote (total ou item a item) | 4 | 16 | 📝 spec |
 | 20 | Detalhe do lote no histórico de crédito | 5 | 16, 19 | 📝 spec (perdas na margem saíram p/ o 17b) |
 | 21 | Arquivar produto fora de linha | — (cortesia) | — | 📝 spec |
