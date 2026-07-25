@@ -35,7 +35,7 @@ cliente: o carrinho (passo 12) muda a estrutura da venda, e o conceito de perda
 | 10 | Código do produto (`TE001`) + busca por código | 1 | — | ✅ aprovado |
 | 11 | Fechamento do dia p/ colaborador + vendedor na venda | 7 | — | ✅ aprovado |
 | — | **Bloco B — venda** | | | |
-| 12 | Carrinho: vários itens num pedido | 8 | — | 📝 spec |
+| 12 | Carrinho: vários itens num pedido | 8 | — | ✅ aprovado |
 | 13 | Desconto com autorização por PIN | 11 | 11, 12 | 📝 spec |
 | 14 | Cadastro de clientes e histórico de compras | 2 | 12 | 📝 spec |
 | — | **Bloco C — trocas e perda** | | | |

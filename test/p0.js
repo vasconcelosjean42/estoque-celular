@@ -96,6 +96,13 @@ const path = require("path");
     await win.click('button:text-is("Cancelar venda")'); // limpa o carrinho p/ não vazar no próximo caso
   };
   const vender = async (nome, campos) => { await abrirVenda(nome, campos); await confirmarVenda(); };
+  // O cfg só chega na Venda pelo App, que relê ao gravar: tem que passar pelo checkbox.
+  const ligarNota = async (on) => {
+    await aba("Config");
+    const cb = win.locator('label:has-text("Gerar nota após a venda") input[type="checkbox"]');
+    if ((await cb.isChecked()) !== on) await cb.click();
+    await win.waitForTimeout(200);
+  };
 
   let falhas = 0;
   const caso = async (nome, fn) => {
@@ -400,6 +407,39 @@ const path = require("path");
       await win.waitForSelector(`#pedido-${pid}`, { state: "detached", timeout: 8000 });
       assert.strictEqual((await peca(a)).quantidade, 5, "o botão desfaz de verdade");
       assert.strictEqual((await peca(b)).quantidade, 5);
+    });
+
+    await caso("54. nota do pedido: uma só, com todos os itens, e reimprimir não duplica", async () => {
+      const a = await novaPeca("C54A", 5, 10000, 20000);
+      const b = await novaPeca("C54B", 5, 3000, 8000);
+      await ligarNota(true);
+      try {
+        await recarregar("Venda");
+        await aoCarrinho("C54A", { qtd: 2 });
+        await aoCarrinho("C54B");
+        await win.click('button:text("Finalizar venda")');
+        await win.fill('label:has-text("Mão de obra") input', "30,00");
+        await confirmarVenda();
+        await win.waitForSelector("text=Gerar nota", { timeout: 8000 });
+        await win.click('button:text("Gerar nota (PDF)")');
+        await win.waitForSelector("text=Gerar nota", { state: "detached", timeout: 8000 });
+
+        const pid = (await vendasDe(a))[0].pedido_id;
+        const notas = await sql("SELECT * FROM notas WHERE pedido_id = ?", [pid]);
+        assert.strictEqual(notas.length, 1, "um pedido gera uma nota, não uma por item");
+        assert(notas[0].descricao.includes("2x C54A"), "item com quantidade na descrição");
+        assert(notas[0].descricao.includes("1x C54B"), "o segundo item também entra");
+        // 2×200,00 + 80,00 + 30,00 de mão de obra: a nota cobra o pedido inteiro.
+        assert.strictEqual(notas[0].valor_total, 2 * 20000 + 8000 + 3000, "total da nota = total do pedido");
+
+        // Segundo clique reimprime a existente; nota nova aqui significaria numeração furada.
+        await recarregar("Venda");
+        await win.click(`#pedido-${pid} button:has-text("Reimprimir")`);
+        await win.waitForTimeout(400);
+        assert.strictEqual((await sql("SELECT * FROM notas WHERE pedido_id = ?", [pid])).length, 1);
+      } finally {
+        await ligarNota(false); // os casos seguintes contam com a venda sem nota
+      }
     });
 
     console.log("\nEstoque e entradas");
