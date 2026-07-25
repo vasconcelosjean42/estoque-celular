@@ -24,6 +24,11 @@ export const agruparPedidos = (vendas) => {
   return ordem.map((pid) => [pid, por[pid].slice().reverse()]);
 };
 
+// Mesma seta no Dashboard e na Venda: o pedido abre e fecha igual nos dois.
+export const setaPedido = (aberto) => (
+  <span style={{ display: "inline-block", width: 16, color: "#64748b", fontSize: 12 }}>{aberto ? "▼" : "▶"}</span>
+);
+
 const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" };
 const btn = { padding: "12px 20px", fontSize: 16, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer" };
 const btnMini = { ...btn, padding: "6px 12px", fontSize: 14 };
@@ -41,6 +46,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
   // esvazia. Subir o estado pro App resolve, se o cliente reclamar.
   const [carrinho, setCarrinho] = useState([]); // [{ peca, qtd, preco }]
   const [fechando, setFechando] = useState(null); // { maoDeObra, forma, cliente }
+  const [abertos, setAbertos] = useState(new Set()); // pedidos expandidos na lista
   const [[fSel, fDe, fAte], setFiltroData] = useState(() => ["hoje", ...calcAtalho("hoje")]);
 
   const carregar = () => {
@@ -252,6 +258,12 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
 
   const pedidos = agruparPedidos(vendasHoje);
 
+  const alternar = (pid) => {
+    const s = new Set(abertos);
+    s.has(pid) ? s.delete(pid) : s.add(pid);
+    setAbertos(s);
+  };
+
   const acoesTroca = (v) => (
     dono && (
       <button style={{ ...btnMini, background: "#fef3c7", color: "#b45309", marginRight: 6 }}
@@ -420,22 +432,25 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
                 );
               }
 
+              const aberto = abertos.has(pid);
               return (
                 <React.Fragment key={pid}>
-                  <tr id={`pedido-${pid}`} style={{ borderBottom: "none", transition: "background .8s", background: fundo || "#f1f5f9" }}>
+                  <tr id={`pedido-${pid}`} onClick={() => alternar(pid)} title={aberto ? "Recolher" : "Expandir"}
+                    style={{ borderBottom: aberto ? "none" : "1px solid #e2e8f0", cursor: "pointer", transition: "background .8s", background: fundo || "#f1f5f9" }}>
                     <td style={{ padding: 8, color: "#64748b" }}>{itens[0].criado_em.slice(11, 16)}</td>
                     <td style={{ padding: 8, fontWeight: "bold" }}>
-                      Pedido com {itens.length} itens
+                      {setaPedido(aberto)} Pedido com {itens.length} itens
                       {itens[0].cliente && <span style={{ color: "#64748b", fontWeight: "normal" }}> — {itens[0].cliente}</span>}
                     </td>
                     <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(total)}</td>
                     <td style={{ padding: 8 }}>{FORMAS[itens[0].forma_pagamento] || itens[0].forma_pagamento}</td>
-                    <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
+                    {/* os botões não podem abrir/fechar o pedido junto */}
+                    <td onClick={(e) => e.stopPropagation()} style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
                       {botaoNota}
-                      {temTroca ? <span style={{ color: "#b45309", fontSize: 14, fontWeight: "bold" }}>com troca ↓</span> : botaoDesfazer}
+                      {temTroca ? <span style={{ color: "#b45309", fontSize: 14, fontWeight: "bold" }}>com troca</span> : botaoDesfazer}
                     </td>
                   </tr>
-                  {itens.map((v, i) => {
+                  {aberto && itens.map((v, i) => {
                     const trocada = (trocasPorVenda[v.id] || []).length > 0;
                     return (
                       <React.Fragment key={v.id}>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { fmtReais } from "./Estoque.jsx";
-import { FORMAS, agruparPedidos } from "./Venda.jsx";
+import { FORMAS, agruparPedidos, setaPedido } from "./Venda.jsx";
 import FiltroData, { isoDia } from "./FiltroData.jsx";
 import Fechamento from "./Fechamento.jsx";
 
@@ -26,6 +26,7 @@ export default function Dashboard() {
   const [hoverDia, setHoverDia] = useState(null);
   const [pagina, setPagina] = useState(0);
   const [diaSel, setDiaSel] = useState(null); // { chave, rotulo, formas: [{forma_pagamento, total}] }
+  const [abertos, setAbertos] = useState(new Set()); // pedidos expandidos no histórico
   const [grafMode, setGrafMode] = useState("14d"); // 14d | mes | ano
 
   useEffect(() => {
@@ -72,6 +73,11 @@ export default function Dashboard() {
   }, [de, ate, vendedor]);
 
   const pedidos = agruparPedidos(historico);
+  const alternar = (pid) => {
+    const s = new Set(abertos);
+    s.has(pid) ? s.delete(pid) : s.add(pid);
+    setAbertos(s);
+  };
   const totalFiltro = historico.reduce((s, v) => s + v.preco_venda * v.quantidade + v.mao_de_obra, 0);
   const lucroFiltro = historico.reduce((s, v) => s + (v.preco_venda - v.preco_compra) * v.quantidade + v.mao_de_obra, 0);
 
@@ -272,12 +278,14 @@ export default function Dashboard() {
               );
             }
             const qtdTotal = itens.reduce((s, v) => s + v.quantidade, 0);
+            const aberto = abertos.has(pid);
             return (
               <React.Fragment key={pid}>
-                <tr style={{ background: "#f1f5f9" }}>
+                <tr id={`pedido-${pid}`} onClick={() => alternar(pid)} title={aberto ? "Recolher" : "Expandir"}
+                  style={{ background: "#f1f5f9", cursor: "pointer", borderBottom: aberto ? "none" : "1px solid #e2e8f0" }}>
                   <td style={{ padding: 8, color: "#64748b" }}>{quando}</td>
                   <td style={{ padding: 8, fontWeight: "bold" }}>
-                    Pedido com {itens.length} itens
+                    {setaPedido(aberto)} Pedido com {itens.length} itens
                     {v0.cliente && <span style={{ color: "#64748b", fontWeight: "normal" }}> — {v0.cliente}</span>}
                   </td>
                   <td style={{ padding: 8 }}>{qtdTotal}</td>
@@ -286,7 +294,7 @@ export default function Dashboard() {
                   {vendedor}
                   <td style={{ padding: 8, color: "#16a34a", fontWeight: "bold" }}>{fmtReais(lucro)}</td>
                 </tr>
-                {itens.map((v, i) => (
+                {aberto && itens.map((v, i) => (
                   <tr key={v.id} style={{ borderBottom: i === itens.length - 1 ? "1px solid #e2e8f0" : "none" }}>
                     <td />
                     <td style={{ padding: "6px 8px", paddingLeft: 24 }}>↳ {v.quantidade}x {v.nome} {v.modelo}</td>
