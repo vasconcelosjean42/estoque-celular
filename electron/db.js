@@ -146,6 +146,10 @@ for (const sql of [
   // negativo = a loja devolveu. Troca antiga fica em 0 e não mexe em total nenhum.
   "ALTER TABLE trocas ADD COLUMN diferenca INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE trocas ADD COLUMN forma_pagamento TEXT",
+  // Custo da peça de REPOSIÇÃO, congelado na hora da troca (valor_compra é o da
+  // peça que voltou). Sem os dois lados não dá pra saber quanto da diferença é
+  // margem e quanto é só o custo a mais. NULL = troca anterior a esta coluna.
+  "ALTER TABLE trocas ADD COLUMN nova_preco_compra INTEGER",
 
 ]) {
   try {
@@ -153,21 +157,33 @@ for (const sql of [
   } catch {}
 }
 
-// O caixa num lugar só: faturamento e fechamento são venda + diferença de troca.
-// Três telas liam isso — Fechamento, cards e gráfico do Dashboard — e cada uma
-// somando por conta própria uma hora divergia. DROP + CREATE porque o
-// IF NOT EXISTS guardaria a definição velha depois de qualquer mudança aqui.
+// Faturamento e lucro num lugar só. Três telas liam isso — Fechamento, cards e
+// gráfico do Dashboard — e cada uma somando por conta própria uma hora divergia.
+// valor = dinheiro que passou pela gaveta. lucro = o que sobrou depois do custo.
+// DROP + CREATE porque o IF NOT EXISTS guardaria a definição velha.
+// Raciocínio completo dos números da troca: specs/passo-17b-lucro-exato-da-troca.md
 db.exec(`
 DROP VIEW IF EXISTS movimentos_caixa;
-CREATE VIEW movimentos_caixa AS
+DROP VIEW IF EXISTS movimentos;
+CREATE VIEW movimentos AS
   SELECT 'venda' AS tipo, criado_em, forma_pagamento,
          preco_venda * quantidade + mao_de_obra - desconto AS valor,
          (preco_venda - preco_compra) * quantidade + mao_de_obra - desconto AS lucro
     FROM vendas
   UNION ALL
-  -- Diferença de troca é acerto, não margem: entra no faturamento, nunca no lucro.
-  SELECT 'troca', recebido_em, forma_pagamento, diferenca, 0
-    FROM trocas WHERE diferenca != 0 AND forma_pagamento IS NOT NULL;
+  -- A diferença cobrada não é margem inteira: parte dela só cobre a peça de
+  -- reposição ser mais cara. Margem = diferença − (custo que saiu − custo que voltou).
+  -- Vale mesmo com diferença 0: trocar por peça de custo maior de graça é prejuízo.
+  -- Troca antiga (sem o custo da reposição congelado) continua valendo 0 de lucro.
+  SELECT 'troca', recebido_em, forma_pagamento, diferenca,
+         CASE WHEN nova_preco_compra IS NULL THEN 0
+              ELSE diferenca - (nova_preco_compra - valor_compra) END
+    FROM trocas WHERE diferenca != 0 OR nova_preco_compra IS NOT NULL
+  UNION ALL
+  -- Perda não passa pela gaveta (valor 0), mas come lucro: é peça comprada que
+  -- virou lixo. Sem isto o Dashboard erra PRA CIMA, que é o lado perigoso.
+  SELECT 'perda', criado_em, NULL, 0, -valor
+    FROM perdas;
 `);
 
 // Passo 14: os nomes soltos em vendas.cliente viram cadastro. Roda uma vez só —

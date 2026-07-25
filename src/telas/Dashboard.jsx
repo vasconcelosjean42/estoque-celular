@@ -4,7 +4,7 @@ import { FORMAS, agruparPedidos, setaPedido, totalPedido, lucroPedido, descontoP
 import FiltroData, { isoDia } from "./FiltroData.jsx";
 import Fechamento from "./Fechamento.jsx";
 
-// A view movimentos_caixa (electron/db.js) já resolve o que entra em cada um:
+// A view movimentos (electron/db.js) já resolve o que entra em cada um:
 // desconto abatido, e a diferença de troca soma no faturamento com lucro 0 —
 // é acerto de troca, não margem de venda.
 const FAT = "COALESCE(SUM(valor),0)";
@@ -37,8 +37,12 @@ export default function Dashboard() {
     Promise.all(
       PERIODOS.map(([rotulo, where]) =>
         window.api
-          .query(`SELECT ${FAT} AS fat, ${LUCRO} AS lucro FROM movimentos_caixa WHERE ${where}`)
-          .then(([r]) => ({ rotulo, fat: r.fat || 0, lucro: r.lucro || 0 }))
+          // As perdas já estão descontadas no lucro; vêm separadas só pra aparecer
+          // no card — o dono tem que ver o que está sendo abatido, não só o saldo.
+          .query(`SELECT ${FAT} AS fat, ${LUCRO} AS lucro,
+                         COALESCE(SUM(CASE WHEN tipo = 'perda' THEN -lucro ELSE 0 END),0) AS perdas
+                  FROM movimentos WHERE ${where}`)
+          .then(([r]) => ({ rotulo, fat: r.fat || 0, lucro: r.lucro || 0, perdas: r.perdas || 0 }))
       )
     ).then(setCards);
     window.api.query("SELECT id, nome FROM usuarios ORDER BY nome").then(setUsuarios);
@@ -46,11 +50,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     const sql = {
-      "14d": `SELECT date(criado_em) AS chave, ${FAT} AS total, ${LUCRO} AS lucro FROM movimentos_caixa
+      "14d": `SELECT date(criado_em) AS chave, ${FAT} AS total, ${LUCRO} AS lucro FROM movimentos
               WHERE date(criado_em) >= date('now','localtime','-13 days') GROUP BY chave`,
-      mes: `SELECT date(criado_em) AS chave, ${FAT} AS total, ${LUCRO} AS lucro FROM movimentos_caixa
+      mes: `SELECT date(criado_em) AS chave, ${FAT} AS total, ${LUCRO} AS lucro FROM movimentos
             WHERE strftime('%Y-%m', criado_em) = strftime('%Y-%m','now','localtime') GROUP BY chave`,
-      ano: `SELECT strftime('%Y-%m', criado_em) AS chave, ${FAT} AS total, ${LUCRO} AS lucro FROM movimentos_caixa
+      ano: `SELECT strftime('%Y-%m', criado_em) AS chave, ${FAT} AS total, ${LUCRO} AS lucro FROM movimentos
             WHERE strftime('%Y', criado_em) = strftime('%Y','now','localtime') GROUP BY chave`,
     }[grafMode];
     window.api.query(sql).then(setPorDia);
@@ -140,7 +144,7 @@ export default function Dashboard() {
   const abrirDia = async (b) => {
     if (diaSel?.chave === b.chave) return setDiaSel(null); // clicar de novo na mesma vela fecha
     const formas = await window.api.query(
-      `SELECT forma_pagamento, ${FAT} AS total FROM movimentos_caixa
+      `SELECT forma_pagamento, ${FAT} AS total FROM movimentos
        WHERE date(criado_em) BETWEEN ? AND ? GROUP BY forma_pagamento`,
       [b.de, b.ate]
     );
@@ -154,7 +158,10 @@ export default function Dashboard() {
           <div key={c.rotulo} style={{ background: "#f1f5f9", borderRadius: 10, padding: 16 }}>
             <div style={{ color: "#64748b", fontWeight: "bold" }}>{c.rotulo}</div>
             <div style={{ fontSize: 22, fontWeight: "bold", marginTop: 4 }}>{fmtReais(c.fat)}</div>
-            <div style={{ color: "#16a34a", fontWeight: "bold" }}>lucro {fmtReais(c.lucro)}</div>
+            <div style={{ color: c.lucro < 0 ? "#dc2626" : "#16a34a", fontWeight: "bold" }}>lucro {fmtReais(c.lucro)}</div>
+            {c.perdas > 0 && (
+              <div style={{ color: "#b45309", fontSize: 13 }}>perdas −{fmtReais(c.perdas)} (já descontadas)</div>
+            )}
           </div>
         ))}
       </div>

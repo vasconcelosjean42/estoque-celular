@@ -10,11 +10,11 @@ export default function Fechamento({ destaque = false }) {
 
   useEffect(() => {
     window.api
-      // movimentos_caixa = venda + diferença de troca, com o desconto já abatido:
+      // movimentos = venda + diferença de troca, com o desconto já abatido:
       // é o dinheiro que passou pela gaveta. n conta só venda — diferença de troca
       // é acerto, não venda nova.
       .query(`SELECT forma_pagamento, SUM(valor) AS total, SUM(tipo = 'venda') AS n
-              FROM movimentos_caixa WHERE date(criado_em) = date('now','localtime')
+              FROM movimentos WHERE date(criado_em) = date('now','localtime')
               GROUP BY forma_pagamento`)
       .then(setLinhas);
   }, []);

@@ -111,11 +111,13 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
       }
       comandos.push(
         [`INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, peca_id, venda_id, nova_peca_id, defeituosa,
-                              diferenca, forma_pagamento)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+                              diferenca, forma_pagamento, nova_preco_compra)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+          // nova.preco_compra congelado aqui: a média ponderada muda esse número a
+          // cada entrada de estoque, então consultar depois daria o custo errado.
           [form.modelo.trim(), defeito, form.observacao.trim(), valor, fornecedor, form.peca_id || null,
            form.venda_id, nova.id, form.defeituosa ? 1 : 0,
-           diferenca, diferenca !== 0 ? form.formaDif : null]],
+           diferenca, diferenca !== 0 ? form.formaDif : null, nova.preco_compra]],
         // last_insert_rowid() é o da troca acima: tem que vir antes de qualquer outro INSERT.
         ...(perda ? [registrarPerda] : []),
         ["UPDATE pecas SET quantidade = quantidade - 1 WHERE id = ?", [nova.id]]

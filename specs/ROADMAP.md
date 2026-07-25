@@ -41,10 +41,11 @@ cliente: o carrinho (passo 12) muda a estrutura da venda, e o conceito de perda
 | — | **Bloco C — trocas e perda** | | | |
 | 15 | Troca de peça que está funcionando | 9 | — | ✅ aprovado |
 | 16 | Perda: troca que não vai pro fornecedor | 6 | — | ✅ aprovado |
-| 17 | Forma de pagamento na diferença da troca | 3 | — | 🔨 feito, aguardando teste |
+| 17 | Forma de pagamento na diferença da troca | 3 | — | ✅ aprovado |
+| 17b | Lucro exato da troca + perdas na margem | — (dúvida do cliente) | 16, 17 | 🔨 feito, aguardando teste |
 | 18 | Estorno (devolver o dinheiro) | 10 | 15, 17 | 📝 spec |
 | 19 | Crédito parcial do lote (total ou item a item) | 4 | 16 | 📝 spec |
-| 20 | Detalhe do lote no histórico + perdas na margem | 5 | 16, 19 | 📝 spec |
+| 20 | Detalhe do lote no histórico de crédito | 5 | 16, 19 | 📝 spec (perdas na margem saíram p/ o 17b) |
 | 21 | Arquivar produto fora de linha | — (cortesia) | — | 📝 spec |
 
 ## Decisões tomadas em 2026-07-24
@@ -59,7 +60,9 @@ cliente: o carrinho (passo 12) muda a estrutura da venda, e o conceito de perda
 - **Arquivar produto**: sem cobrança, e sem efeito financeiro (só esconde da
   lista).
 - **Diferença de troca entra no faturamento**, mas não no lucro (é acerto de
-  troca, não margem de venda).
+  troca, não margem de venda). **Revisto em 2026-07-25 (passo 17b)**: a parte da
+  diferença que não cobre o custo a mais da peça entregue *é* margem, e entra no
+  lucro. A regra virou `diferença − (custo que saiu − custo que voltou)`.
 - **Desfazer apaga o pedido inteiro**, nunca item a item. Devolver um item de um
   pedido já pago é estorno/troca (passos 15 e 18), que cuida da forma de
   pagamento e do destino da peça.

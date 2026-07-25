@@ -969,7 +969,7 @@ const path = require("path");
 
     // Fechamento do dia por forma, do jeito que as telas leem.
     const caixaDoDia = async (forma) =>
-      (await um(`SELECT COALESCE(SUM(valor),0) AS t FROM movimentos_caixa
+      (await um(`SELECT COALESCE(SUM(valor),0) AS t FROM movimentos
                  WHERE date(criado_em) = date('now','localtime') AND forma_pagamento = ?`, [forma])).t;
 
     await caso("86. troca por peça mais cara: diferença entra no fechamento na forma escolhida", async () => {
@@ -996,7 +996,7 @@ const path = require("path");
     await caso("88. troca sem diferença não mexe no caixa e nem pede forma", async () => {
       const a = await novaPeca("C88A", 5, 10000, 20000);
       const b = await novaPeca("C88B", 5, 9000, 20000); // mesmo preço de venda
-      const antes = await um(`SELECT COALESCE(SUM(valor),0) AS t FROM movimentos_caixa
+      const antes = await um(`SELECT COALESCE(SUM(valor),0) AS t FROM movimentos
                               WHERE date(criado_em) = date('now','localtime')`);
       await recarregar("Venda");
       await aoCarrinho("C88A");
@@ -1015,7 +1015,7 @@ const path = require("path");
       const t = await um("SELECT * FROM trocas WHERE peca_id = ?", [a]);
       assert.strictEqual(t.diferenca, 0);
       assert.strictEqual(t.forma_pagamento, null);
-      const depois = await um(`SELECT COALESCE(SUM(valor),0) AS t FROM movimentos_caixa
+      const depois = await um(`SELECT COALESCE(SUM(valor),0) AS t FROM movimentos
                                WHERE date(criado_em) = date('now','localtime')`);
       // Só a venda entrou no caixa; a troca em si não mexeu em nada.
       assert.strictEqual(depois.t - antes.t, 20000);
@@ -1042,22 +1042,31 @@ const path = require("path");
       await win.click('button:text-is("Cancelar")');
     });
 
-    await caso("90. fechamento do dia = vendas + diferenças, e o lucro ignora a diferença", async () => {
+    await caso("90. fechamento do dia = vendas + diferenças; lucro = margem − perdas", async () => {
       // O que as telas mostram tem que bater com a soma das duas tabelas.
       const [{ vendas }] = await sql(`SELECT COALESCE(SUM(preco_venda*quantidade + mao_de_obra - desconto),0) AS vendas
                                       FROM vendas WHERE date(criado_em) = date('now','localtime')`);
       const [{ difs }] = await sql(`SELECT COALESCE(SUM(diferenca),0) AS difs FROM trocas
                                     WHERE date(recebido_em) = date('now','localtime') AND forma_pagamento IS NOT NULL`);
-      const [{ caixa }] = await sql(`SELECT COALESCE(SUM(valor),0) AS caixa FROM movimentos_caixa
+      const [{ caixa }] = await sql(`SELECT COALESCE(SUM(valor),0) AS caixa FROM movimentos
                                      WHERE date(criado_em) = date('now','localtime')`);
       assert.strictEqual(caixa, vendas + difs, "o caixa do dia é venda + diferença de troca");
       assert(difs !== 0, "o teste só vale se houve diferença hoje");
 
-      const [{ lucroCaixa }] = await sql(`SELECT COALESCE(SUM(lucro),0) AS lucroCaixa FROM movimentos_caixa
+      // Lucro = margem das vendas + margem real da troca − perdas. A margem da
+      // troca é a diferença cobrada menos o custo a mais da peça entregue, e não
+      // a diferença inteira: specs/passo-17b-lucro-exato-da-troca.md.
+      const [{ lucroCaixa }] = await sql(`SELECT COALESCE(SUM(lucro),0) AS lucroCaixa FROM movimentos
                                           WHERE date(criado_em) = date('now','localtime')`);
       const [{ lucroVendas }] = await sql(`SELECT COALESCE(SUM((preco_venda-preco_compra)*quantidade + mao_de_obra - desconto),0) AS lucroVendas
                                            FROM vendas WHERE date(criado_em) = date('now','localtime')`);
-      assert.strictEqual(lucroCaixa, lucroVendas, "diferença é acerto de troca, não margem: fora do lucro");
+      const [{ margemTroca }] = await sql(`SELECT COALESCE(SUM(diferenca - (nova_preco_compra - valor_compra)),0) AS margemTroca
+                                           FROM trocas WHERE date(recebido_em) = date('now','localtime')
+                                             AND nova_preco_compra IS NOT NULL`);
+      const [{ perdas }] = await sql(`SELECT COALESCE(SUM(valor),0) AS perdas FROM perdas
+                                      WHERE date(criado_em) = date('now','localtime')`);
+      assert.strictEqual(lucroCaixa, lucroVendas + margemTroca - perdas, "lucro do dia bate com as três parcelas");
+      assert(perdas !== 0, "o teste só vale se houve perda hoje");
 
       // E o bloco na tela tem que mostrar o mesmo número do banco.
       await recarregar("Dashboard");
@@ -1079,11 +1088,11 @@ const path = require("path");
 
     await caso("92. troca antiga (sem diferença) não mexe em total nenhum", async () => {
       const id = await novaPeca("C92", 5, 10000, 20000);
-      const antes = await um(`SELECT COALESCE(SUM(valor),0) AS t FROM movimentos_caixa
+      const antes = await um(`SELECT COALESCE(SUM(valor),0) AS t FROM movimentos
                               WHERE date(criado_em) = date('now','localtime')`);
       // Como as que já estavam no banco antes da atualização: diferenca 0, forma NULL.
       await sql("INSERT INTO trocas (modelo, defeito, valor_compra, peca_id) VALUES ('C92 antiga','não liga',10000,?)", [id]);
-      const depois = await um(`SELECT COALESCE(SUM(valor),0) AS t FROM movimentos_caixa
+      const depois = await um(`SELECT COALESCE(SUM(valor),0) AS t FROM movimentos
                                WHERE date(criado_em) = date('now','localtime')`);
       assert.strictEqual(depois.t, antes.t, "troca sem diferença fica fora do caixa");
     });
@@ -1117,6 +1126,71 @@ const path = require("path");
       // o que também deixa a peça viva — mas com erro na cara do usuário.
       assert.strictEqual(erros.length, errosAntes, "tinha que ser recusado no aviso, não estourar no SQL");
       await sql("DELETE FROM perdas WHERE motivo = 'perda solta'");
+    });
+
+    console.log("\nLucro exato da troca e perdas no lucro (passo 17b)");
+
+    const lucroHoje = async () =>
+      (await um(`SELECT COALESCE(SUM(lucro),0) AS l FROM movimentos WHERE date(criado_em) = date('now','localtime')`)).l;
+
+    await caso("95. reposição do mesmo custo: a diferença inteira é margem", async () => {
+      // A custa 1000 e vende 2000; B custa o MESMO 1000 e vende 2500.
+      const a = await novaPeca("C95A", 5, 100000, 200000);
+      const b = await novaPeca("C95B", 5, 100000, 250000);
+      const antes = await lucroHoje();
+      await trocarVenda("C95A", b, "Com defeito", { formaVenda: "Pix", formaDif: "Pix" });
+      // Venda 1000 de margem + diferença 500 que não cobre custo nenhum = 1500.
+      assert.strictEqual((await lucroHoje()) - antes, 150000, "diferença sem custo a mais é margem limpa");
+      const t = await um("SELECT * FROM trocas WHERE peca_id = ?", [a]);
+      assert.strictEqual(t.nova_preco_compra, 100000, "custo da reposição fica congelado na troca");
+    });
+
+    await caso("96. reposição mais cara: a diferença só cobre o custo, margem zero", async () => {
+      // A custa 1000/vende 2000; B custa 1500/vende 2500 — os 500 cobrem os 500.
+      const a = await novaPeca("C96A", 5, 100000, 200000);
+      const b = await novaPeca("C96B", 5, 150000, 250000);
+      const antes = await lucroHoje();
+      await trocarVenda("C96A", b, "Com defeito", { formaVenda: "Pix", formaDif: "Pix" });
+      assert.strictEqual((await lucroHoje()) - antes, 100000, "só a margem da venda; a troca não acrescenta nada");
+      const t = await um("SELECT * FROM trocas WHERE peca_id = ?", [a]);
+      assert.strictEqual(t.diferenca, 50000);
+    });
+
+    await caso("97. troca sem diferença por peça mais cara é prejuízo", async () => {
+      // Mesmo preço de venda, custo maior: nada é cobrado e a loja come o custo a mais.
+      const a = await novaPeca("C97A", 5, 100000, 200000);
+      const b = await novaPeca("C97B", 5, 130000, 200000);
+      const antes = await lucroHoje();
+      await trocarVenda("C97A", b, "Com defeito", { formaVenda: "Pix" });
+      const t = await um("SELECT * FROM trocas WHERE peca_id = ?", [a]);
+      assert.strictEqual(t.diferenca, 0, "sem diferença a cobrar");
+      // Venda 1000 de margem − 300 do custo a mais entregue de graça = 700.
+      assert.strictEqual((await lucroHoje()) - antes, 70000, "entregar peça mais cara de graça custa a diferença");
+    });
+
+    await caso("98. perda desconta do lucro sem mexer no faturamento", async () => {
+      const a = await novaPeca("C98A", 5, 40000, 90000);
+      const b = await novaPeca("C98B", 5, 40000, 90000);
+      const fat = async () =>
+        (await um(`SELECT COALESCE(SUM(valor),0) AS v FROM movimentos WHERE date(criado_em) = date('now','localtime')`)).v;
+      const [fatAntes, lucroAntes] = [await fat(), await lucroHoje()];
+      await trocarVenda("C98A", b, "Com defeito", { formaVenda: "Pix", perda: "descartada" });
+      assert.strictEqual((await fat()) - fatAntes, 90000, "faturamento é só a venda: perda não passa pela gaveta");
+      // Margem da venda 500 − perda 400 (o custo da peça que virou lixo) = 100.
+      assert.strictEqual((await lucroHoje()) - lucroAntes, 10000, "a perda sai do lucro");
+    });
+
+    await caso("99. troca anterior à coluna continua sem lucro e sem quebrar", async () => {
+      const id = await novaPeca("C99", 5, 100000, 200000);
+      const antes = await lucroHoje();
+      // Como as que já estavam no banco: diferença cobrada, custo da reposição desconhecido.
+      await sql(`INSERT INTO trocas (modelo, defeito, peca_id, valor_compra, diferenca, forma_pagamento)
+                 VALUES ('C99 antiga','não liga',?,100000,50000,'pix')`, [id]);
+      assert.strictEqual((await lucroHoje()) - antes, 0,
+        "sem o custo da reposição não dá pra saber a margem: fica 0, como era");
+      const [{ v }] = await sql(`SELECT COALESCE(SUM(valor),0) AS v FROM movimentos
+                                 WHERE date(criado_em) = date('now','localtime') AND tipo = 'troca'`);
+      assert(v >= 50000, "mas o dinheiro dela continua no faturamento");
     });
 
     console.log("\nEstoque e entradas");
