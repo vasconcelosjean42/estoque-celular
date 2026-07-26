@@ -160,6 +160,10 @@ for (const sql of [
   "ALTER TABLE lotes ADD COLUMN modo TEXT",
   "ALTER TABLE lotes ADD COLUMN credito INTEGER",
   "ALTER TABLE lotes ADD COLUMN perda INTEGER",
+  // Passo 21: produto com venda não pode ser excluído (o histórico iria junto),
+  // então arquivar é o jeito de tirar da frente. Só esconde da lista — nenhum
+  // efeito em estoque, faturamento, lucro ou perda.
+  "ALTER TABLE pecas ADD COLUMN arquivado INTEGER NOT NULL DEFAULT 0",
 
 ]) {
   try {

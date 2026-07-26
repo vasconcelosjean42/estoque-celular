@@ -69,6 +69,7 @@ export default function Estoque({ dono = true }) {
   const [fixos, setFixos] = useState({}); // { chave: true } = valor continua após salvar
   const [flashId, setFlashId] = useState(null); // peça destacada após receber entrada
   const [[fSel, fDe, fAte], setFiltroData] = useState(["tudo", "", ""]);
+  const [mostrarArquivados, setMostrarArquivados] = useState(false);
 
   const carregar = () => {
     window.api.query("SELECT * FROM pecas ORDER BY nome, modelo").then(setPecas);
@@ -189,7 +190,7 @@ export default function Estoque({ dono = true }) {
       [p.id, p.id, p.id, p.id]
     );
     if (n) {
-      alert(`"${p.nome} ${p.modelo}" tem ${n} movimento(s) registrado(s) (venda, troca ou perda) e não pode ser excluído — o histórico e o lucro do período seriam perdidos.\n\nSe a peça saiu de linha, deixe a quantidade em 0.`);
+      alert(`"${p.nome} ${p.modelo}" tem ${n} movimento(s) registrado(s) (venda, troca ou perda) e não pode ser excluído — o histórico e o lucro do período seriam perdidos.\n\nSe a peça saiu de linha, use o botão Arquivar: ela some da lista e da busca da venda, sem mexer em nada do histórico.`);
       return;
     }
     if (!confirm(`Excluir "${p.nome} ${p.modelo}"?`)) return;
@@ -197,6 +198,15 @@ export default function Estoque({ dono = true }) {
       ["DELETE FROM entradas WHERE peca_id = ?", [p.id]],
       ["DELETE FROM pecas WHERE id = ?", [p.id]],
     ]);
+    carregar();
+  };
+
+  // Só esconde da lista: nada de estoque, faturamento, lucro ou perda muda.
+  // A peça que sobrou continua contando no estoque — arquivar é organização de
+  // tela, não baixa de mercadoria.
+  const arquivar = async (p, valor) => {
+    if (valor && !confirm(`Arquivar "${p.nome} ${p.modelo}"?\n\nSai da lista e da busca da venda. O histórico continua intacto, e dá pra desarquivar depois.`)) return;
+    await window.api.query("UPDATE pecas SET arquivado = ? WHERE id = ?", [valor ? 1 : 0, p.id]);
     carregar();
   };
 
@@ -310,9 +320,9 @@ export default function Estoque({ dono = true }) {
   }
 
   const filtro = busca.trim().toLowerCase();
-  let visiveis = filtro
-    ? pecas.filter((p) => `${p.codigo} ${p.nome} ${p.modelo}`.toLowerCase().includes(filtro))
-    : pecas;
+  const arquivados = pecas.filter((p) => p.arquivado).length;
+  let visiveis = (mostrarArquivados ? pecas : pecas.filter((p) => !p.arquivado))
+    .filter((p) => !filtro || `${p.codigo} ${p.nome} ${p.modelo}`.toLowerCase().includes(filtro));
 
   if (ordem) {
     const val = (p) => (ordem.col === "margem" ? p.preco_venda - p.preco_compra : p[ordem.col]);
@@ -335,13 +345,20 @@ export default function Estoque({ dono = true }) {
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center" }}>
         <input
           style={{ ...inp, flex: 1 }}
           placeholder="Buscar peça por código, nome ou modelo…"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
         />
+        {arquivados > 0 && (
+          <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 15, whiteSpace: "nowrap", cursor: "pointer" }}>
+            <input type="checkbox" style={{ width: 18, height: 18 }}
+              checked={mostrarArquivados} onChange={(e) => setMostrarArquivados(e.target.checked)} />
+            mostrar arquivados ({arquivados})
+          </label>
+        )}
         {dono && (
           <button style={{ ...btn, background: "#38bdf8", color: "#0f172a" }} onClick={() => { setForm(VAZIA); setAdicionados([]); }}>
             + Novo produto
@@ -372,7 +389,8 @@ export default function Estoque({ dono = true }) {
                 id={`peca-${p.id}`}
                 onClick={dono ? () => setForm({ ...p, preco_compra: (p.preco_compra / 100).toFixed(2).replace(".", ","), preco_venda: (p.preco_venda / 100).toFixed(2).replace(".", ",") }) : undefined}
                 style={{ borderBottom: "1px solid #e2e8f0", cursor: dono ? "pointer" : "default", transition: "background .8s",
-                  background: flashId === p.id ? "#86efac" : baixo ? "#fef2f2" : undefined }}
+                  color: p.arquivado ? "#94a3b8" : undefined, // arquivado fica apagado na lista
+                  background: flashId === p.id ? "#86efac" : p.arquivado ? "#f8fafc" : baixo ? "#fef2f2" : undefined }}
               >
                 <td style={{ padding: 8, color: "#64748b", fontFamily: "monospace", whiteSpace: "nowrap" }}>{p.codigo}</td>
                 <td style={{ padding: 8, fontWeight: "bold" }}>
@@ -403,6 +421,13 @@ export default function Estoque({ dono = true }) {
                       onClick={(e) => { e.stopPropagation(); excluir(p); }}
                     >
                       Excluir
+                    </button>
+                    <button
+                      style={{ ...btn, padding: "6px 12px", fontSize: 14, marginLeft: 6,
+                        background: p.arquivado ? "#dcfce7" : "#e2e8f0", color: p.arquivado ? "#16a34a" : "#334155" }}
+                      onClick={(e) => { e.stopPropagation(); arquivar(p, !p.arquivado); }}
+                    >
+                      {p.arquivado ? "Desarquivar" : "Arquivar"}
                     </button>
                   </td>
                 )}

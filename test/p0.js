@@ -1475,6 +1475,11 @@ const path = require("path");
       assert(await win.locator("text=1 perdido (R$ 100,00)").count(), "e com as perdidas");
       assert(await win.locator("text=✔ C116-0").count(), "aceita marcada");
       assert(await win.locator("text=✖ C116-2").count(), "recusada marcada");
+      // O valor ao lado da recusada vem da tabela perdas, não da coluna do lote —
+      // o cabeçalho acima estaria certo mesmo se esse número viesse errado.
+      const [perda] = await sql("SELECT valor FROM perdas WHERE motivo LIKE ?", [`Lote #${l.id}%`]);
+      assert(await win.locator(`text=perda ${reaisBR(perda.valor).replace(/^/, "R$ ")}`).count(),
+        "a linha da recusada mostra a perda registrada pra ela");
       await linha.click();
       await win.waitForTimeout(300);
       assert.strictEqual(await win.locator("text=✔ C116-0").count(), 0, "clicar de novo recolhe");
@@ -1519,6 +1524,85 @@ const path = require("path");
       await win.waitForTimeout(300);
       assert.strictEqual(await win.locator("text=itens creditados").count(), 0,
         "lote que ainda não voltou não tem o que detalhar");
+    });
+
+    console.log("\nArquivar produto (passo 21)");
+
+    const totais = async () =>
+      await um(`SELECT (SELECT COALESCE(SUM(valor),0) FROM movimentos) AS fat,
+                       (SELECT COALESCE(SUM(lucro),0) FROM movimentos) AS lucro,
+                       (SELECT COALESCE(SUM(valor),0) FROM perdas) AS perdas,
+                       (SELECT COALESCE(SUM(quantidade),0) FROM pecas) AS estoque`);
+
+    await caso("121. arquivar tira da lista do Estoque e da busca da Venda", async () => {
+      const id = await novaPeca("C121", 5, 10000, 20000);
+      await vender("C121"); // com venda, não pode mais ser excluída
+      await recarregar("Estoque");
+      await win.click('tr:has-text("C121") button:text-is("Arquivar")');
+      await win.waitForTimeout(500);
+      assert.strictEqual((await peca(id)).arquivado, 1);
+      assert.strictEqual(await win.locator('tr:has-text("C121")').count(), 0, "sai da lista do Estoque");
+      await recarregar("Venda");
+      await win.fill('input[placeholder^="Buscar peça"]', "C121");
+      await win.waitForTimeout(300);
+      assert.strictEqual(await win.locator('tr:has-text("C121") button:text("+ Adicionar")').count(), 0,
+        "não aparece mais pra vender");
+    });
+
+    await caso("122. arquivar não mexe em nenhum total nem no estoque", async () => {
+      const id = await novaPeca("C122", 7, 10000, 20000);
+      await vender("C122");
+      const antes = await totais();
+      await recarregar("Estoque");
+      await win.click('tr:has-text("C122") button:text-is("Arquivar")');
+      await win.waitForTimeout(500);
+      const depois = await totais();
+      // Arquivar é organização de tela: não é baixa de mercadoria nem perda.
+      assert.deepStrictEqual(depois, antes, "faturamento, lucro, perdas e estoque têm que ficar iguais");
+      assert.strictEqual((await peca(id)).quantidade, 6, "a peça que sobrou continua no estoque");
+    });
+
+    await caso("123. o histórico do produto arquivado continua no Dashboard", async () => {
+      const id = await novaPeca("C123", 5, 10000, 20000);
+      await vender("C123");
+      await recarregar("Estoque");
+      await win.click('tr:has-text("C123") button:text-is("Arquivar")');
+      await win.waitForTimeout(500);
+      await recarregar("Dashboard");
+      const linha = win.locator('tr:has-text("C123")').first();
+      assert(await linha.count(), "a venda do produto arquivado não pode sumir do histórico");
+      assert(await linha.locator(':text("R$ 200,00")').count(), "com o total certo");
+      assert.strictEqual((await vendasDe(id)).length, 1);
+    });
+
+    await caso("124. mostrar arquivados lista de volta, e desarquivar reverte", async () => {
+      const id = await novaPeca("C124", 5, 10000, 20000);
+      await vender("C124");
+      await recarregar("Estoque");
+      await win.click('tr:has-text("C124") button:text-is("Arquivar")');
+      await win.waitForTimeout(500);
+      assert.strictEqual(await win.locator('tr:has-text("C124")').count(), 0);
+
+      await win.click('label:has-text("mostrar arquivados") input');
+      await win.waitForTimeout(300);
+      assert(await win.locator('tr:has-text("C124") button:text-is("Desarquivar")').count(),
+        "aparece com o botão de desarquivar");
+      await win.click('tr:has-text("C124") button:text-is("Desarquivar")');
+      await win.waitForTimeout(500);
+      assert.strictEqual((await peca(id)).arquivado, 0);
+      await recarregar("Venda");
+      await win.fill('input[placeholder^="Buscar peça"]', "C124");
+      await win.waitForTimeout(300);
+      assert(await win.locator('tr:has-text("C124") button:text("+ Adicionar")').count(),
+        "volta a poder ser vendida");
+    });
+
+    await caso("125. produto sem movimento nenhum continua sendo excluído de verdade", async () => {
+      const id = await novaPeca("C125", 5, 10000, 20000);
+      await recarregar("Estoque");
+      await win.click('tr:has-text("C125") button:text-is("Excluir")');
+      await win.waitForTimeout(500);
+      assert.strictEqual(await peca(id), undefined, "arquivar não substituiu o excluir");
     });
 
     console.log("\nEstoque e entradas");

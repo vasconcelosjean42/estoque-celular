@@ -82,7 +82,8 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
   const [[fSel, fDe, fAte], setFiltroData] = useState(() => ["hoje", ...calcAtalho("hoje")]);
 
   const carregar = () => {
-    window.api.query("SELECT * FROM pecas ORDER BY nome, modelo").then(setPecas);
+    // Arquivado sai da busca da venda: é pra isso que serve o arquivar.
+    window.api.query("SELECT * FROM pecas WHERE arquivado = 0 ORDER BY nome, modelo").then(setPecas);
     window.api.query("SELECT id, codigo, nome FROM clientes ORDER BY nome").then(setClientes);
     const conds = [];
     const params = [];
