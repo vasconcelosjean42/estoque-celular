@@ -338,6 +338,19 @@ export default function Estoque({ dono = true }) {
     else setOrdem(null);                                         // 3º: padrão
   };
 
+  // Totais do que está na tela (respeita busca e "mostrar arquivados"): quanto tem,
+  // quanto custou, quanto vale vendido. Margem é a do conjunto — média simples das
+  // margens deixaria 1 capinha de 300% pesar igual a 50 telas de 40%.
+  const t = visiveis.reduce(
+    (a, p) => ({
+      itens: a.itens + p.quantidade,
+      compra: a.compra + p.quantidade * p.preco_compra,
+      venda: a.venda + p.quantidade * p.preco_venda,
+    }),
+    { itens: 0, compra: 0, venda: 0 }
+  );
+  const margemTotal = t.venda - t.compra;
+
   const COLUNAS = dono
     ? [["Código", "codigo"], ["Produto", "nome"], ["Modelo", "modelo"], ["Qtd", "quantidade"],
        ["Compra", "preco_compra"], ["Venda", "preco_venda"], ["Margem", "margem"], ["", null]]
@@ -378,6 +391,22 @@ export default function Estoque({ dono = true }) {
               </th>
             ))}
           </tr>
+          {dono && visiveis.length > 0 && (
+            <tr aria-label="Totais do estoque" style={{ background: "#f1f5f9", fontWeight: "bold", borderBottom: "2px solid #cbd5e1" }}>
+              <td />
+              <td style={{ padding: 8, whiteSpace: "nowrap" }}>
+                Totais ({visiveis.length} produto{visiveis.length === 1 ? "" : "s"})
+              </td>
+              <td />
+              <td style={{ padding: 8 }}>{t.itens}</td>
+              <td style={{ padding: 8 }}>{fmtReais(t.compra)}</td>
+              <td style={{ padding: 8 }}>{fmtReais(t.venda)}</td>
+              <td style={{ padding: 8, whiteSpace: "nowrap" }}>
+                {fmtReais(margemTotal)}{t.compra > 0 && ` (${Math.round((margemTotal / t.compra) * 100)}%)`}
+              </td>
+              <td />
+            </tr>
+          )}
         </thead>
         <tbody>
           {visiveis.map((p) => {

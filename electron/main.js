@@ -40,6 +40,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    icon: path.join(__dirname, "../build/icon.png"), // só vale em dev: empacotado o Windows usa o do .exe
     webPreferences: { preload: path.join(__dirname, "preload.js") },
   });
   win.maximize(); // maximizada (com barra de título), não quiosque — leigo precisa minimizar

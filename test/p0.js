@@ -1862,6 +1862,55 @@ const path = require("path");
       assert.strictEqual(v.preco_venda, 20000, "a venda antiga tem que manter o preço praticado");
     });
 
+    console.log("\nTotais do estoque (passo 23)");
+
+    // Um prefixo só destes casos: o banco da bateria já tem dezenas de produtos,
+    // então o filtro é o que torna os totais previsíveis.
+    const totaisEstoque = async (filtro) => {
+      await win.fill('input[placeholder*="Buscar peça por código"]', filtro);
+      await win.waitForTimeout(300);
+      return win.locator('tr[aria-label="Totais do estoque"]').innerText();
+    };
+
+    await caso("134. linha de totais soma quantidade, compra, venda e margem do que está na tela", async () => {
+      await novaPeca("T23A", 3, 1000, 2500);
+      await novaPeca("T23B", 2, 5000, 8000);
+      await recarregar("Estoque");
+      const linha = await totaisEstoque("T23");
+      assert(linha.includes("2 produtos"), `contagem de produtos: ${linha}`);
+      assert(/\b5\b/.test(linha), `itens = 3 + 2: ${linha}`);
+      assert(linha.includes("130,00"), `compra = 3×10,00 + 2×50,00: ${linha}`);
+      assert(linha.includes("235,00"), `venda = 3×25,00 + 2×80,00: ${linha}`);
+      assert(linha.includes("105,00"), `margem = 235,00 − 130,00: ${linha}`);
+      assert(linha.includes("81%"), `margem sobre o total de compra: ${linha}`);
+    });
+
+    await caso("135. os totais acompanham o filtro da busca", async () => {
+      const linha = await totaisEstoque("T23B");
+      assert(linha.includes("1 produto"), `só um produto no filtro: ${linha}`);
+      assert(linha.includes("100,00"), `compra = 2×50,00: ${linha}`);
+      assert(linha.includes("160,00"), `venda = 2×80,00: ${linha}`);
+      assert(linha.includes("60,00"), `margem = 160,00 − 100,00: ${linha}`);
+    });
+
+    await caso("136. produto arquivado sai dos totais e volta com 'mostrar arquivados'", async () => {
+      await sql("UPDATE pecas SET arquivado = 1 WHERE nome = 'T23A'");
+      await recarregar("Estoque");
+      try {
+        let linha = await totaisEstoque("T23");
+        assert(linha.includes("1 produto"), `o arquivado não pode entrar: ${linha}`);
+        assert(linha.includes("100,00"), `só a compra do T23B: ${linha}`);
+        await win.click('label:has-text("mostrar arquivados") input');
+        await win.waitForTimeout(300);
+        linha = await win.locator('tr[aria-label="Totais do estoque"]').innerText();
+        assert(linha.includes("2 produtos"), `com arquivados à mostra os dois contam: ${linha}`);
+        assert(linha.includes("130,00"), `e os valores voltam ao total cheio: ${linha}`);
+      } finally {
+        await sql("UPDATE pecas SET arquivado = 0 WHERE nome = 'T23A'");
+        await win.fill('input[placeholder*="Buscar peça por código"]', "");
+      }
+    });
+
     console.log("\nCódigo do produto (passo 10)");
 
     await caso("34. cadastro gera código sequencial por tipo (TE001, TE002)", async () => {
@@ -2107,6 +2156,11 @@ const path = require("path");
       assert.strictEqual(await win.locator('th:text-is("Compra")').count(), 0);
       assert.strictEqual(await win.locator('th:text-is("Margem")').count(), 0);
       assert.strictEqual(await win.locator("text=Últimas entradas").count(), 0);
+    });
+
+    await caso("137. colaborador não vê a linha de totais (é custo e margem)", async () => {
+      await aba("Estoque");
+      assert.strictEqual(await win.locator('tr[aria-label="Totais do estoque"]').count(), 0);
     });
 
     await caso("27. colaborador não cadastra, não dá entrada e não exclui", async () => {

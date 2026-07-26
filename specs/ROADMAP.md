@@ -49,6 +49,16 @@ cliente: o carrinho (passo 12) muda a estrutura da venda, e o conceito de perda
 | 21 | Arquivar produto fora de linha | — (cortesia) | — | ✅ aprovado |
 | 22 | Importação de produtos por planilha | — (pedido 2026-07-26) | 10, 6b | 🔨 feito, publicado em v0.2.0 |
 
+---
+
+# v3 — 3 ajustes pedidos pelo cliente (2026-07-26)
+
+| # | Passo | Item do cliente | Depende de | Status |
+|---|-------|-----------------|------------|--------|
+| 23 | Linha de totais no topo do Estoque | 1 | — | 🔨 feito |
+| 24 | Colaborador faz e desfaz trocas, sem PIN | 2 | 15, 18 | ⏳ |
+| 25 | Código de barras (cadastro, filtros, bipar na venda) | 3 | 10 | ⏳ |
+
 ## Decisões tomadas em 2026-07-24
 
 - **Código do produto**: 2 letras do tipo + 3 dígitos sequenciais (`TE001`),
