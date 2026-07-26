@@ -39,6 +39,9 @@
       "provider": "github",
       "owner": "vasconcelosjean42",
       "repo": "estoque-celular"
+    },
+    "directories": {
+      "output": "release"
     }
   }
 }
