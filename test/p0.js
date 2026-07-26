@@ -33,6 +33,9 @@ const path = require("path");
   const sql = (q, p = []) => win.evaluate(([q, p]) => window.api.query(q, p), [q, p]);
   const um = async (q, p) => (await sql(q, p))[0];
   const aba = (n) => win.click(`nav button:text-is("${n}")`);
+  // A busca da Venda também é onde se bipa (passo 25); a do Estoque só filtra.
+  const BUSCA_VENDA = 'input[placeholder*="Bipe o código"]';
+  const BUSCA_ESTOQUE = 'input[placeholder*="Buscar peça por código"]';
   // As telas só recarregam ao montar; trocar de aba e voltar força o carregar().
   const recarregar = async (alvo) => {
     await aba(alvo === "Estoque" ? "Venda" : "Estoque");
@@ -55,7 +58,8 @@ const path = require("path");
     await win.click('button:text("+ Novo produto")');
     await win.fill('label:has-text("Produto") input', nome);
     if (extras.modelo) await win.fill('label:has-text("Modelo") input', extras.modelo);
-    if (extras.codigo !== undefined) await win.fill('label:has-text("Código") input', extras.codigo);
+    if (extras.codigo !== undefined) await win.fill('label:has-text("Código (gerado") input', extras.codigo);
+    if (extras.barras !== undefined) await win.fill('label:has-text("Código de barras") input', extras.barras);
     await win.fill('label:has-text("Quantidade") input', String(extras.qtd ?? 1));
     await win.fill('label:has-text("Preço de compra") input', extras.compra ?? "10,00");
     await win.fill('label:has-text("Preço de venda") input', extras.venda ?? "20,00");
@@ -1550,7 +1554,7 @@ const path = require("path");
       assert.strictEqual((await peca(id)).arquivado, 1);
       assert.strictEqual(await win.locator('tr:has-text("C121")').count(), 0, "sai da lista do Estoque");
       await recarregar("Venda");
-      await win.fill('input[placeholder^="Buscar peça"]', "C121");
+      await win.fill(BUSCA_VENDA, "C121");
       await win.waitForTimeout(300);
       assert.strictEqual(await win.locator('tr:has-text("C121") button:text("+ Adicionar")').count(), 0,
         "não aparece mais pra vender");
@@ -1598,7 +1602,7 @@ const path = require("path");
       await win.waitForTimeout(500);
       assert.strictEqual((await peca(id)).arquivado, 0);
       await recarregar("Venda");
-      await win.fill('input[placeholder^="Buscar peça"]', "C124");
+      await win.fill(BUSCA_VENDA, "C124");
       await win.waitForTimeout(300);
       assert(await win.locator('tr:has-text("C124") button:text("+ Adicionar")').count(),
         "volta a poder ser vendida");
@@ -1867,7 +1871,7 @@ const path = require("path");
     // Um prefixo só destes casos: o banco da bateria já tem dezenas de produtos,
     // então o filtro é o que torna os totais previsíveis.
     const totaisEstoque = async (filtro) => {
-      await win.fill('input[placeholder*="Buscar peça por código"]', filtro);
+      await win.fill(BUSCA_ESTOQUE, filtro);
       await win.waitForTimeout(300);
       return win.locator('tr[aria-label="Totais do estoque"]').innerText();
     };
@@ -1907,7 +1911,7 @@ const path = require("path");
         assert(linha.includes("130,00"), `e os valores voltam ao total cheio: ${linha}`);
       } finally {
         await sql("UPDATE pecas SET arquivado = 0 WHERE nome = 'T23A'");
-        await win.fill('input[placeholder*="Buscar peça por código"]', "");
+        await win.fill(BUSCA_ESTOQUE, "");
       }
     });
 
@@ -1934,17 +1938,17 @@ const path = require("path");
 
     await caso("36. busca por código funciona no Estoque e na Venda", async () => {
       await recarregar("Estoque");
-      await win.fill('input[placeholder*="Buscar peça por código"]', "TE002");
+      await win.fill(BUSCA_ESTOQUE, "TE002");
       await win.waitForTimeout(300);
       assert.strictEqual(await win.locator('tbody tr:has-text("TE002")').count(), 1);
       assert.strictEqual(await win.locator('tbody tr:has-text("TE001")').count(), 0, "busca exata não traz a outra tela");
-      await win.fill('input[placeholder*="Buscar peça por código"]', "TE0");
+      await win.fill(BUSCA_ESTOQUE, "TE0");
       await win.waitForTimeout(300);
       // "tbody tr" pegaria a tabela de entradas também — filtrar pelo código.
       assert.strictEqual(await win.locator('tbody tr:has-text("TE0")').count(), 2, "prefixo traz as duas telas");
       assert.strictEqual(await win.locator('tbody tr:has-text("CA001")').count(), 0, "e só as telas");
       await recarregar("Venda");
-      await win.fill('input[placeholder*="Buscar peça por código"]', "CAM001");
+      await win.fill(BUSCA_VENDA, "CAM001");
       await win.waitForTimeout(300);
       assert.strictEqual(await win.locator('tr:has-text("Câmera traseira")').count(), 1);
     });
@@ -1955,7 +1959,7 @@ const path = require("path");
       await win.waitForTimeout(400);
       assert.strictEqual((await um("SELECT COUNT(*) AS n FROM pecas")).n, antes, "não podia ter gravado");
       assert(await win.locator('button:text-is("Salvar")').count(), "o form continua aberto");
-      await win.fill('label:has-text("Código") input', "BA001");
+      await win.fill('label:has-text("Código (gerado") input', "BA001");
       await win.click('button:text-is("Salvar")');
       await concluir();
       assert.strictEqual(await codigoDe("Bateria", "Moto G52"), "BA001", "com código livre, salva");
@@ -1964,7 +1968,7 @@ const path = require("path");
     await caso("37b. código editado na mão para de ser regerado ao mexer no tipo", async () => {
       await recarregar("Estoque");
       await win.click('button:text("+ Novo produto")');
-      const campoCodigo = win.locator('label:has-text("Código") input');
+      const campoCodigo = win.locator('label:has-text("Código (gerado") input');
       await win.fill('label:has-text("Produto") input', "Tela");
       assert.strictEqual(await campoCodigo.inputValue(), "TE003", "antes de editar, acompanha o tipo");
       await campoCodigo.fill("MEUCOD1");
@@ -1988,6 +1992,89 @@ const path = require("path");
       assert.strictEqual(await codigoDe("Tela", "Legado"), "TE003", "segue a numeração das telas que já existiam");
       assert.strictEqual((await um("SELECT COUNT(*) AS n FROM pecas WHERE codigo = ''")).n, 0,
         "nenhum produto pode ficar sem código");
+    });
+
+    console.log("\nCódigo de barras (passo 25)");
+
+    // A pistola é um teclado: digita o código no campo focado e manda Enter.
+    // fill + press("Enter") é exatamente isso.
+    const bipar = async (codigo) => {
+      await win.fill(BUSCA_VENDA, codigo);
+      await win.press(BUSCA_VENDA, "Enter");
+      await win.waitForTimeout(300);
+    };
+
+    await caso("138. cadastro grava o código de barras bipado, e produto sem ele também salva", async () => {
+      await cadastrar("Pelicula", { modelo: "B25A", barras: "7891234567895" });
+      await concluir();
+      const p = await um("SELECT * FROM pecas WHERE modelo = 'B25A'");
+      assert.strictEqual(p.codigo_barras, "7891234567895");
+      await cadastrar("Pelicula", { modelo: "B25B" });
+      await concluir();
+      const sem = await um("SELECT * FROM pecas WHERE modelo = 'B25B'");
+      assert.strictEqual(sem.codigo_barras, "", "produto sem código de barras tem que salvar igual");
+    });
+
+    await caso("139. código de barras repetido é recusado", async () => {
+      const antes = (await um("SELECT COUNT(*) AS n FROM pecas")).n;
+      await cadastrar("Pelicula", { modelo: "B25C", barras: "7891234567895" }); // já é do B25A
+      await win.waitForTimeout(400);
+      assert.strictEqual((await um("SELECT COUNT(*) AS n FROM pecas")).n, antes, "não podia ter gravado");
+      assert(await win.locator('button:text-is("Salvar")').count(), "o form continua aberto");
+      await win.fill('label:has-text("Código de barras") input', "7891234567901");
+      await win.click('button:text-is("Salvar")');
+      await concluir();
+      assert.strictEqual((await um("SELECT codigo_barras FROM pecas WHERE modelo = 'B25C'")).codigo_barras,
+        "7891234567901", "com código livre, salva");
+    });
+
+    await caso("140. o código de barras pode ser adicionado depois, editando o produto", async () => {
+      await recarregar("Estoque");
+      await win.fill(BUSCA_ESTOQUE, "B25B");
+      await win.waitForTimeout(300);
+      await win.click('tr:has-text("B25B") td:text-is("B25B")'); // célula do modelo: a do nome tem o ⚠ de estoque baixo
+      await win.fill('label:has-text("Código de barras") input', "7899999999994");
+      await win.click('button:text-is("Salvar")');
+      await win.waitForSelector('button:text-is("Salvar")', { state: "detached", timeout: 8000 });
+      assert.strictEqual((await um("SELECT codigo_barras FROM pecas WHERE modelo = 'B25B'")).codigo_barras,
+        "7899999999994");
+    });
+
+    await caso("141. busca do Estoque acha pelo código de barras", async () => {
+      await win.fill(BUSCA_ESTOQUE, "7891234567895");
+      await win.waitForTimeout(300);
+      // Só a tabela de produtos: a de entradas embaixo não é filtrada pela busca.
+      const produtos = win.locator('table[aria-label="Produtos"] tbody');
+      assert.strictEqual(await produtos.locator('tr:has-text("B25A")').count(), 1);
+      assert.strictEqual(await produtos.locator('tr:has-text("B25B")').count(), 0, "só o dono do código");
+      await win.fill(BUSCA_ESTOQUE, "");
+    });
+
+    await caso("142. bipar na Venda joga direto no carrinho e limpa a busca", async () => {
+      await sql("UPDATE pecas SET quantidade = 5 WHERE modelo IN ('B25A','B25B')");
+      await recarregar("Venda");
+      await bipar("7891234567895");
+      assert.strictEqual(await win.locator('input[aria-label="Quantidade de Pelicula B25A"]').inputValue(), "1",
+        "o produto bipado tem que entrar no carrinho sem clique nenhum");
+      assert.strictEqual(await win.locator(BUSCA_VENDA).inputValue(), "", "a busca fica limpa pro próximo bipe");
+      assert(await win.locator('tr:has-text("B25B")').count(), "e a lista volta a mostrar tudo");
+    });
+
+    await caso("143. bipar o mesmo código de novo soma quantidade", async () => {
+      await bipar("7891234567895");
+      assert.strictEqual(await win.locator('input[aria-label="Quantidade de Pelicula B25A"]').inputValue(), "2");
+      await win.click('button:text-is("Limpar carrinho")');
+    });
+
+    await caso("144. código não cadastrado não faz nada; produto sem estoque não entra", async () => {
+      await bipar("0000000000000");
+      assert.strictEqual(await win.locator('h3:has-text("Carrinho")').count(), 0, "código desconhecido não pode adicionar nada");
+      assert(await win.locator("text=Nenhuma peça encontrada").count(), "e a lista mostra que não achou");
+      await sql("UPDATE pecas SET quantidade = 0 WHERE modelo = 'B25A'");
+      await recarregar("Venda");
+      await bipar("7891234567895");
+      assert.strictEqual(await win.locator('h3:has-text("Carrinho")').count(), 0, "sem estoque não entra no carrinho");
+      await sql("UPDATE pecas SET quantidade = 5 WHERE modelo = 'B25A'");
     });
 
     console.log("\nPainel de desenvolvedor");
@@ -2200,7 +2287,7 @@ const path = require("path");
       await win.click('button:text-is("Salvar")');
 
       // Salvou → volta pra Venda. A prateleira/lotes continuam sendo só do dono.
-      await win.waitForSelector('input[placeholder*="Buscar peça por código"]', { timeout: 8000 });
+      await win.waitForSelector(BUSCA_VENDA, { timeout: 8000 });
       assert.strictEqual(await win.locator("text=Prateleira").count(), 0, "colaborador não pode cair na tela de Trocas");
       // A: 5 −1 da venda +1 da devolução boa = 5. B: 5 −1 da reposição = 4.
       assert.strictEqual((await peca(a)).quantidade, 5, "a devolvida volta ao estoque");

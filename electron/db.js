@@ -164,6 +164,11 @@ for (const sql of [
   // então arquivar é o jeito de tirar da frente. Só esconde da lista — nenhum
   // efeito em estoque, faturamento, lucro ou perda.
   "ALTER TABLE pecas ADD COLUMN arquivado INTEGER NOT NULL DEFAULT 0",
+  // Passo 25: código do FABRICANTE, lido pela pistola. Separado do codigo
+  // (TE001), que a loja gera e a importação usa pra casar produto. Parcial:
+  // os muitos produtos sem código de barras ('') não colidem entre si.
+  "ALTER TABLE pecas ADD COLUMN codigo_barras TEXT NOT NULL DEFAULT ''",
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_pecas_codigo_barras ON pecas(codigo_barras) WHERE codigo_barras != ''",
 
 ]) {
   try {

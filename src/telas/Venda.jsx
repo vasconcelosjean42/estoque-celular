@@ -125,6 +125,11 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
   // --- carrinho --------------------------------------------------------------
 
   const adicionar = (p) => {
+    // O botão da lista já vem desabilitado sem estoque; a bipagem não passa por ele.
+    if (p.quantidade < 1) {
+      alert(`${p.nome} ${p.modelo} está sem estoque.`.replace(/\s+/g, " "));
+      return;
+    }
     const item = carrinho.find((x) => x.peca.id === p.id);
     if (item) {
       if (item.qtd >= p.quantidade) {
@@ -383,8 +388,24 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
 
   const filtro = busca.trim().toLowerCase();
   const visiveis = filtro
-    ? pecas.filter((p) => `${p.codigo} ${p.nome} ${p.modelo}`.toLowerCase().includes(filtro))
+    ? pecas.filter((p) => `${p.codigo} ${p.codigo_barras} ${p.nome} ${p.modelo}`.toLowerCase().includes(filtro))
     : pecas;
+
+  // A pistola é um teclado: digita o código no campo e manda Enter. No Enter o
+  // produto vai direto pro carrinho — bipou, entrou, campo limpo pro próximo.
+  // Casamento exato (barras ou código interno) ou, se o filtro deixou um produto
+  // só na tela, esse mesmo. Nada disso: não faz nada, a lista já mostra o vazio.
+  // ponytail: depende do sufixo Enter, padrão de fábrica das pistolas. Medir o
+  // tempo entre teclas pra "adivinhar" a pistola erra em máquina lenta.
+  const bipar = () => {
+    if (!filtro) return;
+    const achada =
+      pecas.find((p) => (p.codigo_barras || "").toLowerCase() === filtro || p.codigo.toLowerCase() === filtro) ||
+      (visiveis.length === 1 ? visiveis[0] : null);
+    if (!achada) return;
+    adicionar(achada);
+    setBusca("");
+  };
 
   const trocasPorVenda = {};
   trocasVenda.forEach((t) => (trocasPorVenda[t.venda_id] ||= []).push(t));
@@ -454,8 +475,10 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <input style={{ ...inp, marginBottom: 16 }} autoFocus placeholder="Buscar peça por código, nome ou modelo…"
-        value={busca} onChange={(e) => setBusca(e.target.value)} />
+      <input style={{ ...inp, marginBottom: 16 }} autoFocus
+        placeholder="Bipe o código de barras ou busque por código, nome ou modelo…"
+        value={busca} onChange={(e) => setBusca(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && bipar()} />
 
       <div style={{ flex: "6 1 0", display: "flex", gap: 16, minHeight: 0 }}>
         <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>

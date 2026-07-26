@@ -52,7 +52,7 @@ export const gerarCodigosFaltantes = async () => {
   await window.api.tx(comandos);
 };
 
-const VAZIA = { nome: "", modelo: "", codigo: "", quantidade: 0, preco_compra: "", preco_venda: "", estoque_minimo: 1 };
+const VAZIA = { nome: "", modelo: "", codigo: "", codigo_barras: "", quantidade: 0, preco_compra: "", preco_venda: "", estoque_minimo: 1 };
 const FIXAVEIS = ["quantidade", "preco_compra", "preco_venda", "estoque_minimo"]; // campos com 📌 no cadastro em série
 
 const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" };
@@ -107,16 +107,23 @@ export default function Estoque({ dono = true }) {
       alert(`O código ${codigo} já é de outro produto.`);
       return;
     }
-    const params = [form.nome.trim(), form.modelo.trim(), codigo, Number(form.quantidade) || 0, compra, venda, Number(form.estoque_minimo) || 0];
+    // Repetido faria a bipagem da venda cair no produto errado.
+    const barras = (form.codigo_barras || "").trim();
+    const jaTem = barras && pecas.find((p) => p.codigo_barras === barras && p.id !== form.id);
+    if (jaTem) {
+      alert(`O código de barras ${barras} já é do produto ${`${jaTem.nome} ${jaTem.modelo}`.trim()}.`);
+      return;
+    }
+    const params = [form.nome.trim(), form.modelo.trim(), codigo, barras, Number(form.quantidade) || 0, compra, venda, Number(form.estoque_minimo) || 0];
     if (form.id) {
       await window.api.query(
-        "UPDATE pecas SET nome=?, modelo=?, codigo=?, quantidade=?, preco_compra=?, preco_venda=?, estoque_minimo=? WHERE id=?",
+        "UPDATE pecas SET nome=?, modelo=?, codigo=?, codigo_barras=?, quantidade=?, preco_compra=?, preco_venda=?, estoque_minimo=? WHERE id=?",
         [...params, form.id]
       );
       setForm(null);
     } else {
       const comandos = [
-        ["INSERT INTO pecas (nome, modelo, codigo, quantidade, preco_compra, preco_venda, estoque_minimo) VALUES (?,?,?,?,?,?,?)", params],
+        ["INSERT INTO pecas (nome, modelo, codigo, codigo_barras, quantidade, preco_compra, preco_venda, estoque_minimo) VALUES (?,?,?,?,?,?,?,?)", params],
       ];
       const qtdInicial = Number(form.quantidade) || 0;
       if (qtdInicial > 0) {
@@ -285,6 +292,8 @@ export default function Estoque({ dono = true }) {
         {campo("Produto", "nome", "text", "lista-produtos")}
         {campo("Modelo", "modelo", "text", "lista-modelos")}
         {campo("Código (gerado pelo tipo — pode editar)", "codigo")}
+        {/* Pistola de código de barras é teclado: clicar aqui e bipar já preenche. */}
+        {campo("Código de barras (opcional — clique aqui e bipe com a pistola)", "codigo_barras")}
         {/* sugestões vêm do que já existe: digitou algo novo, entra na lista no próximo cadastro */}
         <datalist id="lista-produtos">
           {[...new Set(pecas.map((p) => p.nome))].map((n) => <option key={n} value={n} />)}
@@ -322,7 +331,7 @@ export default function Estoque({ dono = true }) {
   const filtro = busca.trim().toLowerCase();
   const arquivados = pecas.filter((p) => p.arquivado).length;
   let visiveis = (mostrarArquivados ? pecas : pecas.filter((p) => !p.arquivado))
-    .filter((p) => !filtro || `${p.codigo} ${p.nome} ${p.modelo}`.toLowerCase().includes(filtro));
+    .filter((p) => !filtro || `${p.codigo} ${p.codigo_barras} ${p.nome} ${p.modelo}`.toLowerCase().includes(filtro));
 
   if (ordem) {
     const val = (p) => (ordem.col === "margem" ? p.preco_venda - p.preco_compra : p[ordem.col]);
@@ -381,7 +390,7 @@ export default function Estoque({ dono = true }) {
 
       {/* 60% produtos / 40% últimas entradas, cada um com rolagem própria */}
       <div style={{ flex: "6 1 0", overflow: "auto", minHeight: 0 }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 16 }}>
+      <table aria-label="Produtos" style={{ width: "100%", borderCollapse: "collapse", fontSize: 16 }}>
         <thead>
           <tr style={{ textAlign: "left", borderBottom: "2px solid #cbd5e1" }}>
             {COLUNAS.map(([h, col]) => (
@@ -421,7 +430,11 @@ export default function Estoque({ dono = true }) {
                   color: p.arquivado ? "#94a3b8" : undefined, // arquivado fica apagado na lista
                   background: flashId === p.id ? "#86efac" : p.arquivado ? "#f8fafc" : baixo ? "#fef2f2" : undefined }}
               >
-                <td style={{ padding: 8, color: "#64748b", fontFamily: "monospace", whiteSpace: "nowrap" }}>{p.codigo}</td>
+                <td style={{ padding: 8, color: "#64748b", fontFamily: "monospace", whiteSpace: "nowrap" }}>
+                  {p.codigo}
+                  {/* embaixo do código interno: é assim que o dono vê quem ainda falta bipar */}
+                  {p.codigo_barras && <div style={{ fontSize: 12, color: "#94a3b8" }}>{p.codigo_barras}</div>}
+                </td>
                 <td style={{ padding: 8, fontWeight: "bold" }}>
                   {p.nome} {baixo && <span style={{ color: "#dc2626" }} title="Estoque baixo">⚠</span>}
                 </td>

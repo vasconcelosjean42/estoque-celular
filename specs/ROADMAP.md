@@ -57,13 +57,15 @@ cliente: o carrinho (passo 12) muda a estrutura da venda, e o conceito de perda
 |---|-------|-----------------|------------|--------|
 | 23 | Linha de totais no topo do Estoque | 1 | — | 🔨 feito |
 | 24 | Colaborador faz e desfaz trocas, sem PIN | 2 | 15, 18 | 🔨 feito |
-| 25 | Código de barras (cadastro, filtros, bipar na venda) | 3 | 10 | ⏳ |
+| 25 | Código de barras (cadastro, filtros, bipar na venda) | 3 | 10 | 🔨 feito |
 
 ## Decisões tomadas em 2026-07-24
 
 - **Código do produto**: 2 letras do tipo + 3 dígitos sequenciais (`TE001`),
   automático e editável, prefixo estendido pra 3 letras quando colidir. Sem
-  código de barras.
+  código de barras. **Revisto em 2026-07-26 (passo 25)**: a loja comprou pistola,
+  e o código de barras entrou como campo próprio — o `TE001` continua sendo o
+  código da loja e a chave da importação por planilha.
 - **Dinheiro de troca bate no caixa**: diferença e estorno entram/saem do
   fechamento do dia com forma de pagamento.
 - **Fechamento do colaborador**: dia inteiro da loja, sem quebra por pessoa; a
