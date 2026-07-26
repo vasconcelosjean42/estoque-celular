@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const planilha = require("./planilha");
 
 // Smoke test (test/smoke.js): banco isolado num diretório temporário.
 if (process.env.ESTOQUE_DB_DIR) app.setPath("userData", process.env.ESTOQUE_DB_DIR);
@@ -71,6 +72,40 @@ app.whenReady().then(() => {
       })
     )()
   );
+
+  // Passo 22: lê a planilha no processo principal e devolve matriz de strings.
+  ipcMain.handle("abrir-planilha", async () => {
+    // O teste não consegue clicar num diálogo do sistema: aponta o arquivo por env.
+    let caminho = process.env.ESTOQUE_PLANILHA;
+    if (!caminho) {
+      const r = await dialog.showOpenDialog({
+        properties: ["openFile"],
+        filters: [{ name: "Planilha", extensions: ["xlsx", "csv"] }],
+      });
+      if (r.canceled) return null;
+      caminho = r.filePaths[0];
+    }
+    try {
+      return { nome: path.basename(caminho), linhas: planilha.ler(caminho, fs.readFileSync(caminho)) };
+    } catch (e) {
+      return { erro: e.message };
+    }
+  });
+
+  ipcMain.handle("salvar-planilha", async (_e, { sugestao, linhas }) => {
+    let destino = process.env.ESTOQUE_PLANILHA_SAIDA;
+    if (!destino) {
+      const r = await dialog.showSaveDialog({
+        defaultPath: sugestao,
+        filters: [{ name: "Planilha", extensions: ["xlsx"] }],
+      });
+      if (r.canceled) return null;
+      destino = r.filePath;
+    }
+    fs.writeFileSync(destino, planilha.escrever("Produtos", linhas));
+    if (!process.env.SMOKE) shell.openPath(destino);
+    return destino;
+  });
 
   ipcMain.handle("escolher-pasta", async () => {
     const r = await dialog.showOpenDialog({ properties: ["openDirectory"] });

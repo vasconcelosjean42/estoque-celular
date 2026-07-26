@@ -12,10 +12,17 @@ const path = require("path");
 
 (async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "estoque-p0-"));
+  // Passo 22: o diálogo de arquivo não dá pra clicar daqui. O app lê/escreve
+  // nestes caminhos fixos quando as env estão setadas; o teste troca o conteúdo.
+  const planilhaEntrada = path.join(tmp, "importar.xlsx");
+  const planilhaSaida = path.join(tmp, "exportado.xlsx");
   const app = await _electron.launch({
     args: ["."],
     cwd: path.join(__dirname, ".."),
-    env: { ...process.env, SMOKE: "1", ESTOQUE_DB_DIR: tmp },
+    env: {
+      ...process.env, SMOKE: "1", ESTOQUE_DB_DIR: tmp,
+      ESTOQUE_PLANILHA: planilhaEntrada, ESTOQUE_PLANILHA_SAIDA: planilhaSaida,
+    },
   });
   const win = await app.firstWindow();
   const erros = [];
@@ -1603,6 +1610,145 @@ const path = require("path");
       await win.click('tr:has-text("C125") button:text-is("Excluir")');
       await win.waitForTimeout(500);
       assert.strictEqual(await peca(id), undefined, "arquivar não substituiu o excluir");
+    });
+
+    console.log("\nImportação de produtos (passo 22)");
+
+    const planilha = require("../electron/planilha.js");
+    // Escreve a planilha que o app vai ler e abre a tela de importação.
+    const importar = async (linhas) => {
+      fs.writeFileSync(planilhaEntrada, planilha.escrever("Produtos", linhas));
+      await recarregar("Config");
+      await win.click('button:text("Importar planilha…")');
+      await win.click('button:text("Escolher planilha…")');
+      await win.waitForSelector("text=nada é gravado até você confirmar", { timeout: 8000 });
+    };
+    const confirmar = async () => {
+      await win.click('button[aria-label="Confirmar importação"]');
+      await win.waitForSelector("text=nada é gravado até você confirmar", { state: "detached", timeout: 8000 });
+    };
+    const CAB = ["Tipo", "Modelo", "Qtd", "Preço de compra", "Preço de venda"];
+
+    await caso("126. importa produtos novos com código gerado e grava a entrada", async () => {
+      await importar([CAB,
+        ["Zcabo", "C126 UM", 10, 12, 30],
+        ["Zcabo", "C126 DOIS", 5, 15, 35],
+      ]);
+      assert(await win.locator("text=Produtos novos (2)").count(), "os dois entram como novos");
+      await confirmar();
+
+      const a = await um("SELECT * FROM pecas WHERE modelo = 'C126 UM'");
+      assert.strictEqual(a.nome, "Zcabo");
+      assert.strictEqual(a.quantidade, 10);
+      assert.strictEqual(a.preco_compra, 1200, "preço em centavos");
+      assert.strictEqual(a.preco_venda, 3000);
+      assert(/^ZC\d{3}$/.test(a.codigo), `código devia sair do tipo: ${a.codigo}`);
+      const e = await um("SELECT * FROM entradas WHERE peca_id = ?", [a.id]);
+      assert(e, "importação tem que gravar entrada");
+      assert.strictEqual(e.quantidade, 10);
+      assert(e.observacao.startsWith("importação"), e.observacao);
+    });
+
+    await caso("127. importar de novo soma estoque e recalcula o custo médio", async () => {
+      const antes = await um("SELECT * FROM pecas WHERE modelo = 'C126 UM'"); // 10 un a 12,00
+      await importar([CAB, ["Zcabo", "C126 UM", 10, 20, 30]]); // mais 10 a 20,00
+      assert(await win.locator("text=Só somam estoque (1)").count(), "casou pelo nome");
+      await confirmar();
+      const p = await um("SELECT * FROM pecas WHERE modelo = 'C126 UM'");
+      assert.strictEqual(p.id, antes.id, "não pode criar produto novo");
+      assert.strictEqual(p.quantidade, 20);
+      assert.strictEqual(p.preco_compra, 1600, "média de 10 a 12,00 com 10 a 20,00");
+    });
+
+    await caso("128. C/A e COM ARO casam como o mesmo produto", async () => {
+      await importar([CAB, ["Ztela", "C128 C/A DIAMONDS", 3, 50, 90]]);
+      await confirmar();
+      // O fornecedor escreve das duas formas no mesmo arquivo: não pode duplicar.
+      await importar([CAB, ["Ztela", "C128 COM ARO DIAMONDS", 2, 50, 90]]);
+      assert(await win.locator("text=Só somam estoque (1)").count(), "tem que reconhecer como o mesmo");
+      await confirmar();
+      const iguais = await sql("SELECT * FROM pecas WHERE modelo LIKE 'C128%'");
+      assert.strictEqual(iguais.length, 1, "não pode ter criado um segundo");
+      assert.strictEqual(iguais[0].quantidade, 5);
+    });
+
+    await caso("129. preço divergente vem primeiro e só muda se mandar atualizar", async () => {
+      await importar([CAB, ["Zcabo", "C129", 4, 10, 40]]);
+      await confirmar();
+      await importar([CAB, ["Zcabo", "C129", 4, 10, 55]]); // preço de venda diferente
+      const cabecalhos = await win.locator('td[colspan="5"]').allInnerTexts();
+      assert(cabecalhos[0].includes("Preço diferente"), `divergente devia vir primeiro: ${cabecalhos[0]}`);
+      assert(await win.locator("text=R$ 40,00 → R$ 55,00").count(), "mostra de → para");
+      await confirmar(); // padrão é "manter"
+      assert.strictEqual((await um("SELECT preco_venda FROM pecas WHERE modelo = 'C129'")).preco_venda, 4000,
+        "manter não pode mexer no preço");
+
+      await importar([CAB, ["Zcabo", "C129", 4, 10, 55]]);
+      await win.click('button:text("atualizar todos")');
+      await confirmar();
+      assert.strictEqual((await um("SELECT preco_venda FROM pecas WHERE modelo = 'C129'")).preco_venda, 5500,
+        "atualizar tem que gravar o preço novo");
+    });
+
+    await caso("130. linha CANCELADA é ignorada e produto novo sem preço fica de fora", async () => {
+      await importar([
+        ["Tipo", "Modelo", "Qtd", "Preço de compra", "Preço de venda", "Status"],
+        ["Zcabo", "C130 OK", 5, 10, 25, "OK"],
+        ["Zcabo", "C130 CANCELADO", 5, 10, 25, "CANCELADO"],
+        ["Zcabo", "C130 SEM PRECO", 5, 10, "", "OK"],
+      ]);
+      assert(await win.locator("text=1 cancelados").count(), "conta o cancelado");
+      assert(await win.locator("text=produto novo sem preço de venda").count(), "acusa a pendência");
+      await confirmar();
+      assert(await um("SELECT id FROM pecas WHERE modelo = 'C130 OK'"));
+      assert.strictEqual(await um("SELECT id FROM pecas WHERE modelo = 'C130 CANCELADO'"), undefined);
+      assert.strictEqual(await um("SELECT id FROM pecas WHERE modelo = 'C130 SEM PRECO'"), undefined);
+    });
+
+    await caso("131. com a coluna Código casa mesmo depois de renomear o produto", async () => {
+      await importar([CAB, ["Ztela", "C131 ORIGINAL", 6, 40, 80]]);
+      await confirmar();
+      const p = await um("SELECT * FROM pecas WHERE modelo = 'C131 ORIGINAL'");
+      await sql("UPDATE pecas SET modelo = 'C131 renomeada na mão' WHERE id = ?", [p.id]);
+      // É esse o motivo de existir a coluna Código: nome mudou, o vínculo não.
+      await importar([["Código", ...CAB], [p.codigo, "Ztela", "C131 ORIGINAL", 4, 40, 80]]);
+      assert(await win.locator("text=Só somam estoque (1)").count(), "casou pelo código");
+      await confirmar();
+      const depois = await um("SELECT * FROM pecas WHERE id = ?", [p.id]);
+      assert.strictEqual(depois.quantidade, 10, "somou no produto certo");
+      assert.strictEqual(depois.modelo, "C131 renomeada na mão", "importação não renomeia o cadastro");
+      assert.strictEqual((await sql("SELECT id FROM pecas WHERE modelo = 'C131 ORIGINAL'")).length, 0,
+        "e não criou duplicata");
+    });
+
+    await caso("132. desfazer a entrada da importação reverte quantidade e custo", async () => {
+      await importar([CAB, ["Zcabo", "C132", 8, 10, 30]]);
+      await confirmar();
+      const p = await um("SELECT * FROM pecas WHERE modelo = 'C132'");
+      await importar([CAB, ["Zcabo", "C132", 8, 30, 30]]); // custo bem diferente
+      await confirmar();
+      const meio = await um("SELECT * FROM pecas WHERE id = ?", [p.id]);
+      assert.strictEqual(meio.quantidade, 16);
+      assert.strictEqual(meio.preco_compra, 2000, "média de 8 a 10,00 com 8 a 30,00");
+
+      await recarregar("Estoque");
+      await win.click('tr:has-text("C132") button:text-is("Desfazer")');
+      await win.waitForTimeout(600);
+      const volta = await um("SELECT * FROM pecas WHERE id = ?", [p.id]);
+      assert.strictEqual(volta.quantidade, 8, "quantidade volta");
+      assert.strictEqual(volta.preco_compra, 1000, "e o custo também");
+    });
+
+    await caso("133. planilha do estoque sai com Código e reimporta casando por ele", async () => {
+      await recarregar("Config");
+      await win.click('button:text("Baixar planilha do estoque")');
+      await win.waitForTimeout(800);
+      const linhas = planilha.ler(planilhaSaida, fs.readFileSync(planilhaSaida));
+      assert.deepStrictEqual(linhas[0], ["Código", "Tipo", "Modelo", "Qtd", "Preço de compra", "Preço de venda"]);
+      const c132 = linhas.find((l) => l[2] === "C132");
+      assert(c132, "o estoque exportado tem que trazer os produtos");
+      assert.strictEqual(c132[3], "8");
+      assert.strictEqual(c132[4], "10", "preço sai em reais, não em centavos");
     });
 
     console.log("\nEstoque e entradas");

@@ -47,7 +47,7 @@ cliente: o carrinho (passo 12) muda a estrutura da venda, e o conceito de perda
 | 19 | Crédito parcial do lote (total ou item a item) | 4 | 16 | ✅ aprovado |
 | 20 | Detalhe do lote item a item | 5 | 16, 19 | ✅ aprovado (no bloco Lotes, não no histórico de crédito) |
 | 21 | Arquivar produto fora de linha | — (cortesia) | — | ✅ aprovado |
-| 22 | Importação de produtos por planilha | — (pedido 2026-07-26) | 10, 6b | 📝 spec |
+| 22 | Importação de produtos por planilha | — (pedido 2026-07-26) | 10, 6b | 🔨 feito, aguardando teste |
 
 ## Decisões tomadas em 2026-07-24
 

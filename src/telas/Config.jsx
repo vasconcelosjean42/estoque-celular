@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Clientes from "./Clientes.jsx";
+import Importacao, { gravarImportacao } from "./Importacao.jsx";
 
 export const lerConfig = async () => {
   const linhas = await window.api.query("SELECT chave, valor FROM config");
@@ -35,6 +36,8 @@ export default function Config({ aoMudar }) {
   const [pin, setPin] = useState("");
   const [usuarios, setUsuarios] = useState([]);
   const [novoUsuario, setNovoUsuario] = useState(null); // { nome, pin, papel }
+  const [importando, setImportando] = useState(false);
+  const [pecasImport, setPecasImport] = useState([]); // estoque atual, p/ casar na importação
   const [appInfo, setAppInfo] = useState(null); // { versao, empacotado }
   const [upd, setUpd] = useState(null); // status do update vindo do main
 
@@ -82,6 +85,28 @@ export default function Config({ aoMudar }) {
     const p = valor.replace(/\D/g, "").slice(0, 4);
     setUsuarios(usuarios.map((x) => (x.id === u.id ? { ...x, pin: p } : x)));
     if (/^\d{4}$/.test(p)) await window.api.query("UPDATE usuarios SET pin = ? WHERE id = ?", [p, u.id]);
+  };
+
+  // Cabeçalho igual ao que a importação espera; as 3 linhas são só pra ele ver
+  // o formato. O arquivo do estoque leva a coluna Código na frente.
+  const baixarModelo = () =>
+    window.api.salvarPlanilha("modelo-importacao.xlsx", [
+      ["Tipo", "Modelo", "Qtd", "Preço de compra", "Preço de venda"],
+      ["Tela", "A01 C/A DIAMONDS", 20, 55, 65],
+      ["Tela", "A02 / A12 / A32 5G DIAMONDS", 32, 43, 55],
+      ["Bateria", "iPhone 11", 10, 38, 90],
+    ]);
+
+  const baixarEstoque = async () => {
+    const pecas = await window.api.query(
+      "SELECT codigo, nome, modelo, quantidade, preco_compra, preco_venda FROM pecas WHERE arquivado = 0 ORDER BY nome, modelo"
+    );
+    const hoje = new Date();
+    const dia = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
+    await window.api.salvarPlanilha(`estoque-${dia}.xlsx`, [
+      ["Código", "Tipo", "Modelo", "Qtd", "Preço de compra", "Preço de venda"],
+      ...pecas.map((p) => [p.codigo, p.nome, p.modelo, p.quantidade, p.preco_compra / 100, p.preco_venda / 100]),
+    ]);
   };
 
   // É o PIN de permissão que identifica quem liberou o desconto, então repetido
@@ -369,6 +394,34 @@ export default function Config({ aoMudar }) {
       </div>
 
       <div style={bloco}>
+        <h3 style={{ marginTop: 0 }}>Importação de produtos</h3>
+        <div style={{ fontSize: 14, color: "#64748b", marginBottom: 10 }}>
+          Cadastra e repõe estoque a partir de uma planilha. Produto que já existe soma
+          estoque; produto novo é criado. Você revê item a item antes de gravar.
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button style={{ ...btn, background: "#38bdf8", color: "#0f172a" }}
+            onClick={async () => {
+              setPecasImport(await window.api.query("SELECT * FROM pecas"));
+              setImportando(true);
+            }}>
+            Importar planilha…
+          </button>
+          <button style={{ ...btn, background: "#e2e8f0", color: "#334155" }} onClick={baixarModelo}>
+            Baixar planilha modelo
+          </button>
+          <button style={{ ...btn, background: "#e2e8f0", color: "#334155" }} onClick={baixarEstoque}>
+            Baixar planilha do estoque
+          </button>
+        </div>
+        <div style={{ fontSize: 14, color: "#64748b", marginTop: 10 }}>
+          Use a <strong>planilha do estoque</strong> a partir da segunda importação: ela já vem
+          com a coluna Código, e aí o produto certo é encontrado mesmo que você tenha renomeado
+          ele aqui dentro.
+        </div>
+      </div>
+
+      <div style={bloco}>
         <h3 style={{ marginTop: 0 }}>Clientes</h3>
         <div style={{ fontSize: 14, color: "#64748b", marginBottom: 10 }}>
           Clique no nome pra ver o que o cliente já comprou.
@@ -525,6 +578,17 @@ export default function Config({ aoMudar }) {
             )}
           </div>
         </div>
+      )}
+
+      {importando && (
+        <Importacao
+          pecas={pecasImport}
+          aoFechar={() => setImportando(false)}
+          aoImportar={async (itens, arquivo) => {
+            await gravarImportacao(itens, arquivo);
+            alert(`${itens.length} produto(s) importado(s).`);
+          }}
+        />
       )}
     </div>
   );

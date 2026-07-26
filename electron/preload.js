@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("api", {
   query: (sql, params) => ipcRenderer.invoke("db", sql, params),
   tx: (comandos) => ipcRenderer.invoke("db-tx", comandos),
+  abrirPlanilha: () => ipcRenderer.invoke("abrir-planilha"),
+  salvarPlanilha: (sugestao, linhas) => ipcRenderer.invoke("salvar-planilha", { sugestao, linhas }),
   escolherPasta: () => ipcRenderer.invoke("escolher-pasta"),
   escolherLogo: () => ipcRenderer.invoke("escolher-logo"),
   backupAgora: () => ipcRenderer.invoke("backup-agora"),
