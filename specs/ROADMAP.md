@@ -56,7 +56,7 @@ cliente: o carrinho (passo 12) muda a estrutura da venda, e o conceito de perda
 | # | Passo | Item do cliente | Depende de | Status |
 |---|-------|-----------------|------------|--------|
 | 23 | Linha de totais no topo do Estoque | 1 | — | 🔨 feito |
-| 24 | Colaborador faz e desfaz trocas, sem PIN | 2 | 15, 18 | ⏳ |
+| 24 | Colaborador faz e desfaz trocas, sem PIN | 2 | 15, 18 | 🔨 feito |
 | 25 | Código de barras (cadastro, filtros, bipar na venda) | 3 | 10 | ⏳ |
 
 ## Decisões tomadas em 2026-07-24

@@ -2180,8 +2180,43 @@ const path = require("path");
       await win.click('button:text-is("Limpar carrinho")');
     });
 
-    await caso("29. colaborador não vê o botão Trocar nas vendas", async () => {
-      assert.strictEqual(await win.locator('button:text-is("Trocar")').count(), 0);
+    // Passo 24: o que antes era proibido pro colaborador virou rotina dele.
+    await caso("29. colaborador troca pela Venda, sem PIN, e volta pra Venda ao salvar", async () => {
+      const a = await novaPeca("T24A", 5, 10000, 20000);
+      const b = await novaPeca("T24B", 5, 10000, 20000);
+      await recarregar("Venda");
+      await aoCarrinho("T24A");
+      await win.click('button:text("Finalizar venda")');
+      await confirmarVenda();
+      const pid = (await vendasDe(a))[0].pedido_id;
+
+      await win.click(`#pedido-${pid} button:text-is("Trocar")`);
+      await win.waitForSelector("text=Estado da peça devolvida", { timeout: 8000 });
+      assert.strictEqual(await win.locator('input[type="password"]').count(), 0, "troca não pede PIN");
+      assert.strictEqual(await win.locator('label:has-text("Valor de compra") input').count(), 0,
+        "colaborador não pode ver o custo da peça");
+      await win.click('button:text-is("Funcionando")');
+      await win.selectOption('label:has-text("Trocar por") select', String(b));
+      await win.click('button:text-is("Salvar")');
+
+      // Salvou → volta pra Venda. A prateleira/lotes continuam sendo só do dono.
+      await win.waitForSelector('input[placeholder*="Buscar peça por código"]', { timeout: 8000 });
+      assert.strictEqual(await win.locator("text=Prateleira").count(), 0, "colaborador não pode cair na tela de Trocas");
+      // A: 5 −1 da venda +1 da devolução boa = 5. B: 5 −1 da reposição = 4.
+      assert.strictEqual((await peca(a)).quantidade, 5, "a devolvida volta ao estoque");
+      assert.strictEqual((await peca(b)).quantidade, 4, "a reposição sai do estoque");
+      assert(await um("SELECT id FROM trocas WHERE peca_id = ?", [a]), "a troca tem que ter sido gravada");
+    });
+
+    await caso("29b. colaborador desfaz a troca que fez", async () => {
+      const a = await um("SELECT * FROM pecas WHERE nome = 'T24A'");
+      const b = await um("SELECT * FROM pecas WHERE nome = 'T24B'");
+      await recarregar("Venda");
+      await win.click('tr:has-text("trocado por 1x T24B") button:text-is("Desfazer")');
+      await win.waitForTimeout(500);
+      assert.strictEqual((await peca(a.id)).quantidade, 4, "volta ao estado logo depois da venda");
+      assert.strictEqual((await peca(b.id)).quantidade, 5, "a reposição volta pro estoque");
+      assert.strictEqual(await um("SELECT id FROM trocas WHERE peca_id = ?", [a.id]), undefined);
     });
 
     // Toda falha de SQL passa pelo handler global (src/main.jsx) e vira console.error:

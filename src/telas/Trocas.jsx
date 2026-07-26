@@ -9,7 +9,7 @@ const bloco = { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius
 
 const FORM_VAZIO = { peca_id: "", modelo: "", defeito: "", observacao: "", valor: "", fornecedor: "", entregueiNova: false, defeituosa: true, perda: false, formaDif: "", estornar: false, estornoValor: "" };
 
-export default function Trocas({ vendaTroca, aoConsumir }) {
+export default function Trocas({ vendaTroca, aoConsumir, dono = true, aoSair }) {
   const [pecas, setPecas] = useState([]);
   const [prateleira, setPrateleira] = useState([]);
   const [lotes, setLotes] = useState([]);
@@ -166,9 +166,12 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
       comandos.push(["UPDATE pecas SET quantidade = quantidade + 1 WHERE id = ?", [form.peca_id]]);
     }
     await window.api.tx(comandos);
-    setForm(null);
+    fechar();
     carregar();
   };
+
+  // Colaborador não tem esta tela: sair do formulário devolve ele pra Venda.
+  const fechar = () => (dono ? setForm(null) : aoSair());
 
   const excluir = async (t) => {
     if (!confirm(`Excluir "${t.modelo} — ${t.defeito}" da prateleira?`)) return;
@@ -278,6 +281,8 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
     });
   };
 
+  if (!dono && !form) return null; // fração de segundo entre salvar e voltar pra Venda
+
   if (form) {
     const novaPeca = form.travada ? pecas.find((p) => p.id === Number(form.trocarPor)) : null;
     const dif = novaPeca ? novaPeca.preco_venda - form.precoPago : 0;
@@ -323,7 +328,7 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
             {form.perda && (
               <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 15, color: "#991b1b" }}>
                 Peça sem troca com fornecedor: a loja come o prejuízo. Entra em Perdas pelo preço de
-                compra {form.valor && `(${fmtReais(parseReais(form.valor) || 0)})`}, não vai pra prateleira.
+                compra {dono && form.valor && `(${fmtReais(parseReais(form.valor) || 0)})`}, não vai pra prateleira.
               </div>
             )}
           </>
@@ -331,7 +336,8 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
         {[...(form.peca_id ? [] : [["Modelo", "modelo"]]),
           ...(form.defeituosa ? [["Defeito", "defeito"]] : []),
           [form.perda && form.defeituosa ? "Motivo da perda" : "Observação (opcional)", "observacao"],
-          ["Valor de compra (R$)", "valor"]].map(([rotulo, chave]) => (
+          // Custo é do dono. O valor continua indo pro banco: veio congelado da venda.
+          ...(dono ? [["Valor de compra (R$)", "valor"]] : [])].map(([rotulo, chave]) => (
           <label key={chave} style={{ display: "block", marginBottom: 12 }}>
             <div style={{ fontWeight: "bold", marginBottom: 4 }}>{rotulo}</div>
             <input style={inp} value={form[chave]} onChange={(e) => setForm({ ...form, [chave]: e.target.value })} />
@@ -428,7 +434,7 @@ export default function Trocas({ vendaTroca, aoConsumir }) {
         )}
         <div style={{ display: "flex", gap: 8 }}>
           <button style={{ ...btn, background: "#22c55e", color: "white", flex: 1 }} onClick={salvar}>Salvar</button>
-          <button style={{ ...btn, background: "#e2e8f0" }} onClick={() => setForm(null)}>Cancelar</button>
+          <button style={{ ...btn, background: "#e2e8f0" }} onClick={fechar}>Cancelar</button>
         </div>
       </div>
     );

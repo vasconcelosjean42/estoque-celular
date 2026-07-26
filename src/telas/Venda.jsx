@@ -397,13 +397,12 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
     setAbertos(s);
   };
 
+  // Passo 24: troca é rotina de balcão — o colaborador também troca e desfaz.
   const acoesTroca = (v) => (
-    dono && (
-      <button style={{ ...btnMini, background: "#fef3c7", color: "#b45309", marginRight: 6 }}
-        onClick={() => aoTrocar({ venda_id: v.id, peca_id: v.peca_id, nome: v.nome, modelo: v.modelo, preco_compra: v.preco_compra, preco_venda: v.preco_venda })}>
-        Trocar
-      </button>
-    )
+    <button style={{ ...btnMini, background: "#fef3c7", color: "#b45309", marginRight: 6 }}
+      onClick={() => aoTrocar({ venda_id: v.id, peca_id: v.peca_id, nome: v.nome, modelo: v.modelo, preco_compra: v.preco_compra, preco_venda: v.preco_venda })}>
+      Trocar
+    </button>
   );
 
   const linhasTroca = (v) => {
@@ -434,7 +433,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
           <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
             {t.lote_id ? (
               <span style={{ color: "#64748b", fontSize: 14 }}>no lote #{t.lote_id}</span>
-            ) : ultima && dono ? (
+            ) : ultima ? (
               <>
                 <button style={{ ...btnMini, background: "#fef3c7", color: "#b45309", marginRight: 6 }}
                   onClick={() => aoTrocar({ venda_id: t.venda_id, peca_id: t.nova_peca_id, nome: t.nova_nome, modelo: t.nova_modelo, preco_compra: t.nova_compra, preco_venda: t.nova_preco })}>

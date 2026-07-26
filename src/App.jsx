@@ -72,7 +72,9 @@ export default function App() {
           : tela === "Venda" ? <Venda maoDeObraOn={cfg.mao_de_obra !== "0"} dono={dono} cfg={cfg} usuario={usuario} aoTrocar={(v) => { setTrocaDe(v); setTela("Trocas"); }} />
           : tela === "Fechamento" ? <Fechamento destaque />
           : tela === "Dashboard" ? <Dashboard />
-          : tela === "Trocas" ? <Trocas vendaTroca={trocaDe} aoConsumir={() => setTrocaDe(null)} />
+          // Colaborador chega aqui só pelo botão Trocar da venda: vê o formulário
+          // da troca e volta pra Venda ao terminar, sem a gestão de lotes.
+          : tela === "Trocas" ? <Trocas vendaTroca={trocaDe} aoConsumir={() => setTrocaDe(null)} dono={dono} aoSair={() => setTela("Venda")} />
           : tela === "Config" ? <Config aoMudar={carregarCfg} />
           : <h1>{tela}</h1>}
       </main>
