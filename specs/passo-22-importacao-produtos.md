@@ -45,7 +45,18 @@ são **ignoradas sem reclamar** — o pedido do fornecedor tem várias, e todas
 repetem o que já está no nome ou são derivadas.
 
 `.xlsx` e `.csv`. O `.xlsx` é lido sem dependência nova: é um zip com XML e o
-Node já traz o `zlib` (provado ao montar `produtos-importacao-modelo.xlsx`).
+Node já traz o `zlib` (provado ao montar `modelo-importacao.xlsx`).
+
+### Onde ele vê o formato antes de importar
+
+A Config ganha **"Baixar planilha modelo"**, que entrega
+`src/assets/produtos/modelo-importacao.xlsx` — as 5 colunas com os 214 produtos
+reais dele dentro, não um exemplo inventado. Ele abre, vê o formato, e já pode
+usar como base.
+
+Junto, **"Baixar planilha do estoque"**, que gera o mesmo formato **mais a
+coluna `Código`**, preenchido com o estoque atual. É esse o arquivo que ele deve
+usar da segunda importação em diante (ver casamento, abaixo).
 
 ### Por que `Tipo` é obrigatório
 
@@ -67,10 +78,9 @@ Nenhum casamento é definitivo antes da revisão: a tela deixa trocar "novo" por
 
 ### Como o código chega até ele na prática
 
-Ele nunca digita código. O app ganha **"Baixar planilha do estoque"**, que gera
-um arquivo já preenchido com `Código`, `Tipo`, `Modelo`, quantidade atual e
-preços. No próximo pedido ele preenche as quantidades novas nesse arquivo, e o
-casamento passa a ser exato.
+Ele nunca digita código. Usa o "Baixar planilha do estoque" descrito acima, que
+já vem com a coluna `Código` preenchida, e só troca as quantidades pelas do
+pedido novo. O casamento passa a ser exato.
 
 Vale porque **renomear quebra o casamento por nome**: se ele trocar
 `A01 C/A DIAMONDS` por `Tela A01 com aro`, a importação seguinte criaria
@@ -125,7 +135,7 @@ tem "desfazer entrada" item a item, revertendo quantidade e custo.
 
 ## Como testar
 
-1. Importar `produtos-importacao-modelo.xlsx` num banco vazio → 214 novos, todos
+1. Importar `modelo-importacao.xlsx` num banco vazio → 214 novos, todos
    `Tela`, códigos `TE001…TE214`, estoque somando **2862**.
 2. Importar o **mesmo arquivo de novo** → 214 linhas em "soma estoque", nenhum
    novo, estoque vai a 5724 e cada produto ganha uma segunda entrada.
