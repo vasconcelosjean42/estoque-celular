@@ -46,7 +46,7 @@ cliente: o carrinho (passo 12) muda a estrutura da venda, e o conceito de perda
 | 18 | Estorno (devolver o dinheiro) | 10 | 15, 17 | ✅ aprovado |
 | 19 | Crédito parcial do lote (total ou item a item) | 4 | 16 | ✅ aprovado |
 | 20 | Detalhe do lote item a item | 5 | 16, 19 | ✅ aprovado (no bloco Lotes, não no histórico de crédito) |
-| 21 | Arquivar produto fora de linha | — (cortesia) | — | 🔨 feito, aguardando teste |
+| 21 | Arquivar produto fora de linha | — (cortesia) | — | ✅ aprovado |
 
 ## Decisões tomadas em 2026-07-24
 
