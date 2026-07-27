@@ -22,6 +22,20 @@ Sistema desktop de controle de estoque, vendas e trocas para uma loja de peças,
 
 Cliente chega para trocar tela do Note 10. Tela no estoque: compra R$100, venda R$200. Operador busca "note 10" → vende → estoque -1, venda +R$200, lucro +R$100, entra na semana/mês/ano e no histórico.
 
+## Toda atualização entra no mural
+
+Antes de gerar build de uma versão nova, **a versão entra em `src/novidades.js`**,
+no topo da lista, com data e o que mudou. Esse arquivo é o mural que aparece na
+Config, dentro do bloco "Sobre / Atualização" — o app se atualiza sozinho, então
+é o único lugar onde o cliente descobre o que veio na atualização.
+
+Como escrever: **linguagem de loja**, o que ele passa a conseguir fazer. Nada de
+nome de arquivo, tabela, coluna ou "passo 24". Uma linha por mudança que ele
+percebe; correção interna que ninguém vê não precisa entrar.
+
+Junto com isso: subir a `version` do `package.json` (é ela que a Config mostra
+como "instalada" e a que o electron-updater compara).
+
 ## Regras de código
 
 - Ladder ponytail: menor solução que funciona, sem abstração especulativa.

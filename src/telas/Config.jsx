@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Clientes from "./Clientes.jsx";
 import Importacao, { gravarImportacao } from "./Importacao.jsx";
+import NOVIDADES from "../novidades.js";
 
 export const lerConfig = async () => {
   const linhas = await window.api.query("SELECT chave, valor FROM config");
@@ -299,6 +300,33 @@ export default function Config({ aoMudar }) {
             {upd && <div style={{ marginTop: 8, fontSize: 15, color: upd.estado === "erro" ? "#dc2626" : "#334155" }}>{textoUpdate(upd)}</div>}
           </>
         )}
+
+        {/* Mural de atualizações: o app se atualiza sozinho, então é aqui que o
+            cliente descobre o que mudou. src/novidades.js é a fonte. */}
+        <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 16, paddingTop: 12 }}>
+          <h4 style={{ margin: "0 0 8px" }}>O que mudou nas atualizações</h4>
+          <div aria-label="Novidades das versões" style={{ maxHeight: 240, overflow: "auto", paddingRight: 4 }}>
+            {NOVIDADES.map((v) => {
+              const instalada = appInfo && v.versao === appInfo.versao;
+              return (
+                <div key={v.versao} style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 15, fontWeight: "bold", color: instalada ? "#0f172a" : "#64748b" }}>
+                    Versão {v.versao}
+                    <span style={{ fontWeight: "normal", color: "#94a3b8" }}> — {v.data}</span>
+                    {instalada && (
+                      <span style={{ marginLeft: 6, background: "#dcfce7", color: "#16a34a", borderRadius: 4, padding: "1px 6px", fontSize: 12 }}>
+                        instalada
+                      </span>
+                    )}
+                  </div>
+                  <ul style={{ margin: "4px 0 0", paddingLeft: 20, fontSize: 15, color: "#334155" }}>
+                    {v.itens.map((i) => <li key={i} style={{ marginBottom: 2 }}>{i}</li>)}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       <div style={bloco}>

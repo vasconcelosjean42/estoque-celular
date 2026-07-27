@@ -2077,6 +2077,22 @@ const path = require("path");
       await sql("UPDATE pecas SET quantidade = 5 WHERE modelo = 'B25A'");
     });
 
+    await caso("145. Config mostra o mural de novidades, com a versão instalada marcada", async () => {
+      const versao = require("../package.json").version;
+      // novidades.js é ESM (o Vite importa): lê como texto pra conferir a regra do
+      // AGENTS.md — a versão do package.json é sempre a primeira do mural.
+      const fonte = fs.readFileSync(path.join(__dirname, "../src/novidades.js"), "utf8");
+      assert.strictEqual(fonte.match(/versao:\s*"([^"]+)"/)[1], versao,
+        "a versão do package.json tem que estar no topo de src/novidades.js");
+      await recarregar("Config");
+      const mural = win.locator('[aria-label="Novidades das versões"]');
+      await mural.waitFor({ timeout: 8000 });
+      const texto = await mural.innerText();
+      assert(texto.includes(`Versão ${versao}`), `o mural tem que abrir na versão atual: ${texto.slice(0, 120)}`);
+      assert(texto.includes("instalada"), "a versão instalada tem que estar marcada");
+      assert((await mural.locator("li").count()) > 0, "a versão tem que listar o que mudou");
+    });
+
     console.log("\nPainel de desenvolvedor");
 
     await caso("39. desativar demo apaga o fictício e preserva o real por cima dele", async () => {
