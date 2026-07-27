@@ -2077,20 +2077,31 @@ const path = require("path");
       await sql("UPDATE pecas SET quantidade = 5 WHERE modelo = 'B25A'");
     });
 
-    await caso("145. Config mostra o mural de novidades, com a versão instalada marcada", async () => {
+    await caso("145. Config mostra o board só da última versão, e fechar guarda que ele viu", async () => {
       const versao = require("../package.json").version;
       // novidades.js é ESM (o Vite importa): lê como texto pra conferir a regra do
-      // AGENTS.md — a versão do package.json é sempre a primeira do mural.
+      // AGENTS.md — a versão do package.json é sempre a primeira da lista.
       const fonte = fs.readFileSync(path.join(__dirname, "../src/novidades.js"), "utf8");
-      assert.strictEqual(fonte.match(/versao:\s*"([^"]+)"/)[1], versao,
-        "a versão do package.json tem que estar no topo de src/novidades.js");
+      const versoes = [...fonte.matchAll(/versao:\s*"([^"]+)"/g)].map((m) => m[1]);
+      assert.strictEqual(versoes[0], versao, "a versão do package.json tem que estar no topo de src/novidades.js");
+
+      await sql("DELETE FROM config WHERE chave = 'novidades_vistas'");
       await recarregar("Config");
-      const mural = win.locator('[aria-label="Novidades das versões"]');
-      await mural.waitFor({ timeout: 8000 });
-      const texto = await mural.innerText();
-      assert(texto.includes(`Versão ${versao}`), `o mural tem que abrir na versão atual: ${texto.slice(0, 120)}`);
-      assert(texto.includes("instalada"), "a versão instalada tem que estar marcada");
-      assert((await mural.locator("li").count()) > 0, "a versão tem que listar o que mudou");
+      const board = win.locator('[aria-label="Novidades da versão"]');
+      await board.waitFor({ timeout: 8000 });
+      const texto = await board.innerText();
+      assert(texto.includes(`Novidades da versão ${versao}`), `board da versão atual: ${texto.slice(0, 120)}`);
+      assert((await board.locator("li").count()) > 0, "tem que listar o que mudou");
+      // Versão antiga não pode aparecer junto: o board é sempre um só.
+      assert(!texto.includes(versoes[1]), `só a última versão no board: ${texto.slice(0, 200)}`);
+
+      await win.click('button[aria-label="Fechar novidades"]');
+      await win.waitForTimeout(400);
+      assert.strictEqual(await board.count(), 0, "fechar tem que sumir com o board");
+      assert.strictEqual((await um("SELECT valor FROM config WHERE chave = 'novidades_vistas'")).valor, versao,
+        "a versão vista fica gravada, senão o board volta a cada abertura");
+      await recarregar("Config");
+      assert.strictEqual(await board.count(), 0, "e continua fechado depois de sair e voltar da tela");
     });
 
     console.log("\nPainel de desenvolvedor");

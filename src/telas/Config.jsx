@@ -301,32 +301,29 @@ export default function Config({ aoMudar }) {
           </>
         )}
 
-        {/* Mural de atualizações: o app se atualiza sozinho, então é aqui que o
-            cliente descobre o que mudou. src/novidades.js é a fonte. */}
-        <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 16, paddingTop: 12 }}>
-          <h4 style={{ margin: "0 0 8px" }}>O que mudou nas atualizações</h4>
-          <div aria-label="Novidades das versões" style={{ maxHeight: 240, overflow: "auto", paddingRight: 4 }}>
-            {NOVIDADES.map((v) => {
-              const instalada = appInfo && v.versao === appInfo.versao;
-              return (
-                <div key={v.versao} style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 15, fontWeight: "bold", color: instalada ? "#0f172a" : "#64748b" }}>
-                    Versão {v.versao}
-                    <span style={{ fontWeight: "normal", color: "#94a3b8" }}> — {v.data}</span>
-                    {instalada && (
-                      <span style={{ marginLeft: 6, background: "#dcfce7", color: "#16a34a", borderRadius: 4, padding: "1px 6px", fontSize: 12 }}>
-                        instalada
-                      </span>
-                    )}
-                  </div>
-                  <ul style={{ margin: "4px 0 0", paddingLeft: 20, fontSize: 15, color: "#334155" }}>
-                    {v.itens.map((i) => <li key={i} style={{ marginBottom: 2 }}>{i}</li>)}
-                  </ul>
-                </div>
-              );
-            })}
+        {/* Board da ÚLTIMA atualização, e só dela. O app se atualiza sozinho, então
+            é aqui que o cliente descobre o que mudou. Fechar guarda a versão vista;
+            a próxima atualização ocupa o mesmo lugar — nunca duas empilhadas, mesmo
+            que ele não tenha fechado a anterior. Fonte: src/novidades.js. */}
+        {NOVIDADES[0] && cfg.novidades_vistas !== NOVIDADES[0].versao && (
+          <div aria-label="Novidades da versão"
+            style={{ marginTop: 16, background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <strong style={{ fontSize: 16, color: "#0f172a" }}>
+                ✨ Novidades da versão {NOVIDADES[0].versao}
+              </strong>
+              <span style={{ color: "#94a3b8", fontSize: 14 }}>{NOVIDADES[0].data}</span>
+              <button aria-label="Fechar novidades" title="Fechar"
+                onClick={() => gravar("novidades_vistas", NOVIDADES[0].versao)}
+                style={{ marginLeft: "auto", border: "none", background: "transparent", cursor: "pointer", color: "#64748b", fontSize: 20, lineHeight: 1 }}>
+                ✕
+              </button>
+            </div>
+            <ul style={{ margin: "8px 0 0", paddingLeft: 20, fontSize: 15, color: "#334155" }}>
+              {NOVIDADES[0].itens.map((i) => <li key={i} style={{ marginBottom: 4 }}>{i}</li>)}
+            </ul>
           </div>
-        </div>
+        )}
       </div>
 
       <div style={bloco}>

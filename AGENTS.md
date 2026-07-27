@@ -25,9 +25,12 @@ Cliente chega para trocar tela do Note 10. Tela no estoque: compra R$100, venda 
 ## Toda atualização entra no mural
 
 Antes de gerar build de uma versão nova, **a versão entra em `src/novidades.js`**,
-no topo da lista, com data e o que mudou. Esse arquivo é o mural que aparece na
-Config, dentro do bloco "Sobre / Atualização" — o app se atualiza sozinho, então
-é o único lugar onde o cliente descobre o que veio na atualização.
+no topo da lista, com data e o que mudou. A Config mostra **só a primeira da
+lista**, num board com botão de fechar dentro do bloco "Sobre / Atualização" — o
+app se atualiza sozinho, então é o único lugar onde o cliente descobre o que veio
+na atualização. O board da versão nova **ocupa o lugar** do anterior mesmo que o
+anterior não tenha sido fechado (nunca empilha): quem controla é a chave
+`novidades_vistas` na tabela `config`, que guarda a última versão fechada.
 
 Como escrever: **linguagem de loja**, o que ele passa a conseguir fazer. Nada de
 nome de arquivo, tabela, coluna ou "passo 24". Uma linha por mudança que ele

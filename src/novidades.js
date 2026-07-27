@@ -4,6 +4,9 @@
 // gerar o build. É o que o cliente lê pra saber o que mudou depois que o app se
 // atualiza sozinho. Escrever em linguagem de loja — o que ele passa a conseguir
 // fazer — não em nome de arquivo, tabela ou passo do roadmap.
+//
+// A Config mostra SÓ o primeiro item desta lista. O resto fica aqui de histórico:
+// board da atualização nova ocupa o lugar do anterior, nunca empilha.
 export default [
   {
     versao: "0.3.0",
@@ -12,7 +15,6 @@ export default [
       "Estoque mostra no topo da tabela o total de itens, quanto o estoque custou, quanto ele vale vendido e a margem — e os números acompanham a busca.",
       "Colaborador agora faz e desfaz trocas direto na venda, sem precisar chamar o administrador e sem senha.",
       "Código de barras: cadastre bipando com a pistola, busque por ele no Estoque e na Venda, e bipe na venda pra jogar o produto direto no carrinho.",
-      "Ícone próprio do sistema no atalho e na barra do Windows.",
     ],
   },
   {
