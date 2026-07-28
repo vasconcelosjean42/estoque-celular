@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { fmtReais } from "./Estoque.jsx";
-import { FORMAS, agruparPedidos, setaPedido, totalPedido, lucroPedido, descontoPedido, tagDesconto, tagEstorno } from "./Venda.jsx";
+import { FORMAS, rotuloForma, agruparPedidos, setaPedido, totalPedido, lucroPedido, descontoPedido, tagDesconto, tagEstorno } from "./Venda.jsx";
 import FiltroData, { isoDia } from "./FiltroData.jsx";
 import Fechamento from "./Fechamento.jsx";
 
@@ -23,6 +23,7 @@ export default function Dashboard() {
   const [usuarios, setUsuarios] = useState([]);
   const [vendedor, setVendedor] = useState(""); // "" = todos
   const [historico, setHistorico] = useState([]);
+  const [pagosPorPedido, setPagosPorPedido] = useState({}); // pedido_id → formas, só nos pedidos divididos
   const [de, setDe] = useState(() => isoDia(Date.now()));
   const [ate, setAte] = useState(() => isoDia(Date.now()));
   const [atalhoSel, setAtalhoSel] = useState("hoje"); // null = período manual
@@ -81,6 +82,11 @@ export default function Dashboard() {
         params
       )
       .then(setHistorico);
+    window.api.query("SELECT * FROM pagamentos ORDER BY id").then((rows) => {
+      const m = {};
+      rows.forEach((p) => (m[p.pedido_id] ||= []).push(p));
+      setPagosPorPedido(m);
+    });
     setPagina(0);
   }, [de, ate, vendedor]);
 
@@ -105,7 +111,7 @@ export default function Dashboard() {
         `${v.criado_em.slice(8, 10)}/${v.criado_em.slice(5, 7)}/${v.criado_em.slice(0, 4)}`,
         v.criado_em.slice(11, 16), v.nome, v.modelo, v.quantidade,
         num(v.preco_venda), num(v.mao_de_obra), num(v.desconto), v.autorizador || "",
-        num(totalPedido([v])), FORMAS[v.forma_pagamento] || v.forma_pagamento,
+        num(totalPedido([v])), rotuloForma(v.forma_pagamento, pagosPorPedido[v.pedido_id ?? v.id]),
         v.vendedor || "não informado", num(v.preco_compra), num(lucroPedido([v])),
       ]),
     ];
@@ -315,7 +321,7 @@ export default function Dashboard() {
                   <td style={{ padding: 8 }}>{v0.quantidade}</td>
                   {colDesconto}
                   <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(total)}</td>
-                  <td style={{ padding: 8 }}>{FORMAS[v0.forma_pagamento] || v0.forma_pagamento}</td>
+                  <td style={{ padding: 8 }}>{rotuloForma(v0.forma_pagamento, pagosPorPedido[pid])}</td>
                   {vendedor}
                   <td style={{ padding: 8, color: "#16a34a", fontWeight: "bold" }}>{fmtReais(lucro)}</td>
                 </tr>
@@ -337,7 +343,7 @@ export default function Dashboard() {
                   <td style={{ padding: 8 }}>{qtdTotal}</td>
                   {colDesconto}
                   <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(total)}</td>
-                  <td style={{ padding: 8 }}>{FORMAS[v0.forma_pagamento] || v0.forma_pagamento}</td>
+                  <td style={{ padding: 8 }}>{rotuloForma(v0.forma_pagamento, pagosPorPedido[pid])}</td>
                   {vendedor}
                   <td style={{ padding: 8, color: "#16a34a", fontWeight: "bold" }}>{fmtReais(lucro)}</td>
                 </tr>

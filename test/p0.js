@@ -267,6 +267,89 @@ const path = require("path");
       assert.deepStrictEqual(gravadas, formas.map(([, v]) => v));
     });
 
+    console.log("\nPagamento dividido (passo 26)");
+
+    // Abre o painel de divisão e preenche as partes: [[valor da opção, "50,00"], …].
+    const dividir = async (partes) => {
+      await win.click('button:text("Dividir em mais de uma forma")');
+      for (let i = 0; i < partes.length; i++) {
+        if (i > 1) await win.click('button:text("+ outra forma")');
+        await win.selectOption(`select[aria-label="Forma de pagamento ${i + 1}"]`, partes[i][0]);
+        await win.fill(`input[aria-label="Valor da forma ${i + 1}"]`, partes[i][1]);
+      }
+    };
+    const caixaHoje = async (forma) =>
+      (await um(`SELECT COALESCE(SUM(valor),0) AS t FROM movimentos
+                 WHERE date(criado_em) = date('now','localtime') AND forma_pagamento = ?`, [forma])).t;
+
+    await caso("146. entrada em dinheiro e resto no cartão: cada forma entra no fechamento", async () => {
+      const id = await novaPeca("P146", 5, 4000, 10000); // 100,00
+      const especie = await caixaHoje("especie");
+      const credito = await caixaHoje("credito_avista");
+      await abrirVenda("P146");
+      await dividir([["especie", "50,00"], ["credito_avista", "50,00"]]);
+      assert(await win.locator("text=confere").count(), "com as partes fechando o total, avisa que confere");
+      await confirmarVenda();
+
+      const [v] = await vendasDe(id);
+      assert.strictEqual(v.forma_pagamento, "dividido", "a venda não é de uma forma só");
+      const pagos = await sql("SELECT * FROM pagamentos WHERE pedido_id = ? ORDER BY id", [v.pedido_id]);
+      assert.deepStrictEqual(pagos.map((p) => [p.forma, p.valor]), [["especie", 5000], ["credito_avista", 5000]]);
+      assert.strictEqual((await caixaHoje("especie")) - especie, 5000, "50,00 em espécie");
+      assert.strictEqual((await caixaHoje("credito_avista")) - credito, 5000, "50,00 no crédito");
+    });
+
+    await caso("147. o dinheiro do pedido dividido não é contado duas vezes", async () => {
+      const totalDia = async () =>
+        (await um(`SELECT COALESCE(SUM(valor),0) AS v, COALESCE(SUM(lucro),0) AS l FROM movimentos
+                   WHERE date(criado_em) = date('now','localtime')`));
+      await novaPeca("P147", 5, 4000, 10000);
+      const antes = await totalDia();
+      await abrirVenda("P147");
+      await dividir([["pix", "30,00"], ["debito", "70,00"]]);
+      await confirmarVenda();
+      const depois = await totalDia();
+      assert.strictEqual(depois.v - antes.v, 10000, "o dia sobe 100,00, não 200,00");
+      assert.strictEqual(depois.l - antes.l, 6000, "e o lucro sai uma vez só");
+    });
+
+    await caso("148. divisão que não fecha o total é recusada", async () => {
+      await novaPeca("P148", 5, 4000, 10000);
+      await abrirVenda("P148");
+      await dividir([["especie", "50,00"], ["credito_avista", "30,00"]]);
+      assert(await win.locator("text=falta R$ 20,00").count(), "mostra quanto falta");
+      await confirmarRecusado();
+      assert.strictEqual((await sql("SELECT v.id FROM vendas v JOIN pecas p ON p.id = v.peca_id WHERE p.nome = 'P148'")).length, 0,
+        "nada pode ter sido gravado");
+    });
+
+    await caso("149. três formas, com desconto: as partes fecham o total já com desconto", async () => {
+      const id = await novaPeca("P149", 5, 4000, 10000);
+      await abrirVenda("P149");
+      await descontar({ pct: "10" }); // 100,00 → 90,00
+      await dividir([["especie", "30,00"], ["pix", "30,00"], ["debito", "30,00"]]);
+      await confirmarVenda();
+      const [v] = await vendasDe(id);
+      const pagos = await sql("SELECT * FROM pagamentos WHERE pedido_id = ?", [v.pedido_id]);
+      assert.strictEqual(pagos.length, 3);
+      assert.strictEqual(pagos.reduce((s, p) => s + p.valor, 0), 9000, "as partes somam o total com desconto");
+    });
+
+    await caso("150. desfazer o pedido dividido tira o dinheiro do caixa junto", async () => {
+      const id = await novaPeca("P150", 5, 4000, 10000);
+      const antes = await caixaHoje("pix");
+      await abrirVenda("P150");
+      await dividir([["pix", "40,00"], ["especie", "60,00"]]);
+      await confirmarVenda();
+      const [v] = await vendasDe(id);
+      await win.click('tr:has-text("1x P150") button:text-is("Desfazer")');
+      await win.waitForSelector('tr:has-text("1x P150")', { state: "detached", timeout: 8000 });
+      assert.strictEqual((await sql("SELECT id FROM pagamentos WHERE pedido_id = ?", [v.pedido_id])).length, 0,
+        "as formas do pedido têm que sumir com ele");
+      assert.strictEqual(await caixaHoje("pix"), antes, "o Pix do dia volta ao que era");
+      assert.strictEqual((await peca(id)).quantidade, 5);
+    });
+
     console.log("\nCarrinho (passo 12)");
 
     await caso("44. pedido com 3 itens grava tudo junto e baixa cada estoque", async () => {
@@ -1632,6 +1715,11 @@ const path = require("path");
       await win.waitForSelector("text=nada é gravado até você confirmar", { state: "detached", timeout: 8000 });
     };
     const CAB = ["Tipo", "Modelo", "Qtd", "Preço de compra", "Preço de venda"];
+    // A leva mais recente é a primeira linha da lista de entradas do Estoque.
+    const desfazerUltimaImportacao = async () => {
+      await win.locator('button:text-is("Desfazer importação")').first().click();
+      await win.waitForTimeout(700);
+    };
 
     await caso("126. importa produtos novos com código gerado e grava a entrada", async () => {
       await importar([CAB,
@@ -1725,7 +1813,7 @@ const path = require("path");
         "e não criou duplicata");
     });
 
-    await caso("132. desfazer a entrada da importação reverte quantidade e custo", async () => {
+    await caso("132. desfazer a importação reverte quantidade e custo médio", async () => {
       await importar([CAB, ["Zcabo", "C132", 8, 10, 30]]);
       await confirmar();
       const p = await um("SELECT * FROM pecas WHERE modelo = 'C132'");
@@ -1736,11 +1824,58 @@ const path = require("path");
       assert.strictEqual(meio.preco_compra, 2000, "média de 8 a 10,00 com 8 a 30,00");
 
       await recarregar("Estoque");
-      await win.click('tr:has-text("C132") button:text-is("Desfazer")');
-      await win.waitForTimeout(600);
+      await desfazerUltimaImportacao();
       const volta = await um("SELECT * FROM pecas WHERE id = ?", [p.id]);
       assert.strictEqual(volta.quantidade, 8, "quantidade volta");
       assert.strictEqual(volta.preco_compra, 1000, "e o custo também");
+    });
+
+    await caso("151. desfazer a importação tira a leva inteira de uma vez", async () => {
+      await importar([CAB,
+        ["Zcabo", "C151 UM", 10, 12, 30],
+        ["Zcabo", "C151 DOIS", 4, 15, 35],
+        ["Zcabo", "C151 TRES", 7, 20, 45],
+      ]);
+      await confirmar();
+      assert.strictEqual((await sql("SELECT id FROM pecas WHERE modelo LIKE 'C151%'")).length, 3);
+      const { leva } = await um("SELECT MAX(importacao_id) AS leva FROM entradas");
+
+      await recarregar("Estoque");
+      assert(await win.locator('tr:has-text("3 produtos")').count(), "a leva aparece agrupada numa linha só");
+      await desfazerUltimaImportacao();
+      assert.strictEqual((await sql("SELECT id FROM pecas WHERE modelo LIKE 'C151%'")).length, 0,
+        "produto criado pela importação some junto");
+      assert.strictEqual((await sql("SELECT id FROM entradas WHERE importacao_id = ?", [leva])).length, 0,
+        "e as entradas dela também");
+    });
+
+    await caso("152. desfazer não mexe em produto que já existia antes da importação", async () => {
+      const id = await novaPeca("C152", 6, 5000, 9000);
+      await importar([["Código", ...CAB], [(await peca(id)).codigo, "Zcabo", "C152", 4, 80, 90]]);
+      await confirmar();
+      const meio = await peca(id);
+      assert.strictEqual(meio.quantidade, 10);
+      assert.strictEqual(meio.preco_compra, 6200, "média de 6 a 50,00 com 4 a 80,00");
+
+      await recarregar("Estoque");
+      await desfazerUltimaImportacao();
+      const volta = await peca(id);
+      assert(volta, "produto que já existia não pode ser excluído");
+      assert.strictEqual(volta.quantidade, 6, "volta ao estoque de antes");
+      assert.strictEqual(volta.preco_compra, 5000, "e ao custo de antes");
+    });
+
+    await caso("153. importação com produto já vendido é recusada inteira", async () => {
+      await importar([CAB, ["Zcabo", "C153 UM", 5, 10, 30], ["Zcabo", "C153 DOIS", 5, 10, 30]]);
+      await confirmar();
+      const um1 = await um("SELECT * FROM pecas WHERE modelo = 'C153 UM'");
+      await vender("C153 UM");
+
+      await recarregar("Estoque");
+      await desfazerUltimaImportacao();
+      assert.strictEqual((await peca(um1.id)).quantidade, 4, "nada pode ter sido revertido");
+      assert.strictEqual((await sql("SELECT id FROM pecas WHERE modelo = 'C153 DOIS'")).length, 1,
+        "desfazer pela metade deixaria o estoque num meio-termo: ou vai tudo, ou nada");
     });
 
     await caso("133. planilha do estoque sai com Código e reimporta casando por ele", async () => {

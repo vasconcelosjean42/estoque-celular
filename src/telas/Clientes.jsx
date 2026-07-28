@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { fmtReais } from "./Estoque.jsx";
-import { FORMAS, agruparPedidos, totalPedido, descontoPedido, tagDesconto } from "./Venda.jsx";
+import { rotuloForma, agruparPedidos, totalPedido, descontoPedido, tagDesconto } from "./Venda.jsx";
 
 const proximoCodigo = async () => {
   const [{ n }] = await window.api.query(
@@ -125,7 +125,7 @@ export default function Clientes() {
                   {descontoPedido(itens) > 0 && tagDesconto(descontoPedido(itens))}
                 </td>
                 <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(totalPedido(itens))}</td>
-                <td style={{ padding: 8 }}>{FORMAS[itens[0].forma_pagamento] || itens[0].forma_pagamento}</td>
+                <td style={{ padding: 8 }}>{rotuloForma(itens[0].forma_pagamento)}</td>
               </tr>
             ))}
             {pedidos.length === 0 && (
@@ -240,7 +240,7 @@ export default function Clientes() {
               </td>
               <td style={{ padding: 8 }}>{itens.map((v) => `${v.quantidade}x ${v.nome} ${v.modelo}`.trim()).join(", ")}</td>
               <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(totalPedido(itens))}</td>
-              <td style={{ padding: 8 }}>{FORMAS[itens[0].forma_pagamento] || itens[0].forma_pagamento}</td>
+              <td style={{ padding: 8 }}>{rotuloForma(itens[0].forma_pagamento)}</td>
             </tr>
           ))}
           {pedidosDoDia.length === 0 && (

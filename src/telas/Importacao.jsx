@@ -109,6 +109,9 @@ export const analisar = (linhas, pecas) => {
 // compra e desalinharia o custo de todo produto importado.
 export const gravarImportacao = async (itens, arquivo) => {
   const obs = `importação ${arquivo}`.slice(0, 120);
+  // Um id por leva: é ele que deixa desfazer a importação inteira de uma vez, em
+  // vez de linha por linha. Vai nas entradas e nos produtos que nasceram aqui.
+  const [{ n: impId }] = await window.api.query("SELECT COALESCE(MAX(importacao_id),0)+1 AS n FROM entradas");
   const comandos = [];
   for (const it of itens) {
     const compra = Math.round(it.compra * 100);
@@ -123,14 +126,14 @@ export const gravarImportacao = async (itens, arquivo) => {
         trocaPreco ? [it.qtd, custoMedio, venda, p.id] : [it.qtd, custoMedio, p.id],
       ]);
       // custo_anterior preenchido: é o que faz o "desfazer entrada" reverter exato.
-      comandos.push(["INSERT INTO entradas (peca_id, quantidade, preco_compra, observacao, custo_anterior) VALUES (?,?,?,?,?)",
-        [p.id, it.qtd, compra, obs, p.preco_compra]]);
+      comandos.push(["INSERT INTO entradas (peca_id, quantidade, preco_compra, observacao, custo_anterior, importacao_id) VALUES (?,?,?,?,?,?)",
+        [p.id, it.qtd, compra, obs, p.preco_compra, impId]]);
     } else {
-      comandos.push(["INSERT INTO pecas (nome, modelo, codigo, quantidade, preco_compra, preco_venda) VALUES (?,?,?,?,?,?)",
-        [it.tipo, it.modelo, it.codigoNovo, it.qtd, compra, venda ?? 0]]);
+      comandos.push(["INSERT INTO pecas (nome, modelo, codigo, quantidade, preco_compra, preco_venda, importacao_id) VALUES (?,?,?,?,?,?,?)",
+        [it.tipo, it.modelo, it.codigoNovo, it.qtd, compra, venda ?? 0, impId]]);
       // last_insert_rowid() é o da peça acima: os dois comandos andam colados.
-      comandos.push(["INSERT INTO entradas (peca_id, quantidade, preco_compra, observacao) VALUES (last_insert_rowid(),?,?,?)",
-        [it.qtd, compra, obs]]);
+      comandos.push(["INSERT INTO entradas (peca_id, quantidade, preco_compra, observacao, importacao_id) VALUES (last_insert_rowid(),?,?,?,?)",
+        [it.qtd, compra, obs, impId]]);
     }
   }
   await window.api.tx(comandos);

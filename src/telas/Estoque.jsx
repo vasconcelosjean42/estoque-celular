@@ -64,6 +64,8 @@ export default function Estoque({ dono = true }) {
   const [form, setForm] = useState(null); // null = lista; objeto = formulário
   const [entrada, setEntrada] = useState(null); // { peca, quantidade, preco, observacao }
   const [entradas, setEntradas] = useState([]);
+  const [importacoes, setImportacoes] = useState([]); // levas de planilha, agrupadas p/ desfazer inteiras
+  const [aberta, setAberta] = useState(null); // { id, itens } da importação expandida
   const [ordem, setOrdem] = useState(null); // { col, dir: 1 asc | -1 desc } | null = padrão
   const [adicionados, setAdicionados] = useState([]); // nomes salvos nesta sessão do formulário
   const [fixos, setFixos] = useState({}); // { chave: true } = valor continua após salvar
@@ -77,15 +79,39 @@ export default function Estoque({ dono = true }) {
     const params = [];
     if (fDe) { conds.push("date(e.criado_em) >= ?"); params.push(fDe); }
     if (fAte) { conds.push("date(e.criado_em) <= ?"); params.push(fAte); }
+    const mais = conds.length ? `AND ${conds.join(" AND ")}` : "";
     window.api
       .query(
+        // As de importação ficam de fora: uma planilha de 300 linhas afogaria a
+        // lista. Elas aparecem agrupadas numa linha só, logo abaixo.
         `SELECT e.*, p.nome, p.modelo FROM entradas e JOIN pecas p ON p.id = e.peca_id
-         ${conds.length ? `WHERE ${conds.join(" AND ")}` : ""} ORDER BY e.id DESC
+         WHERE e.importacao_id IS NULL ${mais} ORDER BY e.id DESC
          ${conds.length ? "" : "LIMIT 20"}`,
         params
       )
       .then(setEntradas);
+    window.api
+      .query(
+        `SELECT e.importacao_id AS id, MIN(e.observacao) AS arquivo, MAX(e.criado_em) AS criado_em,
+                COUNT(*) AS produtos, SUM(e.quantidade) AS unidades
+           FROM entradas e WHERE e.importacao_id IS NOT NULL ${mais}
+          GROUP BY e.importacao_id ORDER BY e.importacao_id DESC LIMIT 10`,
+        params
+      )
+      .then(setImportacoes);
+    if (aberta) abrirItens(aberta.id);
   };
+
+  // Lista item a item da leva aberta: mesmo formato das entradas soltas, então
+  // desfazerEntrada serve pra apagar uma linha só sem tocar no resto.
+  const abrirItens = (id) =>
+    window.api
+      .query(
+        `SELECT e.*, p.nome, p.modelo FROM entradas e JOIN pecas p ON p.id = e.peca_id
+          WHERE e.importacao_id = ? ORDER BY p.nome, p.modelo`,
+        [id]
+      )
+      .then((itens) => setAberta({ id, itens }));
 
   useEffect(() => {
     carregar();
@@ -181,6 +207,46 @@ export default function Estoque({ dono = true }) {
       ["UPDATE pecas SET quantidade = quantidade - ?, preco_compra = ? WHERE id = ?", [e.quantidade, custo, e.peca_id]],
       ["DELETE FROM entradas WHERE id = ?", [e.id]],
     ]);
+    carregar();
+  };
+
+  // Importar errado uma planilha de centenas de linhas e desfazer de uma em uma
+  // levaria a tarde inteira. Aqui a leva volta inteira ou não volta: desfazer só
+  // parte deixaria estoque e custo médio num meio-termo que ninguém sabe explicar.
+  const desfazerImportacao = async (imp) => {
+    // Agrupado por peça: a mesma peça pode ter recebido duas linhas da planilha.
+    const alvos = await window.api.query(
+      `SELECT e.peca_id, SUM(e.quantidade) AS qtd, MIN(e.custo_anterior) AS custo_anterior,
+              p.nome, p.modelo, p.quantidade AS em_estoque, p.preco_compra
+         FROM entradas e JOIN pecas p ON p.id = e.peca_id
+        WHERE e.importacao_id = ? GROUP BY e.peca_id`,
+      [imp.id]
+    );
+    const vendidas = alvos.filter((a) => a.em_estoque < a.qtd);
+    if (vendidas.length) {
+      alert(`Não dá para desfazer esta importação: ${vendidas.length} produto(s) já saíram em venda ou troca depois dela.\n\n` +
+        vendidas.slice(0, 5).map((a) => `• ${a.nome} ${a.modelo}: entraram ${a.qtd}, restam ${a.em_estoque}`).join("\n") +
+        `\n\nDesfaça essas vendas primeiro, ou acerte o estoque editando os produtos.`);
+      return;
+    }
+    if (!confirm(`Desfazer a ${imp.arquivo}?\n\n${imp.produtos} produto(s) e ${imp.unidades} unidades saem do estoque, e os produtos criados por ela são excluídos.`)) return;
+    const comandos = alvos.map((a) => [
+      "UPDATE pecas SET quantidade = quantidade - ?, preco_compra = ? WHERE id = ?",
+      [a.qtd, a.custo_anterior ?? a.preco_compra, a.peca_id],
+    ]);
+    comandos.push(["DELETE FROM entradas WHERE importacao_id = ?", [imp.id]]);
+    // Produto que nasceu nesta importação some — a não ser que já tenha movimento
+    // ou outra entrada, aí ele fica com o estoque zerado e o dono decide.
+    comandos.push([
+      `DELETE FROM pecas WHERE importacao_id = ? AND id NOT IN (
+         SELECT peca_id FROM vendas
+         UNION SELECT peca_id FROM entradas
+         UNION SELECT peca_id FROM trocas WHERE peca_id IS NOT NULL
+         UNION SELECT nova_peca_id FROM trocas WHERE nova_peca_id IS NOT NULL
+         UNION SELECT peca_id FROM perdas WHERE peca_id IS NOT NULL)`,
+      [imp.id],
+    ]);
+    await window.api.tx(comandos);
     carregar();
   };
 
@@ -487,10 +553,53 @@ export default function Estoque({ dono = true }) {
       <div style={{ flex: "4 1 0", overflow: "auto", minHeight: 0, borderTop: "2px solid #cbd5e1", marginTop: 12 }}>
       <h3 style={{ margin: "12px 0 8px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         {fSel === "tudo" ? "Últimas entradas" : `Entradas ${sufixoTitulo(fSel)}`}
+        {importacoes.length > 0 && <span style={{ fontWeight: "normal", fontSize: 14, color: "#64748b" }}>e importações</span>}
         <FiltroData sel={fSel} aoEscolher={(chave, d, a) => setFiltroData([chave, d, a])} />
       </h3>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
         <tbody>
+          {/* Importações primeiro, sempre: é o que o dono corre pra desfazer quando
+              percebe que subiu a planilha errada. */}
+          {importacoes.map((im) => {
+            const expandida = aberta?.id === im.id;
+            return (
+            <React.Fragment key={`i${im.id}`}>
+            <tr style={{ borderBottom: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer" }}
+              onClick={() => (expandida ? setAberta(null) : abrirItens(im.id))}>
+              <td style={{ padding: 8, color: "#64748b" }}>{im.criado_em.slice(8, 10)}/{im.criado_em.slice(5, 7)} {im.criado_em.slice(11, 16)}</td>
+              <td style={{ padding: 8, fontWeight: "bold" }}>
+                <span aria-hidden style={{ color: "#64748b", marginRight: 6 }}>{expandida ? "▾" : "▸"}</span>
+                📦 {im.arquivo}
+              </td>
+              <td style={{ padding: 8 }}>{im.produtos} produto{im.produtos === 1 ? "" : "s"}</td>
+              <td style={{ padding: 8, color: "#64748b" }}>+{im.unidades} unidades</td>
+              <td style={{ padding: 8, textAlign: "right" }}>
+                <button style={{ ...btn, padding: "6px 12px", fontSize: 14, background: "#fee2e2", color: "#dc2626" }}
+                  onClick={(ev) => { ev.stopPropagation(); desfazerImportacao(im); }}>
+                  Desfazer importação
+                </button>
+              </td>
+            </tr>
+            {expandida && aberta.itens.map((e) => (
+              <tr key={e.id} style={{ borderBottom: "1px solid #f1f5f9", background: "#fbfdff", fontSize: 14 }}>
+                <td />
+                <td style={{ padding: "4px 8px 4px 30px" }}>+{e.quantidade}x {e.nome} {e.modelo}</td>
+                <td style={{ padding: "4px 8px" }}>compra {fmtReais(e.preco_compra)}</td>
+                <td />
+                <td style={{ padding: "4px 8px", textAlign: "right" }}>
+                  <button style={{ ...btn, padding: "4px 10px", fontSize: 13, background: "#fee2e2", color: "#dc2626" }}
+                    onClick={() => desfazerEntrada(e)}>
+                    Desfazer
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {expandida && aberta.itens.length === 0 && (
+              <tr><td colSpan={5} style={{ padding: 8, paddingLeft: 30, color: "#64748b", fontSize: 14 }}>Nada nesta importação.</td></tr>
+            )}
+            </React.Fragment>
+            );
+          })}
           {entradas.map((e) => (
             <tr key={e.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
               <td style={{ padding: 8, color: "#64748b" }}>{e.criado_em.slice(8, 10)}/{e.criado_em.slice(5, 7)} {e.criado_em.slice(11, 16)}</td>
@@ -504,7 +613,7 @@ export default function Estoque({ dono = true }) {
               </td>
             </tr>
           ))}
-          {entradas.length === 0 && (
+          {entradas.length === 0 && importacoes.length === 0 && (
             <tr><td style={{ padding: 16, color: "#64748b" }}>Nenhuma entrada registrada.</td></tr>
           )}
         </tbody>

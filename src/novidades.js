@@ -9,6 +9,14 @@
 // board da atualização nova ocupa o lugar do anterior, nunca empilha.
 export default [
   {
+    versao: "0.4.0",
+    data: "28/07/2026",
+    itens: [
+      "Uma venda pode ser paga em mais de uma forma: o cliente dá R$ 50 em dinheiro e o resto no cartão, e o fechamento do dia mostra cada parte no lugar certo.",
+      "Importou a planilha errada? Agora dá pra desfazer a importação inteira num clique — ou clicar nela pra abrir a lista e tirar só os produtos errados.",
+    ],
+  },
+  {
     versao: "0.3.0",
     data: "26/07/2026",
     itens: [

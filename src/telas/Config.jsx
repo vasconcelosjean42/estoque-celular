@@ -229,6 +229,8 @@ export default function Config({ aoMudar }) {
       await window.api.tx([
         [`UPDATE notas  SET venda_id = NULL WHERE venda_id IN (${vendasDemo})`, []],
         [`UPDATE trocas SET venda_id = NULL WHERE venda_id IN (${vendasDemo})`, []],
+        // antes de vendas: sem a venda não dá mais pra achar o pedido dividido
+        [`DELETE FROM pagamentos WHERE pedido_id IN (SELECT pedido_id FROM vendas WHERE id IN (${vendasDemo}))`, []],
         [`DELETE FROM vendas   WHERE id IN (${em(ids.vendas)})   OR peca_id IN (${p})`, []],
         [`DELETE FROM entradas WHERE id IN (${em(ids.entradas)}) OR peca_id IN (${p})`, []],
         [`UPDATE trocas SET peca_id = NULL      WHERE peca_id IN (${p})`, []],
@@ -261,6 +263,7 @@ export default function Config({ aoMudar }) {
         ["DELETE FROM trocas", []],
         ["DELETE FROM lotes", []],
         ["DELETE FROM entradas", []],
+        ["DELETE FROM pagamentos", []],
         ["DELETE FROM vendas", []],
         ["DELETE FROM clientes", []], // depois de vendas: é ela que referencia o cliente
         ["DELETE FROM pecas", []],
@@ -529,6 +532,14 @@ export default function Config({ aoMudar }) {
           </button>
         </div>
         {msgBackup && <div style={{ marginTop: 8, fontSize: 15 }}>{msgBackup}</div>}
+      </div>
+
+      <div style={{ fontSize: 11, color: "#cbd5e1", margin: "2px 0 1px" }}>
+        Desenvolvido por{" "}
+        <a href="https://www.instagram.com/jeanvascc_/" target="_blank" rel="noreferrer"
+          style={{ color: "#b4c0cf", textDecoration: "none" }}>
+          ⚡ Oficial Vasconcelos Dev
+        </a>
       </div>
 
       {/* botão de desenvolvedor: invisível, canto inferior direito da tela */}

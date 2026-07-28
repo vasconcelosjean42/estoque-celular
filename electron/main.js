@@ -44,6 +44,11 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, "preload.js") },
   });
   win.maximize(); // maximizada (com barra de título), não quiosque — leigo precisa minimizar
+  // Link externo abre no navegador do cliente, não numa janela Electron pelada.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/.test(url)) shell.openExternal(url);
+    return { action: "deny" };
+  });
   if (app.isPackaged || process.env.SMOKE) win.loadFile(path.join(__dirname, "../dist/index.html"));
   else win.loadURL("http://localhost:5173");
 }

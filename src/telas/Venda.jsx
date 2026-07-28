@@ -12,6 +12,14 @@ export const FORMAS = {
   credito_parcelado: "Crédito parcelado",
 };
 
+// Rótulo da forma na lista de pedidos. Pedido dividido tem linhas em `pagamentos`
+// e mostra as duas ("Espécie + Débito"); vendas.forma_pagamento fica 'dividido',
+// que não é forma de caixa nenhuma — o dinheiro real está em `pagamentos`.
+export const rotuloForma = (forma, pagos) =>
+  pagos?.length
+    ? pagos.map((p) => FORMAS[p.forma] || p.forma).join(" + ")
+    : FORMAS[forma] || (forma === "dividido" ? "Dividido" : forma);
+
 // Uma linha por item no banco; as telas agrupam por pedido. Recebe as vendas em
 // ordem decrescente de id e devolve [[pedido_id, itens na ordem em que entraram]].
 export const agruparPedidos = (vendas) => {
@@ -70,6 +78,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
   const [trocasVenda, setTrocasVenda] = useState([]); // trocas vinculadas a vendas (cadeia A → B → C)
   const [clientes, setClientes] = useState([]);
   const [notasPorPedido, setNotasPorPedido] = useState({}); // pedido_id → nota (p/ reimprimir)
+  const [pagosPorPedido, setPagosPorPedido] = useState({}); // pedido_id → formas, só nos pedidos divididos
   const [notaVenda, setNotaVenda] = useState(null); // pedido recém-confirmado aguardando nota
   const [flashId, setFlashId] = useState(null); // pedido destacado após confirmar
   const [busca, setBusca] = useState("");
@@ -108,6 +117,12 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
          WHERE t.venda_id IS NOT NULL ORDER BY t.id`
       )
       .then(setTrocasVenda);
+    // Só os pedidos divididos têm linha aqui, então a tabela é pequena por definição.
+    window.api.query("SELECT * FROM pagamentos ORDER BY id").then((rows) => {
+      const m = {};
+      rows.forEach((p) => (m[p.pedido_id] ||= []).push(p));
+      setPagosPorPedido(m);
+    });
     // ponytail: varre notas inteiro (tabela pequena numa loja); filtrar por pedido se crescer.
     if (notaOn) {
       window.api.query("SELECT * FROM notas").then((rows) => {
@@ -139,7 +154,8 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
       setCarrinho(carrinho.map((x) => (x.peca.id === p.id ? { ...x, qtd: x.qtd + 1 } : x)));
       return;
     }
-    setCarrinho([...carrinho, { peca: p, qtd: 1, preco: (p.preco_venda / 100).toFixed(2).replace(".", ",") }]);
+    // Entra no topo: o último bipado fica na vista, sem rolar o carrinho.
+    setCarrinho([{ peca: p, qtd: 1, preco: (p.preco_venda / 100).toFixed(2).replace(".", ",") }, ...carrinho]);
   };
 
   const mudarItem = (id, campo, valor) =>
@@ -168,6 +184,22 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
       }
     }
     const desconto = calcDesconto(fechando.desc, totalCarrinho + maoDeObra);
+    // Pagamento dividido: as formas têm que fechar o total na bala. Aceitar sobra
+    // ou falta jogaria dinheiro que não existe (ou some) dentro do fechamento do dia.
+    const total = totalCarrinho + maoDeObra - desconto;
+    let pagos = null;
+    if (fechando.pagos) {
+      pagos = fechando.pagos.map((p) => ({ forma: p.forma, valor: parseReais(p.valor) }));
+      if (pagos.some((p) => isNaN(p.valor) || p.valor <= 0)) {
+        alert("Cada forma de pagamento precisa de um valor maior que zero.");
+        return;
+      }
+      const soma = pagos.reduce((s, p) => s + p.valor, 0);
+      if (soma !== total) {
+        alert(`As formas de pagamento somam ${fmtReais(soma)}, mas o total do pedido é ${fmtReais(total)}.`);
+        return;
+      }
+    }
     // Nome novo vira cadastro aqui mesmo; nome já conhecido volta com o id dele.
     const cli = await resolverCliente(fechando.cliente, clientes);
     const [{ n: pedidoId }] = await window.api.query("SELECT COALESCE(MAX(pedido_id),0)+1 AS n FROM vendas");
@@ -180,10 +212,12 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
         // Mão de obra e desconto são do pedido: gravam numa linha só pra não somar duas vezes.
         [it.peca.id, Number(it.qtd), parseReais(it.preco), it.peca.preco_compra, i === 0 ? maoDeObra : 0,
-         fechando.forma, cli.nome, cli.id, usuario?.id ?? null, pedidoId,
+         pagos ? "dividido" : fechando.forma, cli.nome, cli.id, usuario?.id ?? null, pedidoId,
          i === 0 ? desconto : 0, i === 0 ? fechando.descontoPor : null],
       ]);
     });
+    pagos?.forEach((p) =>
+      comandos.push(["INSERT INTO pagamentos (pedido_id, forma, valor) VALUES (?,?,?)", [pedidoId, p.forma, p.valor]]));
     await window.api.tx(comandos);
     if (notaOn) {
       setNotaVenda({
@@ -268,7 +302,8 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
   const desfazer = async (itens) => {
     const desc = itens.map((v) => `${v.quantidade}x ${v.nome} ${v.modelo}`.trim()).join(", ");
     if (!confirm(`Desfazer a venda de ${desc}?`)) return;
-    const comandos = [];
+    // As formas do pedido dividido saem junto, senão o dinheiro fica no caixa sem venda.
+    const comandos = [["DELETE FROM pagamentos WHERE pedido_id = ?", [itens[0].pedido_id ?? itens[0].id]]];
     itens.forEach((v) => {
       comandos.push(["DELETE FROM vendas WHERE id = ?", [v.id]]);
       comandos.push(["UPDATE pecas SET quantidade = quantidade + ? WHERE id = ?", [v.quantidade, v.peca_id]]);
@@ -283,6 +318,10 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
     const maoDeObra = parseReais(fechando.maoDeObra) || 0;
     const bruto = totalCarrinho + maoDeObra;
     const desconto = calcDesconto(fechando.desc, bruto);
+    // Quanto ainda falta dividir entre as formas: >0 falta, <0 passou do total.
+    const falta = bruto - desconto - (fechando.pagos || []).reduce((s, p) => s + (parseReais(p.valor) || 0), 0);
+    const mudarPago = (i, campo, valor) =>
+      setFechando({ ...fechando, pagos: fechando.pagos.map((p, j) => (j === i ? { ...p, [campo]: valor } : p)) });
     return (
       <div style={{ maxWidth: 520 }}>
         <h2 style={{ marginTop: 0 }}>Confirmar venda</h2>
@@ -319,15 +358,59 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
               onChange={(e) => setFechando({ ...fechando, maoDeObra: e.target.value })} />
           </label>
         )}
-        <div style={{ fontWeight: "bold", marginBottom: 4 }}>Forma de pagamento</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
-          {Object.entries(FORMAS).map(([valor, rotulo]) => (
-            <button key={valor} onClick={() => setFechando({ ...fechando, forma: valor })}
-              style={{ ...btn, background: fechando.forma === valor ? "#38bdf8" : "#e2e8f0", color: fechando.forma === valor ? "#0f172a" : "#334155" }}>
-              {rotulo}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <div style={{ fontWeight: "bold" }}>Forma de pagamento</div>
+          {/* Entrada em dinheiro e o resto no cartão: começa com a forma escolhida em cima. */}
+          {!fechando.pagos && (
+            <button style={{ ...btnMini, background: "#e0f2fe", color: "#0369a1", marginLeft: "auto" }}
+              onClick={() => setFechando({ ...fechando, pagos: [{ forma: fechando.forma, valor: "" }, { forma: "credito_avista", valor: "" }] })}>
+              Dividir em mais de uma forma
             </button>
-          ))}
+          )}
         </div>
+        {fechando.pagos ? (
+          <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, marginBottom: 16 }}>
+            {fechando.pagos.map((p, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+                <select style={{ ...inp, flex: 1 }} aria-label={`Forma de pagamento ${i + 1}`} value={p.forma}
+                  onChange={(e) => mudarPago(i, "forma", e.target.value)}>
+                  {Object.entries(FORMAS).map(([valor, rotulo]) => <option key={valor} value={valor}>{rotulo}</option>)}
+                </select>
+                <input style={{ ...inp, width: 110 }} placeholder="0,00" aria-label={`Valor da forma ${i + 1}`}
+                  value={p.valor} onChange={(e) => mudarPago(i, "valor", e.target.value)} />
+                {fechando.pagos.length > 2 && (
+                  <button aria-label={`Remover forma ${i + 1}`} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#dc2626", fontSize: 18 }}
+                    onClick={() => setFechando({ ...fechando, pagos: fechando.pagos.filter((_, j) => j !== i) })}>
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button style={{ ...btnMini, background: "#e2e8f0", color: "#334155" }}
+                onClick={() => setFechando({ ...fechando, pagos: [...fechando.pagos, { forma: "especie", valor: "" }] })}>
+                + outra forma
+              </button>
+              <button style={{ ...btnMini, background: "#e2e8f0", color: "#334155" }}
+                onClick={() => setFechando({ ...fechando, pagos: null })}>
+                Pagar numa forma só
+              </button>
+              {/* o operador tem que ver na hora quanto ainda falta pra fechar o total */}
+              <strong style={{ marginLeft: "auto", color: falta === 0 ? "#16a34a" : "#dc2626" }}>
+                {falta === 0 ? "confere" : falta > 0 ? `falta ${fmtReais(falta)}` : `passou ${fmtReais(-falta)}`}
+              </strong>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+            {Object.entries(FORMAS).map(([valor, rotulo]) => (
+              <button key={valor} onClick={() => setFechando({ ...fechando, forma: valor })}
+                style={{ ...btn, background: fechando.forma === valor ? "#38bdf8" : "#e2e8f0", color: fechando.forma === valor ? "#0f172a" : "#334155" }}>
+                {rotulo}
+              </button>
+            ))}
+          </div>
+        )}
         {desconto > 0 ? (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, color: "#b45309", fontSize: 17, fontWeight: "bold" }}>
             <span>Desconto: −{fmtReais(desconto)}</span>
@@ -542,7 +625,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
             </div>
             <div style={{ fontSize: 20, fontWeight: "bold", margin: "12px 0" }}>Total: {fmtReais(totalCarrinho)}</div>
             <button style={{ ...btn, background: "#22c55e", color: "white", fontSize: 18 }}
-              onClick={() => { setFechando({ maoDeObra: "", forma: "especie", cliente: "", desc: null, descontoPor: null }); setDescUI(null); }}>
+              onClick={() => { setFechando({ maoDeObra: "", forma: "especie", cliente: "", desc: null, descontoPor: null, pagos: null }); setDescUI(null); }}>
               Finalizar venda ({carrinho.length} {carrinho.length === 1 ? "item" : "itens"})
             </button>
             <button style={{ ...btn, background: "transparent", color: "#64748b", fontSize: 14, marginTop: 4 }}
@@ -591,7 +674,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
                         {desconto > 0 && tagDesconto(desconto)}
                       </td>
                       <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(total)}</td>
-                      <td style={{ padding: 8 }}>{FORMAS[v.forma_pagamento] || v.forma_pagamento}</td>
+                      <td style={{ padding: 8 }}>{rotuloForma(v.forma_pagamento, pagosPorPedido[pid])}</td>
                       <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
                         {botaoNota}
                         {trocada ? <span style={{ color: "#b45309", fontSize: 14, fontWeight: "bold" }}>trocada ↓</span>
@@ -615,7 +698,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
                       {desconto > 0 && tagDesconto(desconto)}
                     </td>
                     <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(total)}</td>
-                    <td style={{ padding: 8 }}>{FORMAS[itens[0].forma_pagamento] || itens[0].forma_pagamento}</td>
+                    <td style={{ padding: 8 }}>{rotuloForma(itens[0].forma_pagamento, pagosPorPedido[pid])}</td>
                     {/* os botões não podem abrir/fechar o pedido junto */}
                     <td onClick={(e) => e.stopPropagation()} style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
                       {botaoNota}

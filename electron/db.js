@@ -92,6 +92,18 @@ CREATE TABLE IF NOT EXISTS clientes (
   criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+-- Pedido pago em mais de uma forma (entrada em dinheiro + resto no cartão).
+-- Só existe linha aqui quando o pagamento foi DIVIDIDO: pagamento único continua
+-- em vendas.forma_pagamento, e o histórico antigo não precisa de migração.
+CREATE TABLE IF NOT EXISTS pagamentos (
+  id        INTEGER PRIMARY KEY,
+  pedido_id INTEGER NOT NULL,
+  forma     TEXT NOT NULL,
+  valor     INTEGER NOT NULL, -- centavos; a soma do pedido bate com o total
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_pagamentos_pedido ON pagamentos(pedido_id);
+
 CREATE TABLE IF NOT EXISTS notas (
   id              INTEGER PRIMARY KEY,
   venda_id        INTEGER REFERENCES vendas(id),
@@ -169,7 +181,11 @@ for (const sql of [
   // os muitos produtos sem código de barras ('') não colidem entre si.
   "ALTER TABLE pecas ADD COLUMN codigo_barras TEXT NOT NULL DEFAULT ''",
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_pecas_codigo_barras ON pecas(codigo_barras) WHERE codigo_barras != ''",
-
+  // Passo 26: uma importação inteira é desfeita de uma vez. O id marca a leva nas
+  // entradas que ela criou, e nos produtos que nasceram nela (esses somem no
+  // desfazer). NULL = entrada/produto que não veio de planilha.
+  "ALTER TABLE entradas ADD COLUMN importacao_id INTEGER",
+  "ALTER TABLE pecas ADD COLUMN importacao_id INTEGER",
 ]) {
   try {
     db.exec(sql);
@@ -185,10 +201,23 @@ db.exec(`
 DROP VIEW IF EXISTS movimentos_caixa;
 DROP VIEW IF EXISTS movimentos;
 CREATE VIEW movimentos AS
+  -- Pago numa forma só: a própria venda diz por onde o dinheiro entrou.
   SELECT 'venda' AS tipo, criado_em, forma_pagamento,
          preco_venda * quantidade + mao_de_obra - desconto AS valor,
          (preco_venda - preco_compra) * quantidade + mao_de_obra - desconto AS lucro
-    FROM vendas
+    FROM vendas v
+   WHERE NOT EXISTS (SELECT 1 FROM pagamentos g WHERE g.pedido_id = v.pedido_id)
+  UNION ALL
+  -- Pedido dividido: quem diz por onde o dinheiro entrou é a tabela pagamentos,
+  -- então a venda entra só com o lucro (valor 0) — senão o mesmo dinheiro seria
+  -- contado duas vezes na gaveta. O tipo continua 'venda' porque é ele que o
+  -- fechamento usa pra contar quantas vendas o dia teve.
+  SELECT 'venda', criado_em, NULL, 0,
+         (preco_venda - preco_compra) * quantidade + mao_de_obra - desconto
+    FROM vendas v
+   WHERE EXISTS (SELECT 1 FROM pagamentos g WHERE g.pedido_id = v.pedido_id)
+  UNION ALL
+  SELECT 'pagamento', criado_em, forma, valor, 0 FROM pagamentos
   UNION ALL
   -- A diferença cobrada não é margem inteira: parte dela só cobre a peça de
   -- reposição ser mais cara. Margem = diferença − (custo que saiu − custo que voltou).
