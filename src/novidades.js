@@ -9,6 +9,14 @@
 // board da atualização nova ocupa o lugar do anterior, nunca empilha.
 export default [
   {
+    versao: "0.5.0",
+    data: "30/07/2026",
+    itens: [
+      "O Estoque agora exporta a lista de produtos pro Excel num clique, com quantidade, preços e margem.",
+      "E dá pra marcar os tipos que quer antes: só as telas, ou telas e baterias juntas — a planilha sai com o que estiver na tela.",
+    ],
+  },
+  {
     versao: "0.4.0",
     data: "28/07/2026",
     itens: [

@@ -2050,6 +2050,32 @@ const path = require("path");
       }
     });
 
+    await caso("154. exportar o estoque leva só os tipos marcados", async () => {
+      const planilha = require("../electron/planilha.js");
+      const exportarTipos = async (...marcar) => {
+        await recarregar("Estoque");
+        await win.click("summary:has-text('Todos os tipos')");
+        for (const t of marcar) await win.click(`label:has-text("${t}") input[type=checkbox]`);
+        await win.click('button:text("⬇ Exportar Excel")');
+        await win.waitForTimeout(800);
+        return planilha.ler(planilhaSaida, fs.readFileSync(planilhaSaida));
+      };
+
+      let linhas = await exportarTipos("T23B");
+      assert.deepStrictEqual(linhas[0],
+        ["Código", "Tipo", "Modelo", "Qtd", "Preço de compra", "Preço de venda", "Margem"]);
+      assert.deepStrictEqual(linhas.slice(1).map((l) => l[1]), ["T23B"],
+        "marcado um tipo, só ele pode sair na planilha");
+      assert.strictEqual(linhas[1][3], "2");
+      assert.strictEqual(linhas[1][4], "50", "preço sai em reais, não em centavos");
+      assert.strictEqual(linhas[1][6], "30", "margem = 80,00 − 50,00");
+
+      // O motivo do checkbox: dois tipos de uma vez, sem exportar duas planilhas.
+      linhas = await exportarTipos("T23A", "T23B");
+      assert.deepStrictEqual(linhas.slice(1).map((l) => l[1]).sort(), ["T23A", "T23B"],
+        "marcados dois tipos, os dois saem juntos e mais nenhum");
+    });
+
     console.log("\nCódigo do produto (passo 10)");
 
     await caso("34. cadastro gera código sequencial por tipo (TE001, TE002)", async () => {
@@ -2369,7 +2395,7 @@ const path = require("path");
     await sql("INSERT INTO usuarios (nome, pin, papel) VALUES ('Colab', '1111', 'funcionario')");
     await win.click('nav button:text-is("Sair")');
     await login("Colab", "1111");
-    await win.waitForSelector("text=P01");
+    await win.waitForSelector('tr:has-text("P01")'); // na tabela: "P01" também é <option> do filtro de tipo
 
     await caso("25. colaborador só enxerga Estoque, Venda e Fechamento", async () => {
       for (const t of ["Dashboard", "Config", "Trocas"]) {

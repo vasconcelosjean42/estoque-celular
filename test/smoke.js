@@ -54,7 +54,8 @@ const path = require("path");
     await win.click('button:text-is("Salvar")');
     await espera("adicionado"); // cadastro em série: fica no form e lista o que entrou
     await win.click('button:text-is("Concluir")');
-    await espera("PecaSmoke");
+    // na tabela, não nas <option> do filtro de tipo / datalists (essas nunca ficam visíveis)
+    await win.waitForSelector('tr:has-text("PecaSmoke")', { timeout: 8000 });
 
     // 2b. entrada muda o custo médio; desfazer volta ao custo original
     await win.click('tr:has-text("PecaSmoke") button:text("+ Entrada")');
@@ -118,7 +119,7 @@ const path = require("path");
     await espera("colaborador");
     await win.click('nav button:text-is("Sair")');
     await login("Func", "1111");
-    await espera("PecaSmoke");
+    await win.waitForSelector('tr:has-text("PecaSmoke")', { timeout: 8000 });
     assert.strictEqual(await win.locator('nav button:text-is("Dashboard")').count(), 0, "colaborador não deveria ver a aba Dashboard");
     assert.strictEqual(await win.locator('th:text-is("Compra")').count(), 0, "colaborador não deveria ver a coluna Compra");
 

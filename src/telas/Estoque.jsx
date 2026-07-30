@@ -72,6 +72,7 @@ export default function Estoque({ dono = true }) {
   const [flashId, setFlashId] = useState(null); // peça destacada após receber entrada
   const [[fSel, fDe, fAte], setFiltroData] = useState(["tudo", "", ""]);
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
+  const [tiposSel, setTiposSel] = useState([]); // tipos marcados; vazio = todos
 
   const carregar = () => {
     window.api.query("SELECT * FROM pecas ORDER BY nome, modelo").then(setPecas);
@@ -396,7 +397,10 @@ export default function Estoque({ dono = true }) {
 
   const filtro = busca.trim().toLowerCase();
   const arquivados = pecas.filter((p) => p.arquivado).length;
-  let visiveis = (mostrarArquivados ? pecas : pecas.filter((p) => !p.arquivado))
+  const base = mostrarArquivados ? pecas : pecas.filter((p) => !p.arquivado);
+  const tipos = [...new Set(base.map((p) => p.nome))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  let visiveis = base
+    .filter((p) => !tiposSel.length || tiposSel.includes(p.nome))
     .filter((p) => !filtro || `${p.codigo} ${p.codigo_barras} ${p.nome} ${p.modelo}`.toLowerCase().includes(filtro));
 
   if (ordem) {
@@ -426,6 +430,21 @@ export default function Estoque({ dono = true }) {
   );
   const margemTotal = t.venda - t.compra;
 
+  // Sai exatamente o que está na tela: tipos marcados, busca e ordenação já valem
+  // aqui. Preço em reais (não centavos), igual à planilha de importação.
+  const exportar = () => {
+    const marca = tiposSel.length === 1 ? tiposSel[0].replace(/[\\/:*?"<>|]/g, "")
+      : tiposSel.length ? `${tiposSel.length}-tipos` : "";
+    return window.api.salvarPlanilha(
+      `estoque-${marca && `${marca}-`}${new Date().toLocaleDateString("sv")}.xlsx`,
+      [
+        ["Código", "Tipo", "Modelo", "Qtd", "Preço de compra", "Preço de venda", "Margem"],
+        ...visiveis.map((p) => [p.codigo, p.nome, p.modelo, p.quantidade,
+          p.preco_compra / 100, p.preco_venda / 100, (p.preco_venda - p.preco_compra) / 100]),
+      ]
+    );
+  };
+
   const COLUNAS = dono
     ? [["Código", "codigo"], ["Produto", "nome"], ["Modelo", "modelo"], ["Qtd", "quantidade"],
        ["Compra", "preco_compra"], ["Venda", "preco_venda"], ["Margem", "margem"], ["", null]]
@@ -440,12 +459,46 @@ export default function Estoque({ dono = true }) {
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
         />
+        {/* <details> abre e fecha sozinho — nada de popover na mão. Marcar mais de
+            um tipo soma: telas + baterias saem na mesma lista e na mesma planilha. */}
+        <details style={{ position: "relative" }}>
+          <summary style={{ ...inp, width: "auto", cursor: "pointer", whiteSpace: "nowrap", userSelect: "none" }}>
+            {/* a seta é a do próprio <details> (vira ▾ ao abrir) — não desenhar outra */}
+            {tiposSel.length === 0 ? "Todos os tipos"
+              : tiposSel.length <= 2 ? tiposSel.join(", ")
+              : `${tiposSel.length} tipos`}
+          </summary>
+          <div style={{ position: "absolute", zIndex: 10, marginTop: 4, background: "white", padding: 8,
+            border: "1px solid #cbd5e1", borderRadius: 6, boxShadow: "0 4px 12px #00000022",
+            maxHeight: 300, overflow: "auto", minWidth: 200 }}>
+            {tipos.map((n) => (
+              <label key={n} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 2px", cursor: "pointer" }}>
+                <input type="checkbox" style={{ width: 18, height: 18 }}
+                  checked={tiposSel.includes(n)}
+                  onChange={(e) => setTiposSel(e.target.checked ? [...tiposSel, n] : tiposSel.filter((x) => x !== n))} />
+                {n}
+              </label>
+            ))}
+            {tiposSel.length > 0 && (
+              <button style={{ ...btn, width: "100%", marginTop: 6, padding: "6px 10px", fontSize: 14, background: "#e2e8f0" }}
+                onClick={() => setTiposSel([])}>
+                Limpar
+              </button>
+            )}
+          </div>
+        </details>
         {arquivados > 0 && (
           <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 15, whiteSpace: "nowrap", cursor: "pointer" }}>
             <input type="checkbox" style={{ width: 18, height: 18 }}
               checked={mostrarArquivados} onChange={(e) => setMostrarArquivados(e.target.checked)} />
             mostrar arquivados ({arquivados})
           </label>
+        )}
+        {dono && (
+          <button style={{ ...btn, background: "#e2e8f0", whiteSpace: "nowrap" }}
+            onClick={exportar} disabled={!visiveis.length}>
+            ⬇ Exportar Excel
+          </button>
         )}
         {dono && (
           <button style={{ ...btn, background: "#38bdf8", color: "#0f172a" }} onClick={() => { setForm(VAZIA); setAdicionados([]); }}>
