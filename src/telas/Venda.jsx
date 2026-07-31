@@ -20,6 +20,12 @@ export const rotuloForma = (forma, pagos) =>
     ? pagos.map((p) => FORMAS[p.forma] || p.forma).join(" + ")
     : FORMAS[forma] || (forma === "dividido" ? "Dividido" : forma);
 
+// Formas do pedido no formato do recibo. Pagamento único vale o total inteiro.
+export const pagamentosNota = (forma, pagos, total) =>
+  pagos?.length
+    ? pagos.map((p) => ({ rotulo: FORMAS[p.forma] || p.forma, valor: p.valor }))
+    : [{ rotulo: rotuloForma(forma), valor: total }];
+
 // Uma linha por item no banco; as telas agrupam por pedido. Recebe as vendas em
 // ordem decrescente de id e devolve [[pedido_id, itens na ordem em que entraram]].
 export const agruparPedidos = (vendas) => {
@@ -225,7 +231,8 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
         cliente: cli.nome, // nome do cadastro, não o que foi digitado (pode ter vindo por código)
         descricao: carrinho.map((it) => `${it.qtd}x ${it.peca.nome} ${it.peca.modelo}`.trim()).join("\n")
           + (desconto ? `\nDesconto: -${fmtReais(desconto)}` : ""),
-        valor_total: totalCarrinho + maoDeObra - desconto,
+        valor_total: total,
+        pagamentos: pagamentosNota(fechando.forma, pagos, total),
       });
     }
     setCarrinho([]);
@@ -271,15 +278,18 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
   // --- vendas já registradas -------------------------------------------------
 
   const notaClick = (pid, itens) => {
+    const total = totalPedido(itens);
+    const pagamentos = pagamentosNota(itens[0].forma_pagamento, pagosPorPedido[pid], total);
     const existente = notasPorPedido[pid];
-    if (existente) return reimprimirNota(existente, cfg);
+    if (existente) return reimprimirNota(existente, cfg, pagamentos);
     const desconto = descontoPedido(itens);
     setNotaVenda({
       pedido_id: pid,
       cliente: itens[0].cliente || "",
       descricao: itens.map((v) => `${v.quantidade}x ${v.nome} ${v.modelo}`.trim()).join("\n")
         + (desconto ? `\nDesconto: -${fmtReais(desconto)}` : ""),
-      valor_total: totalPedido(itens),
+      valor_total: total,
+      pagamentos,
     });
   };
 

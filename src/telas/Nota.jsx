@@ -10,6 +10,15 @@ const agora = () => {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
+// Uma forma só: o valor é o próprio total, não precisa repetir. Dividido: cada
+// forma com quanto entrou nela. pagamentos = [{ rotulo, valor }].
+function pagamentoHTML(pagamentos) {
+  if (!pagamentos?.length) return "";
+  if (pagamentos.length === 1) return `<div>Pagamento: ${esc(pagamentos[0].rotulo)}</div>`;
+  return `<div class="b">Pagamento:</div>` +
+    pagamentos.map((p) => `<div>${esc(p.rotulo)}: ${esc(fmtReais(p.valor))}</div>`).join("");
+}
+
 // Recibo térmico 80mm como HTML autocontido (imprime na térmica ou salva PDF).
 function reciboHTML(d, cfg) {
   return `<!doctype html><html><head><meta charset="utf-8"><style>
@@ -33,6 +42,7 @@ function reciboHTML(d, cfg) {
     <hr>
     <div>${esc(d.descricao).replace(/\n/g, "<br>")}</div>
     <div class="tot">TOTAL: ${esc(fmtReais(d.valor_total))}</div>
+    ${pagamentoHTML(d.pagamentos)}
     <hr>
     <div class="c">${esc(cfg.nota_rodape || "Obrigado pela preferência!")}</div>
   </body></html>`;
@@ -45,13 +55,15 @@ async function imprimirRecibo(html, numero) {
   if (r && !r.ok) alert(`Não foi possível gerar o PDF da nota: ${r.erro}`);
 }
 
-export function reimprimirNota(nota, cfg) {
+// A forma de pagamento não é gravada em `notas`: vem do pedido, que continua no
+// banco. Quem chama passa a lista pronta (a tela já tem as formas em mãos).
+export function reimprimirNota(nota, cfg, pagamentos) {
   const c = nota.criado_em;
   imprimirRecibo(reciboHTML({
     numero: nota.numero,
     data: `${c.slice(8, 10)}/${c.slice(5, 7)}/${c.slice(0, 4)} ${c.slice(11, 16)}`,
     cliente_nome: nota.cliente_nome, cliente_contato: nota.cliente_contato,
-    descricao: nota.descricao, valor_total: nota.valor_total,
+    descricao: nota.descricao, valor_total: nota.valor_total, pagamentos,
   }, cfg), nota.numero);
 }
 
@@ -70,7 +82,7 @@ export function NotaModal({ venda, cfg, aoFechar }) {
     );
     imprimirRecibo(reciboHTML({
       numero: n, data: agora(), cliente_nome: venda.cliente, cliente_contato: contato.trim(),
-      descricao: venda.descricao, valor_total: venda.valor_total,
+      descricao: venda.descricao, valor_total: venda.valor_total, pagamentos: venda.pagamentos,
     }, cfg), n);
     aoFechar();
   };

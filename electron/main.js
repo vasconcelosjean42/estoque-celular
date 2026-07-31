@@ -145,6 +145,8 @@ app.whenReady().then(() => {
       await win.loadFile(tmpHtml);
       const pdf = await win.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true });
       fs.writeFileSync(dest, pdf);
+      // O teste não lê PDF: guarda o HTML do recibo ao lado pra conferir o conteúdo.
+      if (process.env.SMOKE) fs.writeFileSync(dest.replace(/\.pdf$/, ".html"), html, "utf-8");
       if (!process.env.SMOKE) shell.openPath(dest);
       return { ok: true, dest };
     } catch (e) {

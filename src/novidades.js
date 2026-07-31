@@ -9,6 +9,13 @@
 // board da atualização nova ocupa o lugar do anterior, nunca empilha.
 export default [
   {
+    versao: "0.6.0",
+    data: "31/07/2026",
+    itens: [
+      "A nota agora sai com a forma de pagamento. Se o cliente pagou em mais de uma, o recibo lista cada uma e quanto foi em cada.",
+    ],
+  },
+  {
     versao: "0.5.0",
     data: "30/07/2026",
     itens: [

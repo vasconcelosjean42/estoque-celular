@@ -350,6 +350,42 @@ const path = require("path");
       assert.strictEqual((await peca(id)).quantidade, 5);
     });
 
+    // O recibo em SMOKE é salvo como .html ao lado do PDF (ver nota-pdf no main).
+    // O modal fecha antes do PDF ficar pronto, então espera o arquivo aparecer.
+    const reciboDe = async (numero) => {
+      const arq = path.join(tmp, "notas", `nota-${String(numero).padStart(4, "0")}.html`);
+      for (let i = 0; i < 40 && !fs.existsSync(arq); i++) await win.waitForTimeout(250);
+      // fmtReais separa "R$" do valor com espaço fino (NBSP): normaliza pro assert.
+      return fs.readFileSync(arq, "utf-8").replace(/ /g, " ");
+    };
+
+    await caso("154. a nota traz a forma de pagamento — e quanto foi em cada, se dividido", async () => {
+      await novaPeca("P151A", 5, 4000, 10000);
+      await novaPeca("P151B", 5, 4000, 10000);
+      await ligarNota(true);
+      try {
+        await abrirVenda("P151A");
+        await dividir([["especie", "30,00"], ["debito", "70,00"]]);
+        await confirmarVenda();
+        await win.click('button:text("Gerar nota (PDF)")');
+        await win.waitForSelector("text=Gerar nota", { state: "detached", timeout: 8000 });
+        const [{ n: dividida }] = await sql("SELECT MAX(numero) AS n FROM notas");
+        const html = await reciboDe(dividida);
+        assert(html.includes("Espécie: R$ 30,00"), "cada forma com o seu valor");
+        assert(html.includes("Débito: R$ 70,00"), "a segunda forma também");
+
+        // Forma única: o valor é o próprio total, não precisa repetir ao lado da forma.
+        await abrirVenda("P151B", { forma: "Pix" });
+        await confirmarVenda();
+        await win.click('button:text("Gerar nota (PDF)")');
+        await win.waitForSelector("text=Gerar nota", { state: "detached", timeout: 8000 });
+        const [{ n: unica }] = await sql("SELECT MAX(numero) AS n FROM notas");
+        assert((await reciboDe(unica)).includes("Pagamento: Pix"), "forma única sai sem valor repetido");
+      } finally {
+        await ligarNota(false);
+      }
+    });
+
     console.log("\nCarrinho (passo 12)");
 
     await caso("44. pedido com 3 itens grava tudo junto e baixa cada estoque", async () => {
