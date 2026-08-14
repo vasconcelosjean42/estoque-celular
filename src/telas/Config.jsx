@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Clientes from "./Clientes.jsx";
+import { fmtReais } from "./Estoque.jsx";
 import Importacao, { gravarImportacao } from "./Importacao.jsx";
 import NOVIDADES from "../novidades.js";
 
@@ -23,6 +24,23 @@ const mascaraTelefone = (str) => {
 
 const bloco = { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 16, marginBottom: 16 };
 const btn = { padding: "10px 18px", fontSize: 15, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer", background: "#38bdf8", color: "#0f172a" };
+
+// Vitrine de clientes: nome + contato. O POOL repete o índice de quem volta
+// sempre, então a tela de Clientes nasce com cliente fiel, cliente de duas
+// compras e cliente de uma só — que é o que o dono quer ver ali.
+const NOMES_DEMO = [
+  ["Ana Paula Ribeiro", "(84) 99812-4471"], ["Carlos Eduardo Lima", "(84) 99634-2280"],
+  ["Marina Souza", "(84) 98871-9053"], ["Rodrigo Alves", "(84) 99145-6612"],
+  ["Juliana Castro", "(84) 99908-3374"], ["Fernando Bezerra", "(84) 98450-7719"],
+  ["Patrícia Nunes", "(84) 99327-8865"], ["Thiago Moreira", "(84) 99781-2043"],
+  ["Camila Duarte", "(84) 98693-5518"], ["Marcelo Pinto", "(84) 99562-0937"],
+  ["Bianca Ferreira", "(84) 99204-6688"], ["Célula Assistência Técnica", "(84) 3211-7788"],
+];
+const POOL_DEMO = [
+  ...[0, 1, 2].flatMap((i) => Array(8).fill(i)),   // fiéis: aparecem toda semana
+  ...[3, 4, 5, 6].flatMap((i) => Array(3).fill(i)), // habituais
+  7, 8, 9, 10, 11,                                  // compraram uma vez
+];
 
 const isoDataHora = (msAtras, hora) => {
   const dt = new Date(Date.now() - msAtras);
@@ -156,8 +174,17 @@ export default function Config({ aoMudar }) {
 
   const demoAtiva = !!cfg?.demo_ids;
 
+  // Loja fictícia de 4 meses: carrinho, cliente que volta, pagamento dividido,
+  // desconto autorizado, nota emitida, troca de todo tipo e lote fechado com o
+  // fornecedor. É a tela de vendas do sistema inteiro — tudo que ele faz tem que
+  // aparecer aqui. IMPORTANTE: cada tabela nova gravada aqui entra em `ids` e no
+  // desativarDemo, senão fica lixo (ou FK quebrada) quando o cliente desligar.
   const ativarDemo = async () => {
-    // 8 tipos × 5 modelos = 40 produtos
+    const rnd = (n) => Math.floor(Math.random() * n);
+    const um = (l) => l[rnd(l.length)];
+    const ids = { pecas: [], vendas: [], entradas: [], trocas: [], lotes: [], creditos: [], clientes: [], notas: [], perdas: [] };
+
+    // 8 tipos × 5 modelos = 40 produtos (o caso 39 do test/p0.js conta esses 40)
     const tipos = [
       ["Tela", 22000, 42000], ["Bateria", 7000, 16000], ["Conector de carga", 1200, 4500],
       ["Câmera traseira", 9000, 22000], ["Alto-falante", 2500, 8000], ["Tampa traseira", 4500, 12000],
@@ -167,48 +194,214 @@ export default function Config({ aoMudar }) {
     const produtos = tipos.flatMap(([tipo, compraBase, vendaBase]) =>
       modelos.map((modelo, m) => {
         const fator = 1 + (m % 3) * 0.15; // varia preço por modelo
-        const qtd = Math.floor(Math.random() * 25); // alguns caem no alerta de mínimo
-        return [tipo, modelo, qtd, Math.round(compraBase * fator), Math.round(vendaBase * fator), 3];
+        return { nome: tipo, modelo, qtd: rnd(25), // alguns caem no alerta de mínimo
+          compra: Math.round(compraBase * fator), venda: Math.round(vendaBase * fator) };
       })
     );
-    const ids = { pecas: [], vendas: [], entradas: [], trocas: [], lotes: [], creditos: [] };
-    for (const p of produtos) {
-      const r = await window.api.query(
-        "INSERT INTO pecas (nome, modelo, quantidade, preco_compra, preco_venda, estoque_minimo) VALUES (?,?,?,?,?,?)", p
-      );
+    // Um em cada cinco sai com código de barras, pra pistola ter o que bipar na demo.
+    (await window.api.tx(produtos.map((p, i) => [
+      "INSERT INTO pecas (nome, modelo, quantidade, preco_compra, preco_venda, estoque_minimo, codigo_barras) VALUES (?,?,?,?,?,?,?)",
+      [p.nome, p.modelo, p.qtd, p.compra, p.venda, 3, i % 5 === 0 ? `789${1000000000 + i}` : ""],
+    ]))).forEach((r, i) => {
+      produtos[i].id = r.lastInsertRowid;
       ids.pecas.push(r.lastInsertRowid);
-    }
+    });
+
+    const clientes = NOMES_DEMO.map(([nome, contato]) => ({ nome, contato }));
+    const [{ n: baseCli }] = await window.api.query(
+      "SELECT COALESCE(MAX(CAST(substr(codigo,2) AS INTEGER)),0)+1 AS n FROM clientes WHERE codigo GLOB 'C[0-9]*'");
+    (await window.api.tx(clientes.map((c, i) => [
+      "INSERT INTO clientes (codigo, nome, contato, criado_em) VALUES (?,?,?,?)",
+      [`C${String(baseCli + i).padStart(3, "0")}`, c.nome, c.contato, isoDataHora((115 - i * 8) * 86400000, 10)],
+    ]))).forEach((r, i) => {
+      clientes[i].id = r.lastInsertRowid;
+      ids.clientes.push(r.lastInsertRowid);
+    });
+
+    // Quem vendeu: o administrador que já existe. Também é ele que autoriza os
+    // descontos — sem isso a etiqueta de desconto ficaria sem dono na tela.
+    const [dono] = await window.api.query("SELECT id FROM usuarios WHERE papel = 'dono' ORDER BY id LIMIT 1");
     const formas = ["especie", "pix", "debito", "credito_avista", "credito_parcelado"];
-    const vendas = [];
+    const [{ n: basePedido }] = await window.api.query("SELECT COALESCE(MAX(pedido_id),0)+1 AS n FROM vendas");
+    const [{ n: baseNota }] = await window.api.query("SELECT COALESCE(MAX(numero),0)+1 AS n FROM notas");
+    let pedidoId = basePedido, numeroNota = baseNota;
+    const cmdVendas = [], linhas = [], cmdPagamentos = [], cmdNotas = [];
+
     for (let d = 120; d >= 0; d--) {
-      for (let i = 2 + Math.floor(Math.random() * 7); i > 0; i--) {
-        const p = Math.floor(Math.random() * produtos.length);
-        vendas.push([
-          "INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, mao_de_obra, forma_pagamento, criado_em) VALUES (?,?,?,?,?,?,?)",
-          [ids.pecas[p], 1, produtos[p][4], produtos[p][3], Math.random() < 0.4 ? 5000 : 0,
-           formas[Math.floor(Math.random() * formas.length)], isoDataHora(d * 86400000, 9 + Math.floor(Math.random() * 9))],
-        ]);
+      const doDia = 1 + rnd(5);
+      for (let i = 0; i < doDia; i++) {
+        // Hora crescente dentro do dia: as telas listam por id, então venda das
+        // 16h gravada antes da de 13h apareceria fora de ordem no mesmo dia.
+        const quando = isoDataHora(d * 86400000, 9 + i * 2);
+        // Carrinho: a maioria leva uma peça só, mas tem quem leve 2 ou 3.
+        const itens = [];
+        const alvo = Math.random() < 0.62 ? 1 : Math.random() < 0.75 ? 2 : 3;
+        while (itens.length < alvo) {
+          const p = produtos[rnd(produtos.length)];
+          if (!itens.some((i) => i.p === p)) {
+            itens.push({ p, qtd: p.venda < 3000 && Math.random() < 0.4 ? 1 + rnd(2) : 1 }); // acessório sai em par
+          }
+        }
+        const cli = Math.random() < 0.7 ? clientes[um(POOL_DEMO)] : null; // resto é balcão, sem cadastro
+        const mao = Math.random() < 0.35 ? um([3000, 5000, 8000]) : 0;
+        const bruto = itens.reduce((s, i) => s + i.p.venda * i.qtd, 0) + mao;
+        // Desconto em valor redondo, como o dono daria na mão.
+        const desconto = Math.random() < 0.18 ? Math.round((bruto * um([5, 10, 15])) / 10000) * 100 : 0;
+        const total = bruto - desconto;
+        const dividido = Math.random() < 0.12;
+        itens.forEach((it, i) => {
+          linhas.push({ pedidoId, peca: it.p, preco: it.p.venda, dias: d, quando, cli });
+          cmdVendas.push([
+            `INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, mao_de_obra, forma_pagamento,
+                                 cliente, cliente_id, usuario_id, pedido_id, desconto, desconto_por, criado_em)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            // Mão de obra e desconto são do pedido: só a primeira linha os carrega.
+            [it.p.id, it.qtd, it.p.venda, it.p.compra, i === 0 ? mao : 0, dividido ? "dividido" : um(formas),
+             cli?.nome ?? "", cli?.id ?? null, dono?.id ?? null, pedidoId,
+             i === 0 ? desconto : 0, i === 0 && desconto ? dono?.id ?? null : null, quando],
+          ]);
+        });
+        if (dividido) {
+          // Entrada em espécie + resto no cartão/Pix; a soma tem que fechar o total.
+          const entrada = Math.max(100, Math.round((total * 0.4) / 100) * 100);
+          cmdPagamentos.push(
+            ["INSERT INTO pagamentos (pedido_id, forma, valor, criado_em) VALUES (?,?,?,?)", [pedidoId, "especie", entrada, quando]],
+            ["INSERT INTO pagamentos (pedido_id, forma, valor, criado_em) VALUES (?,?,?,?)",
+              [pedidoId, um(["pix", "debito", "credito_parcelado"]), total - entrada, quando]]
+          );
+        }
+        if (Math.random() < 0.4) { // nota é opcional na venda: só parte dos pedidos tem
+          cmdNotas.push([
+            "INSERT INTO notas (pedido_id, numero, cliente_nome, cliente_contato, descricao, valor_total, criado_em) VALUES (?,?,?,?,?,?,?)",
+            [pedidoId, numeroNota++, cli?.nome ?? "", cli?.contato ?? "",
+             itens.map((it) => `${it.qtd}x ${it.p.nome} ${it.p.modelo}`).join("\n") + (desconto ? `\nDesconto: -${fmtReais(desconto)}` : ""),
+             total, quando],
+          ]);
+        }
+        pedidoId++;
       }
     }
-    (await window.api.tx(vendas)).forEach((r) => ids.vendas.push(r.lastInsertRowid));
+    (await window.api.tx(cmdVendas)).forEach((r, i) => {
+      linhas[i].id = r.lastInsertRowid;
+      ids.vendas.push(r.lastInsertRowid);
+    });
+    await window.api.tx(cmdPagamentos); // sem id: o desativar acha pelo pedido_id da venda
+    (await window.api.tx(cmdNotas)).forEach((r) => ids.notas.push(r.lastInsertRowid));
+
     (await window.api.tx([
       ["INSERT INTO entradas (peca_id, quantidade, preco_compra, observacao, criado_em) VALUES (?,?,?,?,?)",
-        [ids.pecas[0], 8, 28000, "cadastro inicial", isoDataHora(15 * 86400000, 10)]],
+        [produtos[0].id, 8, 28000, "cadastro inicial", isoDataHora(110 * 86400000, 10)]],
       ["INSERT INTO entradas (peca_id, quantidade, preco_compra, observacao, criado_em) VALUES (?,?,?,?,?)",
-        [ids.pecas[3], 40, 300, "leva do mês", isoDataHora(5 * 86400000, 14)]],
+        [produtos[35].id, 40, 300, "leva do mês", isoDataHora(45 * 86400000, 14)]],
+      ["INSERT INTO entradas (peca_id, quantidade, preco_compra, observacao, criado_em) VALUES (?,?,?,?,?)",
+        [produtos[5].id, 12, 7200, "fornecedor de SP", isoDataHora(30 * 86400000, 11)]],
+      ["INSERT INTO entradas (peca_id, quantidade, preco_compra, observacao, criado_em) VALUES (?,?,?,?,?)",
+        [produtos[12].id, 6, 23500, "reposição urgente", isoDataHora(12 * 86400000, 16)]],
+      ["INSERT INTO entradas (peca_id, quantidade, preco_compra, observacao, criado_em) VALUES (?,?,?,?,?)",
+        [produtos[30].id, 50, 520, "caixa de capinhas", isoDataHora(6 * 86400000, 9)]],
+      ["INSERT INTO entradas (peca_id, quantidade, preco_compra, observacao, criado_em) VALUES (?,?,?,?,?)",
+        [produtos[1].id, 4, 24000, "compra avulsa", isoDataHora(2 * 86400000, 15)]],
     ])).forEach((r) => ids.entradas.push(r.lastInsertRowid));
-    const lote = await window.api.query(
-      "INSERT INTO lotes (status, enviado_em, resolvido_em) VALUES ('resolvido', datetime('now','localtime','-50 days'), datetime('now','localtime','-20 days'))"
-    );
-    ids.lotes.push(lote.lastInsertRowid);
+
+    // Lotes: um já resolvido pelo valor cheio do acerto, um resolvido item a item
+    // (o fornecedor recusou uma peça) e um ainda na mão do fornecedor.
+    const dias = (n) => `datetime('now','localtime','-${n} days')`;
     (await window.api.tx([
-      ["INSERT INTO trocas (modelo, defeito, valor_compra, recebido_em, lote_id) VALUES ('Tela iPhone 13','manchas na tela',28000, datetime('now','localtime','-55 days'), ?)", [lote.lastInsertRowid]],
-      ["INSERT INTO trocas (modelo, defeito, valor_compra, recebido_em) VALUES ('Bateria iPhone 12','não segura carga',9000, datetime('now','localtime','-35 days'))"],
-      ["INSERT INTO trocas (modelo, defeito, observacao, valor_compra, recebido_em) VALUES ('Tela Samsung','touch falhando','cliente João',22000, datetime('now','localtime','-8 days'))"],
-    ])).forEach((r) => ids.trocas.push(r.lastInsertRowid));
+      [`INSERT INTO lotes (status, enviado_em, resolvido_em) VALUES ('resolvido', ${dias(75)}, ${dias(58)})`],
+      [`INSERT INTO lotes (status, enviado_em, resolvido_em) VALUES ('resolvido', ${dias(40)}, ${dias(22)})`],
+      [`INSERT INTO lotes (status, enviado_em) VALUES ('enviado', ${dias(11)})`],
+    ])).forEach((r) => ids.lotes.push(r.lastInsertRowid));
+    const [loteA, loteB, loteC] = ids.lotes;
+
+    // A reposição é sempre do mesmo tipo e do preço mais próximo (tela por tela):
+    // trocar uma tela por uma película daria uma diferença absurda na demo.
+    const doTipo = (peca, mais) =>
+      produtos.filter((p) => p.nome === peca.nome && (mais ? p.venda > peca.venda : p.venda < peca.venda))
+        .sort((a, b) => (mais ? a.venda - b.venda : b.venda - a.venda))[0];
+    // Trocas vindas do histórico de venda: o cliente volta com a peça que comprou.
+    // Só serve a venda de um produto que TENHA reposição mais cara/mais barata.
+    const daVenda = (tipo, deDias, ateDias, exige = () => true) =>
+      linhas.find((l) => l.cli && l.peca.nome === tipo && l.dias <= deDias && l.dias >= ateDias && exige(l))
+      || linhas.find((l) => l.cli && exige(l));
+    const trocaVenda = daVenda("Tela", 50, 40);
+    const trocaCara = daVenda("Bateria", 30, 20, (l) => doTipo(l.peca, true));
+    const trocaBarata = daVenda("Tela", 20, 12, (l) => doTipo(l.peca, false));
+    const trocaEstorno = daVenda("Capinha", 9, 3);
+    const maisCara = doTipo(trocaCara.peca, true) || trocaCara.peca;
+    const maisBarata = doTipo(trocaBarata.peca, false) || trocaBarata.peca;
+    const trocasCmd = [
+      // 1) mesmo modelo na hora, sem diferença — o caso mais comum da loja
+      [`INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, peca_id, venda_id, nova_peca_id,
+                            diferenca, nova_preco_compra, recebido_em, lote_id) VALUES (?,?,?,?,?,?,?,?,0,?,${dias(45)},?)`,
+        [`${trocaVenda.peca.nome} ${trocaVenda.peca.modelo}`, "manchas na tela", `cliente ${trocaVenda.cli.nome}`,
+         trocaVenda.peca.compra, "Distribuidora Norte", trocaVenda.peca.id, trocaVenda.id, trocaVenda.peca.id,
+         trocaVenda.peca.compra, loteA]],
+      // 2) trocou por peça melhor e pagou a diferença no Pix
+      [`INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, peca_id, venda_id, nova_peca_id,
+                            diferenca, forma_pagamento, nova_preco_compra, recebido_em, lote_id) VALUES (?,?,?,?,?,?,?,?,?,'pix',?,${dias(28)},?)`,
+        [`${trocaCara.peca.nome} ${trocaCara.peca.modelo}`, "não segura carga", "levou a de qualidade melhor",
+         trocaCara.peca.compra, "Distribuidora Norte", trocaCara.peca.id, trocaCara.id, maisCara.id,
+         maisCara.venda - trocaCara.preco, maisCara.compra, loteB]],
+      // 3) trocou por peça mais barata e recebeu a diferença de volta em espécie
+      [`INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, peca_id, venda_id, nova_peca_id,
+                            diferenca, forma_pagamento, nova_preco_compra, recebido_em, lote_id) VALUES (?,?,?,?,?,?,?,?,?,'especie',?,${dias(16)},?)`,
+        [`${trocaBarata.peca.nome} ${trocaBarata.peca.modelo}`, "touch falhando", "aceitou a paralela e recebeu a diferença",
+         trocaBarata.peca.compra, "Peças Já", trocaBarata.peca.id, trocaBarata.id, maisBarata.id,
+         maisBarata.venda - trocaBarata.preco, maisBarata.compra, loteB]],
+      // 4) devolveu funcionando: estorno no Pix e a peça volta pro estoque
+      [`INSERT INTO trocas (modelo, defeito, observacao, valor_compra, peca_id, venda_id, defeituosa, estorno,
+                            forma_pagamento, recebido_em) VALUES (?,'devolvida funcionando',?,?,?,?,0,?,'pix',${dias(5)})`,
+        [`${trocaEstorno.peca.nome} ${trocaEstorno.peca.modelo}`, "não serviu no aparelho", trocaEstorno.peca.compra,
+         trocaEstorno.peca.id, trocaEstorno.id, trocaEstorno.preco]],
+      // 5-8) trazidas por terceiro, ainda na prateleira — uma já passou dos 40 dias
+      [`INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, recebido_em) VALUES ('Tela Galaxy A32','listra verde','trouxe da assistência do bairro',24000,'Distribuidora Norte',${dias(47)})`],
+      [`INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, recebido_em) VALUES ('Bateria Moto G52','estufou','cliente Marcelo',8500,'Peças Já',${dias(19)})`],
+      [`INSERT INTO trocas (modelo, defeito, valor_compra, fornecedor, recebido_em) VALUES ('Conector de carga iPhone 11','não carrega',1400,'Peças Já',${dias(9)})`],
+      [`INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, recebido_em) VALUES ('Câmera traseira Galaxy S22','foto tremida','chegou hoje',10500,'Distribuidora Norte',${dias(1)})`],
+      // 9-10) no lote que ainda está com o fornecedor
+      [`INSERT INTO trocas (modelo, defeito, valor_compra, fornecedor, recebido_em, lote_id) VALUES ('Tela iPhone 13','sombra no touch',28000,'Distribuidora Norte',${dias(20)},?)`, [loteC]],
+      [`INSERT INTO trocas (modelo, defeito, valor_compra, fornecedor, recebido_em, lote_id) VALUES ('Alto-falante iPhone 11','som chiado',2800,'Distribuidora Norte',${dias(15)},?)`, [loteC]],
+      // 11) a peça do lote B que o fornecedor recusou (vira perda logo abaixo)
+      [`INSERT INTO trocas (modelo, defeito, observacao, valor_compra, fornecedor, recebido_em, lote_id) VALUES ('Tampa traseira Moto G52','trincada no canto','fornecedor não aceitou',5200,'Peças Já',${dias(35)},?)`, [loteB]],
+      // 12-13) completam o lote A, o mais antigo, fechado pelo valor do acerto
+      [`INSERT INTO trocas (modelo, defeito, valor_compra, fornecedor, recebido_em, lote_id, creditada) VALUES ('Tela iPhone 11','apagou do nada',24000,'Distribuidora Norte',${dias(80)},?,1)`, [loteA]],
+      [`INSERT INTO trocas (modelo, defeito, valor_compra, fornecedor, recebido_em, lote_id, creditada) VALUES ('Bateria Galaxy S22','descarrega em 2h',9000,'Distribuidora Norte',${dias(78)},?,1)`, [loteA]],
+    ];
+    (await window.api.tx(trocasCmd)).forEach((r) => ids.trocas.push(r.lastInsertRowid));
+    // Peça devolvida funcionando volta pro estoque (troca 4).
+    await window.api.query("UPDATE pecas SET quantidade = quantidade + 1 WHERE id = ?", [trocaEstorno.peca.id]);
+    const recusada = ids.trocas[10];
+
+    // Crédito e perda do lote saem da soma das peças que ele leva — número
+    // chutado aqui apareceria brigando com o total do lote na tela de Trocas.
+    const valorA = trocaVenda.peca.compra + 24000 + 9000;
+    const creditoA = Math.round((valorA * 0.8) / 100) * 100; // acerto no valor cheio: o fornecedor cortou 20%
+    const valorB = trocaCara.peca.compra + trocaBarata.peca.compra + 5200;
+    const creditoB = valorB - 5200; // item a item: só a tampa trincada ficou de fora
+    await window.api.tx([
+      ["UPDATE lotes SET modo = 'total', credito = ?, perda = ? WHERE id = ?", [creditoA, valorA - creditoA, loteA]],
+      ["UPDATE lotes SET modo = 'itens', credito = ?, perda = 5200 WHERE id = ?", [creditoB, loteB]],
+      ["UPDATE trocas SET creditada = 1 WHERE id IN (?,?)", [ids.trocas[1], ids.trocas[2]]],
+    ]);
+
     (await window.api.tx([
-      ["INSERT INTO creditos (valor, descricao, criado_em) VALUES (28000,'Retorno do lote #' || ?, datetime('now','localtime','-20 days'))", [lote.lastInsertRowid]],
-      ["INSERT INTO creditos (valor, descricao, criado_em) VALUES (-10000,'Abatido na compra de películas', datetime('now','localtime','-12 days'))"],
+      // Lote A fechado pelo valor total: a diferença virou uma perda só, sem dono.
+      // O texto vem montado do JS: concatenar o id no SQL o imprime como "1.0".
+      [`INSERT INTO perdas (valor, motivo, criado_em) VALUES (?, ?, ${dias(58)})`,
+        [valorA - creditoA, `Lote #${loteA} — creditou ${fmtReais(creditoA)} de ${fmtReais(valorA)}`]],
+      // Lote B fechado item a item: dá pra dizer QUAL peça o fornecedor recusou.
+      [`INSERT INTO perdas (troca_id, valor, motivo, criado_em) VALUES (?, 5200, ?, ${dias(22)})`,
+        [recusada, `Lote #${loteB} — fornecedor não aceitou`]],
+      // Perda de bancada: peça quebrada no conserto, a preço de custo.
+      [`INSERT INTO perdas (peca_id, valor, motivo, criado_em) VALUES (?, ?, 'quebrou na bancada', ${dias(26)})`,
+        [produtos[2].id, produtos[2].compra]],
+    ])).forEach((r) => ids.perdas.push(r.lastInsertRowid));
+
+    (await window.api.tx([
+      [`INSERT INTO creditos (valor, descricao, criado_em) VALUES (?,?, ${dias(58)})`, [creditoA, `Retorno do lote #${loteA}`]],
+      [`INSERT INTO creditos (valor, descricao, criado_em) VALUES (?,?, ${dias(22)})`, [creditoB, `Retorno do lote #${loteB}`]],
+      [`INSERT INTO creditos (valor, descricao, criado_em) VALUES (-10000,'Abatido na compra de películas', ${dias(18)})`],
+      [`INSERT INTO creditos (valor, descricao, criado_em) VALUES (-25000,'Abatido em telas do iPhone 13', ${dias(7)})`],
     ])).forEach((r) => ids.creditos.push(r.lastInsertRowid));
     await salvarConfig("demo_ids", JSON.stringify(ids));
     location.reload();
@@ -227,6 +420,7 @@ export default function Config({ aoMudar }) {
       // aqui, senão o desativar volta a morrer com "FOREIGN KEY constraint
       // failed". Coberto pelo caso 39 do test/p0.js.
       await window.api.tx([
+        [`DELETE FROM notas WHERE id IN (${em(ids.notas)})`, []],
         [`UPDATE notas  SET venda_id = NULL WHERE venda_id IN (${vendasDemo})`, []],
         [`UPDATE trocas SET venda_id = NULL WHERE venda_id IN (${vendasDemo})`, []],
         // antes de vendas: sem a venda não dá mais pra achar o pedido dividido
@@ -236,12 +430,15 @@ export default function Config({ aoMudar }) {
         [`UPDATE trocas SET peca_id = NULL      WHERE peca_id IN (${p})`, []],
         [`UPDATE trocas SET nova_peca_id = NULL WHERE nova_peca_id IN (${p})`, []],
         // perdas aponta pra trocas e pecas: some com a da demo e solta a real.
-        [`DELETE FROM perdas WHERE troca_id IN (${em(ids.trocas)})`, []],
+        [`DELETE FROM perdas WHERE id IN (${em(ids.perdas)}) OR troca_id IN (${em(ids.trocas)})`, []],
         [`UPDATE perdas SET peca_id = NULL WHERE peca_id IN (${p})`, []],
         [`DELETE FROM trocas WHERE id IN (${em(ids.trocas)})`, []],
         [`UPDATE trocas SET lote_id = NULL WHERE lote_id IN (${em(ids.lotes)})`, []],
         [`DELETE FROM lotes    WHERE id IN (${em(ids.lotes)})`, []],
         [`DELETE FROM creditos WHERE id IN (${em(ids.creditos)})`, []],
+        // Cliente fictício sai, mas venda real feita no nome dele só perde o vínculo.
+        [`UPDATE vendas SET cliente_id = NULL WHERE cliente_id IN (${em(ids.clientes)})`, []],
+        [`DELETE FROM clientes WHERE id IN (${em(ids.clientes)})`, []],
         [`DELETE FROM pecas    WHERE id IN (${p})`, []],
         ["DELETE FROM config WHERE chave = 'demo_ids'", []],
       ]);
