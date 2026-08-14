@@ -9,6 +9,15 @@
 // board da atualização nova ocupa o lugar do anterior, nunca empilha.
 export default [
   {
+    versao: "0.7.0",
+    data: "14/08/2026",
+    itens: [
+      "A lista de vendas agora mostra o dia junto com a hora — com os filtros de ontem, semana e mês dá pra saber de que dia é cada venda.",
+      "Na Venda dá pra escolher o período por data, igual no Dashboard, e uma lupa acha a venda pelo nome do cliente ou pelo produto — sem rolar a lista procurando pra fazer a troca.",
+      "Escolher uma data de início depois da data final (ou o contrário) não devolve mais lista vazia: a outra data acompanha sozinha.",
+    ],
+  },
+  {
     versao: "0.6.0",
     data: "31/07/2026",
     itens: [

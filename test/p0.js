@@ -2274,6 +2274,38 @@ const path = require("path");
       await sql("UPDATE pecas SET quantidade = 5 WHERE modelo = 'B25A'");
     });
 
+    await caso("155. lista de vendas: filtra por período e busca por cliente ou produto", async () => {
+      const a = await novaPeca("Lupa155A", 5, 1000, 2000);
+      const b = await novaPeca("Lupa155B", 5, 1000, 3000);
+      await sql("INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, cliente, pedido_id) VALUES (?,1,2000,1000,'Zenaide Teste',900155)", [a]);
+      // Pedido de 2 itens: a busca casa o pedido inteiro, não a linha solta.
+      await sql("INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, cliente, pedido_id) VALUES (?,1,3000,1000,'Genaro Teste',900156)", [b]);
+      await sql("INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, cliente, pedido_id) VALUES (?,1,2000,1000,'Genaro Teste',900156)", [a]);
+      await recarregar("Venda");
+      await win.click('button:text-is("Hoje")');
+      await win.waitForTimeout(400);
+      // Os dois campos de data vieram junto com os atalhos (mesmo componente do Dashboard).
+      assert.strictEqual(await win.locator('input[type="date"]').count(), 2, "a Venda tem que ter o de/até");
+
+      const busca = 'input[aria-label="Buscar venda por cliente ou produto"]';
+      await win.fill(busca, "zenaide");
+      await win.waitForTimeout(300);
+      assert.strictEqual(await win.locator('tr:has-text("Zenaide Teste")').count(), 1, "a venda dela continua na lista");
+      assert.strictEqual(await win.locator('tr:has-text("Genaro Teste")').count(), 0, "e a dos outros sai");
+
+      await win.fill(busca, "Lupa155B"); // só o pedido de 2 itens tem esse produto
+      await win.waitForTimeout(300);
+      assert.strictEqual(await win.locator('tr:has-text("Genaro Teste")').count(), 1, "busca por produto acha o pedido");
+      assert.strictEqual(await win.locator('tr:has-text("Zenaide Teste")').count(), 0);
+
+      await win.fill(busca, "zzzznadaaqui");
+      await win.waitForTimeout(300);
+      assert(await win.locator('text=Nenhuma venda com "zzzznadaaqui"').count(), "sem resultado a lista tem que dizer isso");
+      await win.fill(busca, "");
+      await win.waitForTimeout(300);
+      assert.strictEqual(await win.locator('tr:has-text("Zenaide Teste")').count(), 1, "limpar a busca traz tudo de volta");
+    });
+
     await caso("145. Config mostra o board só da última versão, e fechar guarda que ele viu", async () => {
       const versao = require("../package.json").version;
       // novidades.js é ESM (o Vite importa): lê como texto pra conferir a regra do
@@ -2374,6 +2406,29 @@ const path = require("path");
       await win.selectOption("select", { label: "Todos os vendedores" });
       await win.waitForTimeout(400);
       assert.strictEqual(await win.locator("tbody tr").count(), todos, "voltar para todos restaura a lista");
+    });
+
+    await caso("41b. período invertido no Dashboard: uma ponta empurra a outra", async () => {
+      await aba("Dashboard");
+      await win.click('button:text-is("Hoje")');
+      const campos = win.locator('input[type="date"]');
+      const ler = async () => [await campos.nth(0).inputValue(), await campos.nth(1).inputValue()];
+      const [hoje] = await ler();
+      const dia = (n) => {
+        const d = new Date(`${hoje}T12:00:00`);
+        d.setDate(d.getDate() + n);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      };
+      await campos.nth(0).fill(dia(1)); // início depois do fim: o fim vai junto
+      await win.waitForTimeout(300);
+      assert.deepStrictEqual(await ler(), [dia(1), dia(1)]);
+      await campos.nth(1).fill(dia(-1)); // fim antes do início: o início vem junto
+      await win.waitForTimeout(300);
+      assert.deepStrictEqual(await ler(), [dia(-1), dia(-1)]);
+      // Tudo é "sem limite" nas duas pontas — o ajuste não pode inventar data aqui.
+      await win.click('button:text-is("Tudo")');
+      await win.waitForTimeout(300);
+      assert.deepStrictEqual(await ler(), ["", ""]);
     });
 
     await caso("42. excluir usuário que já vendeu preserva a venda", async () => {

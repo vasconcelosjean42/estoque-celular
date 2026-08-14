@@ -248,12 +248,8 @@ export default function Dashboard() {
 
       <h3>Histórico de vendas</h3>
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
-        <input type="date" value={de} onChange={(e) => { setAtalhoSel(null); setDe(e.target.value); }}
-          style={{ padding: 8, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1" }} />
-        <span>até</span>
-        <input type="date" value={ate} onChange={(e) => { setAtalhoSel(null); setAte(e.target.value); }}
-          style={{ padding: 8, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1" }} />
-        <FiltroData sel={atalhoSel} aoEscolher={(chave, d, a) => { setAtalhoSel(chave); setDe(d); setAte(a); }} />
+        <FiltroData sel={atalhoSel} de={de} ate={ate}
+          aoEscolher={(chave, d, a) => { setAtalhoSel(chave); setDe(d); setAte(a); }} />
         <select value={vendedor} onChange={(e) => setVendedor(e.target.value)}
           style={{ padding: 8, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1" }}>
           <option value="">Todos os vendedores</option>

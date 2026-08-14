@@ -12,6 +12,10 @@ export const FORMAS = {
   credito_parcelado: "Crédito parcelado",
 };
 
+// Dia e hora na lista de vendas. Com os filtros (ontem, esta semana, este mês,
+// tudo) a lista mistura dias, e só a hora não diz em qual deles a venda caiu.
+export const quandoBR = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)} ${iso.slice(11, 16)}`;
+
 // Rótulo da forma na lista de pedidos. Pedido dividido tem linhas em `pagamentos`
 // e mostra as duas ("Espécie + Débito"); vendas.forma_pagamento fica 'dividido',
 // que não é forma de caixa nenhuma — o dinheiro real está em `pagamentos`.
@@ -88,6 +92,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
   const [notaVenda, setNotaVenda] = useState(null); // pedido recém-confirmado aguardando nota
   const [flashId, setFlashId] = useState(null); // pedido destacado após confirmar
   const [busca, setBusca] = useState("");
+  const [buscaVenda, setBuscaVenda] = useState(""); // filtra a lista de vendas (cliente ou produto)
   // ponytail: carrinho vive nesta tela, então trocar de aba no meio da venda o
   // esvazia. Subir o estado pro App resolve, se o cliente reclamar.
   const [carrinho, setCarrinho] = useState([]); // [{ peca, qtd, preco }]
@@ -106,7 +111,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
     if (fAte) { conds.push("date(v.criado_em) <= ?"); params.push(fAte); }
     window.api
       .query(
-        `SELECT v.*, p.nome, p.modelo FROM vendas v JOIN pecas p ON p.id = v.peca_id
+        `SELECT v.*, p.nome, p.modelo, p.codigo FROM vendas v JOIN pecas p ON p.id = v.peca_id
          ${conds.length ? `WHERE ${conds.join(" AND ")}` : ""} ORDER BY v.id DESC`,
         params
       )
@@ -503,7 +508,11 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
   const trocasPorVenda = {};
   trocasVenda.forEach((t) => (trocasPorVenda[t.venda_id] ||= []).push(t));
 
-  const pedidos = agruparPedidos(vendasHoje);
+  // Filtra o PEDIDO inteiro, não o item: casando item a item, um carrinho de 3
+  // peças apareceria pela metade e o total da linha ficaria errado.
+  const alvo = buscaVenda.trim().toLowerCase();
+  const pedidos = agruparPedidos(vendasHoje).filter(([, itens]) =>
+    !alvo || itens.some((v) => `${v.cliente} ${v.nome} ${v.modelo} ${v.codigo || ""}`.toLowerCase().includes(alvo)));
 
   const alternar = (pid) => {
     const s = new Set(abertos);
@@ -525,7 +534,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
       const ultima = i === cadeia.length - 1;
       return (
         <tr key={`t${t.id}`} style={{ borderBottom: ultima ? "1px solid #e2e8f0" : "none", background: "#fffbeb" }}>
-          <td style={{ padding: 8, color: "#64748b" }}>{t.recebido_em.slice(11, 16)}</td>
+          <td style={{ padding: 8, color: "#64748b" }}>{quandoBR(t.recebido_em)}</td>
           <td style={{ padding: 8 }} colSpan={2}>
             {t.estorno > 0 ? (
               <>↳ <strong style={{ color: "#dc2626" }}>estornado {fmtReais(t.estorno)}</strong> em {FORMAS[t.forma_pagamento] || t.forma_pagamento}</>
@@ -649,7 +658,11 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
       <div style={{ flex: "4 1 0", overflow: "auto", minHeight: 0, borderTop: "2px solid #cbd5e1", marginTop: 12 }}>
         <h3 style={{ margin: "12px 0 8px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           {fSel === "tudo" ? "Todas as vendas" : `Vendas ${sufixoTitulo(fSel)}`}
-          <FiltroData sel={fSel} aoEscolher={(chave, d, a) => setFiltroData([chave, d, a])} />
+          <FiltroData sel={fSel} de={fDe} ate={fAte} aoEscolher={(chave, d, a) => setFiltroData([chave, d, a])} />
+          {/* Achar a venda pra trocar sem rolar a lista: é a dor do balcão. */}
+          <input value={buscaVenda} onChange={(e) => setBuscaVenda(e.target.value)}
+            placeholder="🔍 Cliente ou produto…" aria-label="Buscar venda por cliente ou produto"
+            style={{ ...inp, width: 220, padding: 8, fontSize: 15, fontWeight: "normal" }} />
         </h3>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
           <tbody>
@@ -677,7 +690,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
                 return (
                   <React.Fragment key={pid}>
                     <tr id={`pedido-${pid}`} style={{ borderBottom: trocada ? "none" : "1px solid #e2e8f0", transition: "background .8s", background: fundo }}>
-                      <td style={{ padding: 8, color: "#64748b" }}>{v.criado_em.slice(11, 16)}</td>
+                      <td style={{ padding: 8, color: "#64748b" }}>{quandoBR(v.criado_em)}</td>
                       <td style={{ padding: 8 }}>
                         {v.quantidade}x {v.nome} {v.modelo}
                         {v.cliente && <span style={{ color: "#64748b" }}> — {v.cliente}</span>}
@@ -701,7 +714,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
                 <React.Fragment key={pid}>
                   <tr id={`pedido-${pid}`} onClick={() => alternar(pid)} title={aberto ? "Recolher" : "Expandir"}
                     style={{ borderBottom: aberto ? "none" : "1px solid #e2e8f0", cursor: "pointer", transition: "background .8s", background: fundo || "#f1f5f9" }}>
-                    <td style={{ padding: 8, color: "#64748b" }}>{itens[0].criado_em.slice(11, 16)}</td>
+                    <td style={{ padding: 8, color: "#64748b" }}>{quandoBR(itens[0].criado_em)}</td>
                     <td style={{ padding: 8, fontWeight: "bold" }}>
                       {setaPedido(aberto)} Pedido com {itens.length} itens
                       {itens[0].cliente && <span style={{ color: "#64748b", fontWeight: "normal" }}> — {itens[0].cliente}</span>}
@@ -736,7 +749,9 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
               );
             })}
             {pedidos.length === 0 && (
-              <tr><td style={{ padding: 16, color: "#64748b" }}>Nenhuma venda no período.</td></tr>
+              <tr><td style={{ padding: 16, color: "#64748b" }}>
+                {alvo ? `Nenhuma venda com "${buscaVenda.trim()}" no período.` : "Nenhuma venda no período."}
+              </td></tr>
             )}
           </tbody>
         </table>
