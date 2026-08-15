@@ -92,3 +92,25 @@ cliente: o carrinho (passo 12) muda a estrutura da venda, e o conceito de perda
    custo, usada pelos passos 19, 20 e pelo cálculo de margem.
 3. **A venda passa a saber quem vendeu** (passo 11) — `vendas.usuario_id`,
    necessário pro fechamento e pro rastro de quem autorizou desconto.
+
+---
+
+# v1.0.0 — dois PCs na loja (2026-08-15)
+
+| # | Passo | Item do cliente | Depende de | Status |
+|---|-------|-----------------|------------|--------|
+| 27 | Balcão e escritório no mesmo banco, pela rede da loja | "banco na nuvem" | 8 | 📝 spec escrita |
+
+O pedido veio como "banco de dados na nuvem"; a dor é **dois PCs ao mesmo
+tempo**. Spec em `specs/passo-27-dois-pcs.md`, com os quatro padrões de mercado
+comparados e o porquê da escolha.
+
+**Decisão: servidor na rede local, não na nuvem.** Um PC guarda o banco, o outro
+é terminal. Dois computadores a cinco metros um do outro não precisam da
+internet do interior no meio do caminho, e um banco único faz o conflito de
+estoque deixar de existir em vez de precisar ser resolvido. A nuvem continua
+sendo o backup diário na pasta do Drive, que é o papel que ela faz bem aqui.
+
+Isto **revoga** a linha do `AGENTS.md` ("Sem banco na nuvem, sem sync — 1 PC só,
+não há conflito") no ponto do "1 PC só" — o resto continua valendo, inclusive o
+"sem banco na nuvem".
