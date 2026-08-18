@@ -21,11 +21,35 @@
   .anote { border: 1pt dashed #999; padding: 8pt 10pt; margin: 10pt 0; page-break-inside: avoid; }
   .anote div { margin: 7pt 0; font-family: sans-serif; font-size: 10pt; }
   .linha { display: inline-block; border-bottom: 1pt solid #666; width: 62%; }
+  figure { margin: 10pt 0 4pt; page-break-inside: avoid; }
+  figure img { width: 100%; border: 1pt solid #ddd; border-radius: 3pt; }
+  figcaption { font-size: 9pt; color: #555; font-family: sans-serif; margin-top: 3pt; }
+  .mapa { margin: 4pt 0 16pt; }
   footer { margin-top: 22pt; border-top: 1pt solid #ccc; padding-top: 6pt; font-size: 9pt; color: #666; }
 </style>
 
 <h1>Instalação dos dois PCs na loja</h1>
 <div class="sub">Estoque Celular v1.0.0 — banco compartilhado pela rede local · passo 27</div>
+
+<svg class="mapa" viewBox="0 0 520 130" width="100%" height="130" xmlns="http://www.w3.org/2000/svg">
+  <rect x="2" y="18" width="150" height="72" rx="6" fill="#f4f7fb" stroke="#333"/>
+  <text x="77" y="40" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold">PC principal</text>
+  <text x="77" y="57" text-anchor="middle" font-family="sans-serif" font-size="10">escritório</text>
+  <text x="77" y="76" text-anchor="middle" font-family="sans-serif" font-size="10" font-weight="bold">o banco fica aqui</text>
+
+  <rect x="205" y="34" width="110" height="40" rx="6" fill="#fff" stroke="#333"/>
+  <text x="260" y="59" text-anchor="middle" font-family="sans-serif" font-size="12">roteador da loja</text>
+
+  <rect x="368" y="18" width="150" height="72" rx="6" fill="#f4f7fb" stroke="#333"/>
+  <text x="443" y="40" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold">PC do balcão</text>
+  <text x="443" y="57" text-anchor="middle" font-family="sans-serif" font-size="10">atendimento</text>
+  <text x="443" y="76" text-anchor="middle" font-family="sans-serif" font-size="10">sem banco: usa o do outro</text>
+
+  <line x1="152" y1="54" x2="205" y2="54" stroke="#333" stroke-width="1.2"/>
+  <line x1="315" y1="54" x2="368" y2="54" stroke="#333" stroke-width="1.2"/>
+  <text x="260" y="103" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#555">rede da loja · porta 5174 · sem internet no caminho</text>
+  <text x="260" y="118" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#555">a nuvem continua sendo só o backup diário do PC principal</text>
+</svg>
 
 <h2>Antes de sair</h2>
 <ul>
@@ -45,14 +69,22 @@
 
   <li><span class="tempo">1 min</span><span class="titulo-passo">Ligar o modo principal e anotar.</span>
       No PC atual: <b>Config → Rede</b> → marcar <b>“PC principal (guarda o banco)”</b>. Ele cria o token e mostra o endereço. Anotar os dois no quadro abaixo. Fechar e abrir o sistema.
-      <div class="alerta">Enquanto ninguém marcar isso, o sistema segue como sempre foi — nenhuma porta é aberta. Instalação de um PC só não muda em nada.</div></li>
+      <div class="alerta">Enquanto ninguém marcar isso, o sistema segue como sempre foi — nenhuma porta é aberta. Instalação de um PC só não muda em nada.</div>
+      <figure>
+        <img src="img/config-rede-principal.png" alt="Bloco Rede da Config no modo principal">
+        <figcaption>PC principal: o endereço e o token que vão ser digitados no balcão. Se aparecer mais de um endereço, use o que começa com 192.168.</figcaption>
+      </figure></li>
 
   <li><span class="tempo">30 s</span><span class="titulo-passo">Liberar no Firewall do Windows.</span>
       Na primeira vez que o app abre a porta, o Windows pergunta. Marcar <b>rede privada</b> e permitir.
       <div class="alerta"><b>Não erre aqui:</b> clicando em cancelar, o outro PC não conecta e parece defeito do sistema — e o aviso não aparece de novo sozinho. Ele aparece logo depois do passo 3, quando o sistema reabre como principal.</div></li>
 
   <li><span class="tempo">5–10 min</span><span class="titulo-passo">Instalar no PC novo.</span>
-      Mesmo instalador de sempre. Abrir, <b>Config → Rede</b> → marcar <b>“PC do balcão (usa o banco do principal)”</b>, digitar endereço e token, clicar em <b>Testar conexão</b>. Responde “Conectado ao PC principal” ou diz o que está errado. Salvar, fechar e abrir o app.</li>
+      Mesmo instalador de sempre. Abrir, <b>Config → Rede</b> → marcar <b>“PC do balcão (usa o banco do principal)”</b>, digitar endereço e token, clicar em <b>Testar conexão</b>. Responde “Conectado ao PC principal” ou diz o que está errado. Salvar, fechar e abrir o app.
+      <figure>
+        <img src="img/config-rede-balcao.png" alt="Bloco Rede da Config no modo balcão">
+        <figcaption>PC do balcão: dá pra digitar só <b>192.168.0.10</b> — o resto do endereço o sistema completa. Teste antes de salvar.</figcaption>
+      </figure></li>
 
   <li><span class="tempo">5 min</span><span class="titulo-passo">Conferir.</span>
       O PC novo abre com os mesmos produtos, título e logo do principal. Vender algo nele e ver no Dashboard do principal; vender no principal e ver o estoque baixar no novo.</li>
