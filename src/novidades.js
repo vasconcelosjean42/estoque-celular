@@ -9,6 +9,15 @@
 // board da atualização nova ocupa o lugar do anterior, nunca empilha.
 export default [
   {
+    versao: "1.0.0",
+    data: "18/08/2026",
+    itens: [
+      "Dois computadores na loja usando o sistema ao mesmo tempo, com o mesmo estoque: um PC guarda os dados e o outro se conecta nele pela rede da loja. Em Config → Rede você escolhe qual é qual; o principal mostra o endereço e a senha pra digitar no outro.",
+      "Vender no balcão e no escritório ao mesmo tempo não bagunça mais o estoque: se a última peça acabou de sair no outro computador, a venda é recusada com aviso em vez de deixar o estoque negativo.",
+      "Se o computador principal estiver desligado, o outro avisa \"sem conexão com o PC principal\" em vez de dar erro, e volta a funcionar sozinho quando ele liga.",
+    ],
+  },
+  {
     versao: "0.7.0",
     data: "14/08/2026",
     itens: [

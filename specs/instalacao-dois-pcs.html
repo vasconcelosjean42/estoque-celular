@@ -1,0 +1,85 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Instalação dois PCs</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font: 11pt/1.5 Georgia, serif; color: #111; }
+  h1 { font-size: 19pt; margin: 0 0 2pt; }
+  .sub { color: #555; font-size: 10pt; margin-bottom: 18pt; }
+  h2 { font-size: 13pt; margin: 20pt 0 6pt; border-bottom: 1pt solid #ccc; padding-bottom: 3pt; }
+  p, li { margin: 5pt 0; }
+  ol.passos { list-style: none; padding: 0; counter-reset: p; }
+  ol.passos > li { counter-increment: p; margin: 10pt 0; padding-left: 30pt; position: relative; page-break-inside: avoid; }
+  ol.passos > li::before {
+    content: counter(p); position: absolute; left: 0; top: 1pt;
+    width: 20pt; height: 20pt; border: 1pt solid #111; border-radius: 50%;
+    text-align: center; line-height: 20pt; font-size: 10pt; font-family: sans-serif;
+  }
+  .tempo { float: right; font-size: 9pt; color: #555; font-family: sans-serif; }
+  .titulo-passo { font-weight: bold; }
+  .alerta { background: #fff7e0; border-left: 3pt solid #d68a00; padding: 6pt 9pt; margin: 6pt 0; }
+  .anote { border: 1pt dashed #999; padding: 8pt 10pt; margin: 10pt 0; page-break-inside: avoid; }
+  .anote div { margin: 7pt 0; font-family: sans-serif; font-size: 10pt; }
+  .linha { display: inline-block; border-bottom: 1pt solid #666; width: 62%; }
+  footer { margin-top: 22pt; border-top: 1pt solid #ccc; padding-top: 6pt; font-size: 9pt; color: #666; }
+</style>
+
+<h1>Instalação dos dois PCs na loja</h1>
+<div class="sub">Estoque Celular v1.0.0 — banco compartilhado pela rede local · passo 27</div>
+
+<h2>Antes de sair</h2>
+<ul>
+  <li><b>O PC que já existe é o servidor.</b> Ele tem o banco com todo o histórico. O PC novo entra como cliente e passa a enxergar os dados dele. Invertendo, é preciso carregar o <code>.db</code> pro outro lado — trabalho à toa.</li>
+  <li><b>Os dois no mesmo roteador.</b> Cabo ou Wi-Fi, tanto faz, mas mesma rede da loja. Outro roteador ou 4G não funciona — confirmar por telefone antes de ir.</li>
+  <li><b>Servidor = o PC que fica ligado o dia inteiro.</b> Se ele desliga, o outro para.</li>
+</ul>
+
+<h2>Na loja</h2>
+<ol class="passos">
+  <li><span class="tempo">5 min</span><span class="titulo-passo">Atualizar o PC atual.</span>
+      Abre o app; ele mesmo baixa a v1.0.0 e mostra “reiniciar para atualizar”. Nenhum dado muda.</li>
+
+  <li><span class="tempo">10–40 min</span><span class="titulo-passo">Fixar o IP do PC principal.</span>
+      No roteador ou no Windows. É o único passo que pode dar trabalho — o tempo depende do roteador que a operadora deixou.
+      <div class="alerta"><b>Por que isso importa:</b> o roteador entrega IP por sorteio. Se o IP mudar (queda de luz, roteador reiniciado), o PC do balcão passa a falar com um endereço que não existe mais e a loja acha que o sistema quebrou. Fixa uma vez e o problema não volta.</div></li>
+
+  <li><span class="tempo">1 min</span><span class="titulo-passo">Ligar o modo principal e anotar.</span>
+      No PC atual: <b>Config → Rede</b> → marcar <b>“PC principal (guarda o banco)”</b>. Ele cria o token e mostra o endereço. Anotar os dois no quadro abaixo. Fechar e abrir o sistema.
+      <div class="alerta">Enquanto ninguém marcar isso, o sistema segue como sempre foi — nenhuma porta é aberta. Instalação de um PC só não muda em nada.</div></li>
+
+  <li><span class="tempo">30 s</span><span class="titulo-passo">Liberar no Firewall do Windows.</span>
+      Na primeira vez que o app abre a porta, o Windows pergunta. Marcar <b>rede privada</b> e permitir.
+      <div class="alerta"><b>Não erre aqui:</b> clicando em cancelar, o outro PC não conecta e parece defeito do sistema — e o aviso não aparece de novo sozinho. Ele aparece logo depois do passo 3, quando o sistema reabre como principal.</div></li>
+
+  <li><span class="tempo">5–10 min</span><span class="titulo-passo">Instalar no PC novo.</span>
+      Mesmo instalador de sempre. Abrir, <b>Config → Rede</b> → marcar <b>“PC do balcão (usa o banco do principal)”</b>, digitar endereço e token, clicar em <b>Testar conexão</b>. Responde “Conectado ao PC principal” ou diz o que está errado. Salvar, fechar e abrir o app.</li>
+
+  <li><span class="tempo">5 min</span><span class="titulo-passo">Conferir.</span>
+      O PC novo abre com os mesmos produtos, título e logo do principal. Vender algo nele e ver no Dashboard do principal; vender no principal e ver o estoque baixar no novo.</li>
+</ol>
+
+<p><b>Total realista:</b> 30 min se o roteador colaborar, 1 h se ele for chato. O IP é o risco; o resto é digitar.</p>
+
+<div class="anote">
+  <div>IP do PC principal: <span class="linha"></span></div>
+  <div>Porta: <span class="linha"></span></div>
+  <div>Token: <span class="linha"></span></div>
+  <div>Data da instalação: <span class="linha"></span></div>
+</div>
+
+<h2>Sobre o token</h2>
+<p>A rede torna a conexão possível; o token decide quem pode. O principal gera o token uma vez, mostra na Config, e ele é digitado uma única vez no PC do balcão. Toda requisição leva o token; errado ou ausente, o servidor recusa e o cliente avisa que <i>o token não confere</i> — mensagem diferente da de rede fora do ar.</p>
+<p><b>Por que não deixar só a rede:</b> a porta fica aberta pra qualquer aparelho no Wi-Fi da loja — celular de cliente, notebook do técnico, TV da recepção. Sem token, qualquer um que descubra a porta manda comando direto no banco.</p>
+<p><b>Limite conhecido:</b> o tráfego vai sem criptografia. Quem já estiver dentro da rede e souber capturar pacote lê o token. Aceitável na LAN da loja; deixa de ser aceitável no dia em que alguém quiser acessar de fora — aí é outro passo.</p>
+
+<h2>Depois, no dia a dia</h2>
+<ul>
+  <li><b>É instantâneo.</b> Rede local é milissegundo; ninguém percebe que o banco está no outro PC.</li>
+  <li><b>O principal liga primeiro.</b> Desligado, o balcão mostra “Sem conexão com o PC principal” — não tela branca. Ligou, volta a funcionar.</li>
+  <li><b>Backup continua só no principal</b>, na pasta do Drive. Um banco, uma cópia.</li>
+  <li><b>Em dia de atualização, atualizar os dois.</b> Enquanto as versões estiverem diferentes, o cliente recusa com aviso claro em vez de dar erro na frente do cliente da loja.</li>
+  <li><b>A tela não se atualiza sozinha.</b> Vendeu no escritório, o balcão vê ao trocar de aba ou refazer a busca — igual hoje. Se a peça acabou no outro PC, a venda é recusada com aviso; o estoque nunca vai a −1.</li>
+  <li><b>Se o principal queimar:</b> restaurar o backup do Drive no outro PC e mudar o modo pra servidor na Config. Uns 20 min, e é manual de propósito.</li>
+</ul>
+
+<footer>Estoque Celular · especificação completa em <code>specs/passo-27-dois-pcs.md</code></footer>

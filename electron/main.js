@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const planilha = require("./planilha");
+const rede = require("./rede");
 
 // Smoke test (test/smoke.js): banco isolado num diretório temporário.
 if (process.env.ESTOQUE_DB_DIR) app.setPath("userData", process.env.ESTOQUE_DB_DIR);
@@ -54,19 +55,22 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  db = require("./db");
+  // Passo 27: no PC terminal o banco não fica nesta máquina — db.js nem carrega.
+  const modo = rede.ler(app).modo;
+  const terminal = modo === "cliente";
 
-  // ponytail: renderer manda SQL direto — app local, único usuário, sem
-  // conteúdo remoto. Se um dia virar multiusuário/rede, trocar por handlers nomeados.
-  ipcMain.handle("db", (_e, sql, params = []) => {
+  // ponytail: renderer manda SQL direto — app local, sem conteúdo remoto. Passa a
+  // valer também na LAN da loja (token no header); se um dia sair dela, trocar
+  // por handlers nomeados.
+  const executar = (sql, params = []) => {
     const stmt = db.prepare(sql);
     return stmt.reader ? stmt.all(...(params || [])) : stmt.run(...(params || []));
-  });
+  };
 
   // Vários comandos numa transação única (venda = baixa estoque + registro).
   // O erro cru do SQLite não diz qual comando quebrou — numa tx de 10 linhas isso
   // vira caça ao tesouro. Anexa o SQL e os parâmetros do que falhou.
-  ipcMain.handle("db-tx", (_e, comandos) =>
+  const transacao = (comandos) =>
     db.transaction(() =>
       comandos.map(([sql, params = []]) => {
         try {
@@ -76,8 +80,24 @@ app.whenReady().then(() => {
           throw e;
         }
       })
-    )()
-  );
+    )();
+
+  if (!terminal) {
+    db = require("./db");
+    // Publica as MESMAS duas operações na rede local, e só se o usuário escolheu
+    // "principal" na Config: instalação de um PC só não abre porta nenhuma.
+    if (modo === "servidor") rede.servir({ executar, transacao }, rede.ler(app));
+  }
+
+  ipcMain.handle("db", (_e, sql, params = []) =>
+    terminal ? rede.chamar("/db", { sql, params }) : executar(sql, params));
+  ipcMain.handle("db-tx", (_e, comandos) =>
+    terminal ? rede.chamar("/db-tx", { comandos }) : transacao(comandos));
+
+  // Bloco "Rede" da Config.
+  ipcMain.handle("rede-info", () => ({ ...rede.ler(app), ips: rede.ips(), porta_padrao: rede.PORTA_PADRAO }));
+  ipcMain.handle("rede-salvar", (_e, novo) => rede.salvar(novo));
+  ipcMain.handle("rede-testar", (_e, { url, token }) => rede.testar(url, token));
 
   // Passo 22: lê a planilha no processo principal e devolve matriz de strings.
   ipcMain.handle("abrir-planilha", async () => {
@@ -174,7 +194,9 @@ app.whenReady().then(() => {
   ipcMain.handle("auto-start", (_e, ligado) => {
     if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: ligado });
   });
-  if (app.isPackaged) {
+  // No terminal isto rodaria antes da janela existir, e o principal pode estar
+  // desligado: backup e "abrir com o Windows" são do PC que tem o banco.
+  if (app.isPackaged && !terminal) {
     const row = db.prepare("SELECT valor FROM config WHERE chave = 'abrir_com_windows'").get();
     app.setLoginItemSettings({ openAtLogin: !row || row.valor !== "0" }); // ligado por padrão
   }
@@ -205,8 +227,10 @@ app.whenReady().then(() => {
     if (app.isPackaged) autoUpdater.checkForUpdatesAndNotify().catch((e) => console.error("update:", e.message));
   }
 
-  backupDiario();
-  setInterval(backupDiario, 3600 * 1000); // loja fica aberta o dia todo
+  if (!terminal) {
+    backupDiario();
+    setInterval(backupDiario, 3600 * 1000); // loja fica aberta o dia todo
+  }
   createWindow();
 });
 

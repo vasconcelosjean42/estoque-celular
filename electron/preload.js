@@ -1,8 +1,19 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+// O IPC embrulha o erro em "Error invoking remote method 'db': Error: ...".
+// A mensagem cai num diálogo na frente do cliente da loja (src/main.jsx), então
+// chega limpa: vale pro erro de SQL e pros avisos de rede do passo 27.
+const limpo = (p) =>
+  p.catch((e) => {
+    throw new Error(String(e.message).replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, ""));
+  });
+
 contextBridge.exposeInMainWorld("api", {
-  query: (sql, params) => ipcRenderer.invoke("db", sql, params),
-  tx: (comandos) => ipcRenderer.invoke("db-tx", comandos),
+  query: (sql, params) => limpo(ipcRenderer.invoke("db", sql, params)),
+  tx: (comandos) => limpo(ipcRenderer.invoke("db-tx", comandos)),
+  redeInfo: () => ipcRenderer.invoke("rede-info"),
+  redeSalvar: (cfg) => ipcRenderer.invoke("rede-salvar", cfg),
+  redeTestar: (url, token) => ipcRenderer.invoke("rede-testar", { url, token }),
   abrirPlanilha: () => ipcRenderer.invoke("abrir-planilha"),
   salvarPlanilha: (sugestao, linhas) => ipcRenderer.invoke("salvar-planilha", { sugestao, linhas }),
   escolherPasta: () => ipcRenderer.invoke("escolher-pasta"),

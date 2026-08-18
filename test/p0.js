@@ -2587,9 +2587,25 @@ const path = require("path");
 
     // Toda falha de SQL passa pelo handler global (src/main.jsx) e vira console.error:
     // se sobrou erro aqui, alguma operação da bateria falhou por baixo dos panos.
+
     await caso("33. nenhuma operação falhou por baixo dos panos", async () => {
       assert.strictEqual(erros.length, 0, `erros no renderer:\n${erros.join("\n")}`);
     });
+
+    // Passo 27: com dois PCs, a tela do balcão pode estar com estoque de três
+    // minutos atrás. O UPDATE cru levava a quantidade a -1 e a mesma peça saía
+    // vendida duas vezes; a trava agora é no banco (trigger), não na tela.
+    await caso("139. peça vendida no outro PC: a venda é recusada e o estoque não vai a -1", async () => {
+      const id = await novaPeca("Trava Estoque", 1, 5000, 12000);
+      await recarregar("Venda");
+      await aoCarrinho("Trava Estoque"); // a tela ainda mostra 1 em estoque
+      await sql("UPDATE pecas SET quantidade = 0 WHERE id = ?", [id]); // o outro PC vendeu
+      await win.click('button:text("Finalizar venda")');
+      await confirmarRecusado();
+      assert.strictEqual((await peca(id)).quantidade, 0, "o estoque não pode ficar negativo");
+      assert.strictEqual((await vendasDe(id)).length, 0, "a venda inteira tem que falhar, sem linha gravada");
+    });
+
 
     // Por último: a migração do passo 14 roda no boot, então precisa de um app
     // novo. É a que mexe no banco de quem já usa o sistema — sem teste, o erro

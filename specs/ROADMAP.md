@@ -99,7 +99,7 @@ cliente: o carrinho (passo 12) muda a estrutura da venda, e o conceito de perda
 
 | # | Passo | Item do cliente | Depende de | Status |
 |---|-------|-----------------|------------|--------|
-| 27 | Balcão e escritório no mesmo banco, pela rede da loja | "banco na nuvem" | 8 | 📝 spec escrita |
+| 27 | Balcão e escritório no mesmo banco, pela rede da loja | "banco na nuvem" | 8 | 🔨 feito, falta testar na loja |
 
 O pedido veio como "banco de dados na nuvem"; a dor é **dois PCs ao mesmo
 tempo**. Spec em `specs/passo-27-dois-pcs.md`, com os quatro padrões de mercado

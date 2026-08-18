@@ -258,4 +258,17 @@ for (const { id } of db.prepare("SELECT id FROM clientes WHERE codigo = '' ORDER
               WHERE id = ?`).run(id);
 }
 
+// Passo 27 — trava de estoque. Com dois PCs, a tela do balcão pode estar mostrando
+// estoque de três minutos atrás: o UPDATE cru baixava pra -1 e a mesma peça saía
+// vendida duas vezes. Trava no banco e não na tela porque são seis lugares que
+// baixam estoque (venda, troca, desfazer entrada) e dois PCs mandando os dois.
+db.exec(`
+CREATE TRIGGER IF NOT EXISTS pecas_estoque_nao_negativo
+BEFORE UPDATE OF quantidade ON pecas
+WHEN NEW.quantidade < 0
+BEGIN
+  SELECT RAISE(ABORT, 'O estoque desta peça acabou (pode ter sido vendida no outro PC). Atualize a tela e refaça.');
+END;
+`);
+
 module.exports = db;

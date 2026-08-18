@@ -7,7 +7,7 @@ Sistema desktop de controle de estoque, vendas e trocas para uma loja de peças,
 - **Electron + React (Vite) + better-sqlite3** — tudo JS, roda 100% offline.
 - Banco: arquivo único SQLite em `app.getPath("userData")/estoque.db`, WAL ativado.
 - **Preços em centavos (INTEGER)** — nunca float para dinheiro.
-- Backup: cópia diária do `.db` para uma pasta configurável (apontar para a pasta do Google Drive desktop do cliente = "nuvem" de graça). Sem banco na nuvem, sem sync — 1 PC só, não há conflito.
+- Backup: cópia diária do `.db` para uma pasta configurável (apontar para a pasta do Google Drive desktop do cliente = "nuvem" de graça). Sem banco na nuvem, sem sync. Dois PCs na loja (passo 27) usam **um banco só**, servido pela rede local pelo PC principal — a autoridade continua sendo única, não há conflito pra resolver.
 - Login simples com níveis de acesso: **dono** (vê/edita tudo) × **funcionário** (não vê preço de compra/margem/lucro, não edita preços). Sem impressão fiscal (v1).
 
 ## Escopo v1
