@@ -694,7 +694,7 @@ export default function Config({ aoMudar }) {
         <div style={{ fontSize: 14, color: "#64748b", marginBottom: 10 }}>
           Clique no nome pra ver o que o cliente já comprou.
         </div>
-        <Clientes />
+        <Clientes dono />
       </div>
 
       <div style={bloco}>

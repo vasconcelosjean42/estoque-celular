@@ -889,6 +889,189 @@ const path = require("path");
       }
     });
 
+    // Passo 28: a coluna que diz há quantos dias o cliente sumiu, pra funcionária
+    // saber pra quem ligar. Datas relativas a hoje — o teste roda em qualquer dia.
+    const clienteComCompraHa = async (nome, diasAtras) => {
+      const c = await sql("INSERT INTO clientes (codigo, nome) VALUES (?,?)", [`X9${diasAtras}`, nome]);
+      await sql(
+        `INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, cliente, cliente_id, pedido_id, criado_em)
+         VALUES ((SELECT id FROM pecas WHERE nome = 'C156'),1,20000,10000,?,?,?, datetime('now','localtime',?))`,
+        [nome, c.lastInsertRowid, 900000 + diasAtras, `-${diasAtras} days`]
+      );
+    };
+    // A cor é o alerta: ler só o texto não prova que a funcionária enxerga o vermelho.
+    // has-text casa por pedaço, então nome de fixture não pode ser prefixo de outro
+    // ("Ontem156" achava a linha do "Anteontem156" junto e o locator virava dois).
+    const dias156 = (nome) => win.locator(`tr:has-text("${nome}") span[title]`);
+    const corDe = (nome) => dias156(nome).evaluate((el) => getComputedStyle(el).backgroundColor);
+    const SEM_COR = "rgba(0, 0, 0, 0)";
+
+    await caso("156. dias sem comprar: hoje não acende, 1 dia acende laranja, 2+ acende vermelho", async () => {
+      await novaPeca("C156", 9, 10000, 20000);
+      for (const [nome, d] of [["Hoje156", 0], ["Um156", 1], ["Dois156", 2], ["Sumido156", 9]]) {
+        await clienteComCompraHa(nome, d);
+      }
+      await recarregar("Config");
+      await win.waitForSelector('button[aria-label="Editar Sumido156"]', { timeout: 8000 });
+      assert.strictEqual(await dias156("Hoje156").innerText(), "hoje");
+      assert.strictEqual(await dias156("Um156").innerText(), "1 dia", "singular no primeiro dia");
+      assert.strictEqual(await dias156("Sumido156").innerText(), "9 dias");
+      assert.strictEqual(await corDe("Hoje156"), SEM_COR, "quem comprou hoje não pode acender nada");
+      assert.strictEqual(await corDe("Um156"), "rgb(255, 237, 213)", "1 dia tem que ser laranja");
+      assert.strictEqual(await corDe("Dois156"), "rgb(254, 226, 226)", "2 dias já é vermelho");
+      assert.strictEqual(await corDe("Sumido156"), "rgb(254, 226, 226)", "9 dias continua vermelho");
+    });
+
+    await caso("157. quem nunca comprou não acende e cai pro fim da lista de ligações", async () => {
+      await sql("INSERT INTO clientes (codigo, nome) VALUES ('C957','Novato157')");
+      await recarregar("Config");
+      await win.waitForSelector('button[aria-label="Editar Novato157"]', { timeout: 8000 });
+      assert.strictEqual(await dias156("Novato157").innerText(), "—");
+      assert.strictEqual(await corDe("Novato157"), SEM_COR, "sem compra nenhuma não é urgência");
+      assert.strictEqual(await dias156("Novato157").getAttribute("title"), "nunca comprou");
+
+      // Um clique só na coluna já ordena de quem sumiu há mais tempo pra quem
+      // comprou agora: é a ordem em que ela vai ligando.
+      await win.click('th:text("Dias sem comprar")');
+      const nomes = await win.locator('tbody button[title="Ver histórico de compras"]').allInnerTexts();
+      const pos = (n) => nomes.indexOf(n);
+      assert(pos("Sumido156") < pos("Dois156"), `ordem errada: ${nomes.join(", ")}`);
+      assert(pos("Dois156") < pos("Um156"), `ordem errada: ${nomes.join(", ")}`);
+      assert(pos("Um156") < pos("Hoje156"), `ordem errada: ${nomes.join(", ")}`);
+      assert(pos("Hoje156") < pos("Novato157"), "quem nunca comprou não pode encabeçar a lista");
+    });
+
+    await caso("158. colaborador tem a aba Clientes com os mesmos dias, e sem editar cadastro", async () => {
+      await sql("INSERT INTO usuarios (nome, pin, papel) VALUES ('Colab158','8888','funcionario')");
+      assert.strictEqual(await win.locator('nav button:text-is("Clientes")').count(), 0,
+        "o administrador continua vendo a lista dentro da Config, sem aba nova");
+      await trocarUsuario("Colab158", "8888");
+      try {
+        await aba("Clientes");
+        await win.waitForSelector('th:text("Dias sem comprar")', { timeout: 8000 });
+        assert.strictEqual(await dias156("Sumido156").innerText(), "9 dias", "a funcionária vê a mesma conta");
+        assert.strictEqual(await corDe("Sumido156"), "rgb(254, 226, 226)");
+        assert.strictEqual(await corDe("Um156"), "rgb(255, 237, 213)");
+        // O telefone é o motivo da tela existir pra ela: sem ele não tem como ligar.
+        assert(await win.locator('th:text("Contato")').count(), "a coluna de contato tem que estar lá");
+        assert.strictEqual(await win.locator('button[aria-label^="Editar "]').count(), 0,
+          "colaborador não mexe no cadastro do cliente");
+        assert.strictEqual(await win.locator('button[aria-label^="Excluir "]').count(), 0);
+        assert.strictEqual(await win.locator('nav button:text-is("Config")').count(), 0,
+          "a aba nova não pode abrir a Config junto");
+      } finally {
+        await trocarUsuario("Administrador", "1234");
+        await sql("DELETE FROM usuarios WHERE nome = 'Colab158'");
+        await sql("DELETE FROM vendas WHERE pedido_id >= 900000 AND pedido_id < 900100");
+        await sql("DELETE FROM clientes WHERE nome LIKE '%156' OR nome = 'Novato157'");
+      }
+    });
+
+    // Passo 28, parte 2: quanto cada cliente já comprou, no período que o dono
+    // escolher. 40 dias atrás cai fora da semana e do mês em qualquer dia do ano.
+    const vendaDoCliente = async (clienteId, nome, centavos, diasAtras, pedido) =>
+      sql(`INSERT INTO vendas (peca_id, quantidade, preco_venda, preco_compra, cliente, cliente_id, pedido_id, criado_em)
+           VALUES ((SELECT id FROM pecas WHERE nome = 'C159'),1,?,1000,?,?,?, datetime('now','localtime',?))`,
+        [centavos, nome, clienteId, pedido, `-${diasAtras} days`]);
+    // Só as duas linhas do caso: a soma acompanha a busca, então filtrar por "159"
+    // isola as fixtures do resto do banco.
+    const soAsDo159 = async () => {
+      await win.fill('input[placeholder*="Buscar cliente"]', "159");
+      await win.waitForTimeout(200);
+      assert.strictEqual(await win.locator('span:text-is("2 clientes")').count(), 1,
+        "a busca por 159 tem que sobrar exatamente as duas fixtures");
+    };
+    const periodo = async (rotulo) => {
+      await win.click(`button:text-is("${rotulo}")`);
+      await win.waitForTimeout(300);
+    };
+    // fmtReais usa toLocaleString com currency, que separa "R$" do número com
+    // espaço não-quebrável. innerText traz o caractere cru e o strictEqual falharia
+    // contra um espaço comum digitado aqui.
+    const texto = (loc) => loc.innerText().then((t) => t.replace(/ /g, " "));
+    const somaNaTela = () => texto(win.locator('[role="status"]'));
+    // has(span[title]) prende na tabela de clientes: quem comprou hoje aparece
+    // também na tabela "Compras de hoje" logo abaixo, e lá não tem a tag de dias.
+    const celula = (nome, coluna) =>
+      texto(win.locator(`tr:has(span[title]):has-text("${nome}") td:nth-child(${coluna})`));
+    const TOTAL = 4;
+    const COMPRAS = 5;
+    // assert.strictEqual sem mensagem começa com "Expected values to be strictly
+    // equal:", e o relatório só mostra a primeira linha — o valor que veio some.
+    const conferir = async (obtido, esperado, oQue) => {
+      const veio = await obtido;
+      assert.strictEqual(veio, esperado, `${oQue}: esperava "${esperado}", veio "${veio}"`);
+    };
+
+    await caso("159. total gasto e nº de compras seguem o período escolhido pelo dono", async () => {
+      await novaPeca("C159", 9, 1000, 10000);
+      const recente = (await sql("INSERT INTO clientes (codigo, nome) VALUES ('K159','Recente159')")).lastInsertRowid;
+      const velho = (await sql("INSERT INTO clientes (codigo, nome) VALUES ('K259','Velho159')")).lastInsertRowid;
+      await vendaDoCliente(recente, "Recente159", 10000, 0, 900201);
+      await vendaDoCliente(recente, "Recente159", 50000, 40, 900202);
+      await vendaDoCliente(velho, "Velho159", 30000, 40, 900203);
+      await recarregar("Config");
+      await win.waitForSelector('button[aria-label="Editar Recente159"]', { timeout: 8000 });
+      await soAsDo159();
+
+      await periodo("Tudo");
+      await conferir(celula("Recente159", TOTAL), "R$ 600,00", "sem período é a vida toda do cliente");
+      await conferir(celula("Recente159", COMPRAS), "2", "compras do Recente159 em Tudo");
+      await conferir(somaNaTela(), "Compraram R$ 900,00 em 3 compras", "soma em Tudo");
+
+      await periodo("Este mês");
+      await conferir(celula("Recente159", TOTAL), "R$ 100,00", "a venda de 40 dias atrás sai do mês");
+      await conferir(celula("Recente159", COMPRAS), "1", "compras do Recente159 no mês");
+      await conferir(somaNaTela(), "Compraram R$ 100,00 em 1 compra do mês", "soma do mês");
+
+      await periodo("Esta semana");
+      await conferir(somaNaTela(), "Compraram R$ 100,00 em 1 compra da semana", "soma da semana");
+      await periodo("Ontem");
+      await conferir(somaNaTela(), "Compraram R$ 0,00 em 0 compras de ontem",
+        "ninguém comprou ontem: o período manda, não o histórico");
+    });
+
+    await caso("160. quem não comprou no período continua na lista, zerado, e sem perder o alerta", async () => {
+      await recarregar("Config");
+      await soAsDo159();
+      await periodo("Este mês");
+      // O dono quer justamente ver quem sumiu: tirar da lista quem zerou no
+      // período esconderia exatamente o cliente que ele está procurando.
+      await conferir(celula("Velho159", TOTAL), "R$ 0,00", "total do Velho159 no mês");
+      await conferir(celula("Velho159", COMPRAS), "0", "compras do Velho159 no mês");
+      // Dias sem comprar é o alerta de ligação: ele não pode andar junto com o
+      // período, senão todo dia 1º a loja inteira apareceria como sumida.
+      await conferir(dias156("Velho159").innerText(), "40 dias", "dias do Velho159");
+      assert.strictEqual(await corDe("Velho159"), "rgb(254, 226, 226)");
+      await conferir(dias156("Recente159").innerText(), "hoje", "dias do Recente159");
+
+      // O título tem que dizer de que período é o número que está embaixo dele.
+      assert(await win.locator('th:text("Total gasto do mês")').count(), "o cabeçalho não seguiu o período");
+      await periodo("Tudo");
+      assert(await win.locator('th:text-is("Total gasto")').count(), "em Tudo o título volta ao seco");
+    });
+
+    await caso("161. colaborador não vê o filtro de período nem a soma em dinheiro", async () => {
+      await sql("INSERT INTO usuarios (nome, pin, papel) VALUES ('Colab161','8181','funcionario')");
+      await trocarUsuario("Colab161", "8181");
+      try {
+        await aba("Clientes");
+        await win.waitForSelector('th:text("Dias sem comprar")', { timeout: 8000 });
+        assert.strictEqual(await win.locator('input[aria-label="Data inicial"]').count(), 0,
+          "o recorte por período é do administrador");
+        assert.strictEqual(await win.locator('button:text-is("Este mês")').count(), 0);
+        assert.strictEqual(await win.locator('[role="status"]').count(), 0,
+          "a soma em dinheiro da loja não é da funcionária");
+        // O total do cliente continua lá, no valor cheio: é o que ela já via.
+        await conferir(celula("Recente159", TOTAL), "R$ 600,00", "total cheio na visão do colaborador");
+      } finally {
+        await trocarUsuario("Administrador", "1234");
+        await sql("DELETE FROM usuarios WHERE nome = 'Colab161'");
+        await sql("DELETE FROM vendas WHERE pedido_id >= 900200 AND pedido_id < 900300");
+        await sql("DELETE FROM clientes WHERE nome LIKE '%159'");
+      }
+    });
+
     console.log("\nTroca de peça funcionando (passo 15)");
 
     // Vende A, clica em Trocar na venda e repõe com a peça idB. estado: "Funcionando" |

@@ -9,6 +9,16 @@
 // board da atualização nova ocupa o lugar do anterior, nunca empilha.
 export default [
   {
+    versao: "1.1.0",
+    data: "27/08/2026",
+    itens: [
+      "A lista de clientes mostra há quantos dias cada um está sem comprar. Um dia sem aparecer fica laranja, dois dias ou mais fica vermelho — dá pra bater o olho e ver pra quem ligar.",
+      "Clientes virou uma aba pro colaborador, com o telefone de cada um do lado. Antes a lista só existia dentro da Config, que é do administrador.",
+      "Na Config, o administrador escolhe o período e vê quanto cada cliente comprou nele: hoje, ontem, esta semana, este mês ou entre duas datas. Uma linha em cima da lista mostra o total de todos juntos, e ela acompanha a busca — procurar um nome responde quanto aquele cliente comprou no período.",
+      "Quem não comprou nada no período continua aparecendo na lista, zerado, com os dias sem comprar do lado — que é justamente o cliente que interessa achar.",
+    ],
+  },
+  {
     versao: "1.0.0",
     data: "18/08/2026",
     itens: [

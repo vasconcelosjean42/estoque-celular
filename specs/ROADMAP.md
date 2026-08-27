@@ -114,3 +114,25 @@ sendo o backup diário na pasta do Drive, que é o papel que ela faz bem aqui.
 Isto **revoga** a linha do `AGENTS.md` ("Sem banco na nuvem, sem sync — 1 PC só,
 não há conflito") no ponto do "1 PC só" — o resto continua valendo, inclusive o
 "sem banco na nuvem".
+
+---
+
+# v1.1.0 — cliente que sumiu e quanto ele comprou (2026-08-27)
+
+| # | Passo | Item do cliente | Depende de | Status |
+|---|-------|-----------------|------------|--------|
+| 28 | Dias sem comprar (laranja/vermelho) + total por período | "ligar pros clientes que sumiram" e "quanto os clientes já compraram, na semana/mês/período" | 14, 7 | 🔨 feito, falta usar na loja |
+
+Os dois pedidos caem na mesma tela e por isso viraram um passo só. Spec em
+`specs/passo-28-dias-sem-comprar.md`.
+
+**O alerta e o período não se misturam.** Dias sem comprar é sempre absoluto; o
+filtro de período recorta só quanto e quantas vezes o cliente comprou. Recortar
+o alerta junto faria a loja inteira aparecer como sumida todo dia 1º.
+
+**Quem zera no período não sai da lista** — entra por `CASE`, não por `WHERE`. É
+justamente esse cliente que o dono está procurando quando abre o mês.
+
+**A lista de clientes saiu de dentro da Config.** Ela era do administrador porque
+morava lá; quem liga é a funcionária. Virou aba do colaborador, sem editar nem
+excluir cadastro e sem o filtro de período, que é do dono.
