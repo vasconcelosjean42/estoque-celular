@@ -12,6 +12,7 @@ const path = require("path");
 const http = require("http");
 const os = require("os");
 const crypto = require("crypto");
+const { execFile } = require("child_process");
 
 const PORTA_PADRAO = 5174;
 
@@ -84,6 +85,57 @@ function servir(banco, { porta = PORTA_PADRAO, token } = {}, minhaVersao = versa
   return servidor;
 }
 
+// --- Firewall do Windows ---------------------------------------------------
+
+// O Windows pergunta "liberar em rede privada/pública?" UMA vez por programa, na
+// primeira vez que ele abre a porta, e guarda a resposta pra sempre. Quem clicou
+// Cancelar (ou deixou só "pública") nunca mais vê o aviso: o balcão só enxerga
+// "sem conexão" e não há o que clicar. Este botão escreve a regra na mão, no
+// lugar do diálogo que não volta — inclusive depois de uma atualização, porque
+// a regra é do .exe e o caminho dele não muda.
+//
+// remoteip=LocalSubnet em vez de profile=private: vale mesmo que o Windows tenha
+// marcado a rede da loja como pública (que é o esquecimento comum), e continua
+// só aceitando quem está no mesmo roteador — o limite que o passo 27 assume.
+const REGRA_FIREWALL = "Estoque Celular (rede da loja)";
+
+// Mexer no firewall é coisa de administrador: o Start-Process -Verb RunAs é o
+// que faz aparecer o "deseja permitir alterações?" do Windows.
+const rodarComoAdmin = (bat) =>
+  new Promise((resolve) =>
+    execFile(
+      "powershell",
+      ["-NoProfile", "-Command", `$p = Start-Process -FilePath '${bat}' -Verb RunAs -WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode`],
+      (erro, _saida, stderr) => resolve(erro ? { erro: String(stderr).trim() || erro.message } : { ok: true })
+    )
+  );
+
+async function liberarFirewall(app, rodar = rodarComoAdmin) {
+  if (process.platform !== "win32") return { erro: "Isto só existe no Windows." };
+  const porta = (cfg && cfg.porta) || PORTA_PADRAO;
+  const exe = process.execPath;
+  const bat = path.join(app.getPath("temp"), "estoque-firewall.bat");
+  fs.writeFileSync(
+    bat,
+    [
+      "@echo off",
+      // apaga o "não permitir" gravado naquele dia — regra de bloqueio vence
+      // qualquer liberação, então tem que sair antes.
+      `netsh advfirewall firewall delete rule name=all dir=in program="${exe}" >nul 2>&1`,
+      `netsh advfirewall firewall delete rule name="${REGRA_FIREWALL}" >nul 2>&1`,
+      `netsh advfirewall firewall add rule name="${REGRA_FIREWALL}" dir=in action=allow protocol=TCP localport=${porta} remoteip=LocalSubnet program="${exe}" enable=yes`,
+    ].join("\r\n"),
+    "latin1"
+  );
+  const r = await rodar(bat);
+  if (r.ok) return { ok: true, porta };
+  return {
+    erro: /cancel/i.test(r.erro)
+      ? "Você respondeu Não na janela do Windows que pede permissão de administrador. Clique no botão de novo e responda Sim."
+      : `Não deu para liberar no Firewall: ${r.erro}`,
+  };
+}
+
 // --- PC terminal -----------------------------------------------------------
 
 async function requisitar(url, token, rota, corpo) {
@@ -118,4 +170,4 @@ const testar = async (url, token) => {
   }
 };
 
-module.exports = { ler, salvar, ips, servir, chamar, testar, requisitar, PORTA_PADRAO };
+module.exports = { ler, salvar, ips, servir, chamar, testar, requisitar, liberarFirewall, PORTA_PADRAO };

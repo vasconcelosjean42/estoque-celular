@@ -9,22 +9,18 @@
 // board da atualização nova ocupa o lugar do anterior, nunca empilha.
 export default [
   {
-    versao: "1.1.0",
-    data: "27/08/2026",
-    itens: [
-      "A lista de clientes mostra há quantos dias cada um está sem comprar. Um dia sem aparecer fica laranja, dois dias ou mais fica vermelho — dá pra bater o olho e ver pra quem ligar.",
-      "Clientes virou uma aba pro colaborador, com o telefone de cada um do lado. Antes a lista só existia dentro da Config, que é do administrador.",
-      "Na Config, o administrador escolhe o período e vê quanto cada cliente comprou nele: hoje, ontem, esta semana, este mês ou entre duas datas. Uma linha em cima da lista mostra o total de todos juntos, e ela acompanha a busca — procurar um nome responde quanto aquele cliente comprou no período.",
-      "Quem não comprou nada no período continua aparecendo na lista, zerado, com os dias sem comprar do lado — que é justamente o cliente que interessa achar.",
-    ],
-  },
-  {
     versao: "1.0.0",
-    data: "18/08/2026",
+    data: "30/08/2026",
     itens: [
       "Dois computadores na loja usando o sistema ao mesmo tempo, com o mesmo estoque: um PC guarda os dados e o outro se conecta nele pela rede da loja. Em Config → Rede você escolhe qual é qual; o principal mostra o endereço e a senha pra digitar no outro.",
       "Vender no balcão e no escritório ao mesmo tempo não bagunça mais o estoque: se a última peça acabou de sair no outro computador, a venda é recusada com aviso em vez de deixar o estoque negativo.",
       "Se o computador principal estiver desligado, o outro avisa \"sem conexão com o PC principal\" em vez de dar erro, e volta a funcionar sozinho quando ele liga.",
+      "Nessa tela de \"sem conexão\", o PC do balcão ganhou o botão \"Usar o banco deste computador\": se o principal não vai voltar (levaram a máquina, queimou), dá pra soltar o balcão na hora e continuar vendendo sozinho, sem chamar ninguém. O mesmo botão \"Desconectar\" está em Config → Rede pra quando o sistema abre normalmente. Os dados que ficaram no principal continuam lá, e o endereço fica gravado pra reconectar depois.",
+      "Em Config → Rede, o PC principal ganhou o botão “Liberar o sistema no Firewall do Windows”. É pra quando o computador do balcão não conecta de jeito nenhum: o Windows só pergunta uma vez na vida se libera o sistema na rede, e se ele não perguntou — ou se alguém respondeu Não naquele dia — este botão faz a liberação sozinho. Pode clicar quantas vezes precisar; ele só abre para os computadores ligados no mesmo roteador da loja.",
+      "A lista de clientes mostra há quantos dias cada um está sem comprar. Um dia sem aparecer fica laranja, dois dias ou mais fica vermelho — dá pra bater o olho e ver pra quem ligar.",
+      "Clientes virou uma aba pro colaborador, com o telefone de cada um do lado, inteiro numa linha só pra discar direto. Antes a lista só existia dentro da Config, que é do administrador.",
+      "Na Config, o administrador escolhe o período e vê quanto cada cliente comprou nele: hoje, ontem, esta semana, este mês ou entre duas datas. Uma linha em cima da lista mostra o total de todos juntos, e ela acompanha a busca — procurar um nome responde quanto aquele cliente comprou no período.",
+      "Quem não comprou nada no período continua aparecendo na lista, zerado, com os dias sem comprar do lado — que é justamente o cliente que interessa achar.",
     ],
   },
   {

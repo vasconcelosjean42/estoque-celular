@@ -30,7 +30,7 @@ const TOKEN = "TESTE123";
     const erros = [];
     win.on("pageerror", (e) => erros.push(e.message));
     return {
-      app, erros,
+      app, win, erros,
       sql: (q, p = []) => win.evaluate(([q, p]) => window.api.query(q, p), [q, p]),
       tx: (c) => win.evaluate((c) => window.api.tx(c), c),
     };
@@ -84,5 +84,46 @@ const TOKEN = "TESTE123";
     await A.app.close().catch(() => {});
     await B.app.close().catch(() => {});
     for (const d of [principal, terminal]) fs.rmSync(d, { recursive: true, force: true });
+  }
+
+  // 5. O balcão órfão: o principal saiu da loja e não volta. Sem saída na tela o
+  // sistema fica inacessível pra sempre — o Login pede a lista de usuários pela
+  // rede, ela não vem, e a Config (que desfaz a conexão) está atrás do login.
+  // Aconteceu de verdade; este teste é a garantia de que dá pra sair sem mexer
+  // no rede.json na mão.
+  const orfao = dir("orfao", { modo: "cliente", url: "http://127.0.0.1:5402", token: TOKEN });
+  let C, D;
+  try {
+    C = await abrir(orfao);
+    const sair = C.win.locator('button:has-text("Usar o banco deste computador")');
+    await sair.waitFor({ timeout: 20000 }); // o botão só aparece quando a query falha
+    assert.ok(await C.win.locator("text=Sem conexão com o PC principal").isVisible(),
+      "a tela tem que dizer o que houve, não ficar em branco");
+    await sair.click();
+    await C.win.locator("text=Pronto, desconectado").waitFor({ timeout: 10000 });
+
+    assert.strictEqual(JSON.parse(fs.readFileSync(path.join(orfao, "rede.json"), "utf-8")).modo, "sozinho",
+      "o botão precisa gravar a volta pro banco local, senão reabrir cai na mesma tela");
+    assert.strictEqual(JSON.parse(fs.readFileSync(path.join(orfao, "rede.json"), "utf-8")).url,
+      "http://127.0.0.1:5402", "o endereço fica gravado: reconectar não pode exigir digitar tudo de novo");
+
+    await C.app.close().catch(() => {});
+    C = null;
+
+    // Reabrir é o que o app faz sozinho (fora do teste, com app.relaunch): agora
+    // ele tem que subir como instalação de um PC só, com banco e login próprios.
+    D = await abrir(orfao);
+    assert.ok(fs.existsSync(path.join(orfao, "estoque.db")), "desconectado, este PC volta a ter banco próprio");
+    const usuarios = await D.sql("SELECT nome FROM usuarios");
+    assert.ok(usuarios.some((u) => u.nome === "Administrador"), "e dá pra entrar de novo");
+
+    console.log("balcão órfão OK — desconecta pela tela de login e volta a abrir sozinho");
+  } catch (e) {
+    console.error("FALHA:", e.message);
+    process.exitCode = 1;
+  } finally {
+    await C?.app.close().catch(() => {});
+    await D?.app.close().catch(() => {});
+    fs.rmSync(orfao, { recursive: true, force: true });
   }
 })();

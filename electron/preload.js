@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld("api", {
   redeInfo: () => ipcRenderer.invoke("rede-info"),
   redeSalvar: (cfg) => ipcRenderer.invoke("rede-salvar", cfg),
   redeTestar: (url, token) => ipcRenderer.invoke("rede-testar", { url, token }),
+  redeFirewall: () => ipcRenderer.invoke("rede-firewall"),
+  redeDesconectar: () => ipcRenderer.invoke("rede-desconectar"),
   abrirPlanilha: () => ipcRenderer.invoke("abrir-planilha"),
   salvarPlanilha: (sugestao, linhas) => ipcRenderer.invoke("salvar-planilha", { sugestao, linhas }),
   escolherPasta: () => ipcRenderer.invoke("escolher-pasta"),

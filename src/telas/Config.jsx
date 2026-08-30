@@ -134,6 +134,32 @@ export default function Config({ aoMudar }) {
     setRedeMsg(r.ok ? "✔ Conectado ao PC principal." : `✖ ${r.erro}`);
   };
 
+  // O aviso "rede privada/pública" do Windows só aparece uma vez na vida do
+  // programa — se ele já foi respondido (ou cancelado), não volta nem depois de
+  // atualizar. Este botão faz a liberação sem depender daquele aviso.
+  const liberarFirewall = async () => {
+    setRedeMsg("Responda Sim na janela do Windows que vai aparecer, pedindo permissão de administrador…");
+    const r = await window.api.redeFirewall?.();
+    setRedeMsg(
+      r?.ok
+        ? `✔ Sistema liberado na rede da loja (porta ${r.porta}). Agora teste a conexão no PC do balcão.`
+        : `✖ ${r?.erro ?? "Não foi possível liberar no Firewall."}`
+    );
+  };
+
+  // Mesma saída que o Login oferece quando o principal some, só que aqui pra
+  // quem ainda consegue entrar: mudar o rádio pra "Este PC sozinho" faz o mesmo,
+  // mas ninguém lê rádio como "desconectar" — e é isso que a pessoa procura.
+  const desconectarRede = async () => {
+    if (!window.confirm(
+      "Este computador vai parar de usar o banco do PC principal e voltar a usar o banco guardado aqui.\n\n" +
+      "Os dados que estão no PC principal continuam lá. Desconectar agora?"
+    )) return;
+    await window.api.redeDesconectar();
+    setRede({ ...rede, modo: "sozinho" });
+    setRedeMsg("✔ Desconectado. O sistema vai reabrir usando o banco deste computador.");
+  };
+
   const salvarRedeCliente = async () => {
     const cfg = await window.api.redeSalvar({
       modo: "cliente", url: normalizarUrl(redeForm.url), token: redeForm.token.trim().toUpperCase(),
@@ -518,7 +544,10 @@ export default function Config({ aoMudar }) {
   };
 
   return (
-    <div style={{ maxWidth: 880 }}>
+    // 1100 e não 880: a lista de clientes ganhou colunas (dias sem comprar,
+    // período) e o telefone não cabia inteiro na largura antiga. Os outros
+    // blocos acompanham pra não ficar um card mais largo que os vizinhos.
+    <div style={{ maxWidth: 1100 }}>
       <div style={bloco}>
         <h3 style={{ marginTop: 0 }}>Sobre / Atualização</h3>
         <div style={{ fontSize: 16, marginBottom: 10 }}>
@@ -818,9 +847,22 @@ export default function Config({ aoMudar }) {
                 )}
                 <ul style={{ fontSize: 14, color: "#334155", margin: "12px 0 0", paddingLeft: 20 }}>
                   <li>O Windows vai perguntar se libera o sistema na rede: marque <strong>rede privada</strong> e permita.</li>
+                  {/* Ele só pergunta uma vez por programa: se alguém já respondeu antes, não aparece nada. */}
+                  <li>
+                    Se ele não perguntou nada, ou se alguém respondeu errado naquele dia, use o botão
+                    abaixo — ele libera a <strong>porta {rede.porta}</strong> no Firewall do Windows sem
+                    depender daquele aviso, que não volta a aparecer.
+                  </li>
                   <li>Peça ao técnico da internet para <strong>fixar este IP no roteador</strong>. Se ele mudar, o balcão para de conectar.</li>
                   <li>Este PC precisa estar ligado para o balcão funcionar. O backup continua sendo feito só aqui.</li>
                 </ul>
+                <button style={{ ...btn, marginTop: 12 }} onClick={liberarFirewall}>
+                  Liberar o sistema no Firewall do Windows
+                </button>
+                <div style={{ fontSize: 13, color: "#64748b", marginTop: 6 }}>
+                  Pode clicar quantas vezes quiser. Só libera para os computadores ligados neste mesmo
+                  roteador — nada da internet entra por aqui.
+                </div>
               </div>
             )}
 
@@ -869,6 +911,13 @@ export default function Config({ aoMudar }) {
                     <button style={btn} onClick={() => setRedeForm({ url: rede.url || "", token: rede.token || "" })}>
                       Alterar endereço…
                     </button>
+                    <button style={{ ...btn, background: "#fee2e2", color: "#dc2626" }} onClick={desconectarRede}>
+                      Desconectar
+                    </button>
+                    <div style={{ fontSize: 13, color: "#64748b", flexBasis: "100%" }}>
+                      Desconectar solta este PC do principal e volta a usar o banco guardado aqui. Os dados
+                      que estão no PC principal ficam lá; o endereço continua gravado para reconectar depois.
+                    </div>
                   </div>
                 )}
               </div>

@@ -55,6 +55,24 @@ const rede = require("../electron/rede");
   await assert.rejects(() => rede.requisitar(url, cfg.token, "/db", { sql: "SELECT 1" }),
     /Sem conexão com o PC principal/, "principal desligado precisa de mensagem que o leigo entende");
 
+  // Botão "liberar no Firewall": o que importa é o .bat que vai rodar como
+  // administrador. Aqui ele é lido em vez de executado — não dá pra abrir UAC no teste.
+  if (process.platform === "win32") {
+    const appTmp = { getPath: () => tmp, getVersion: () => "1.0.0" };
+    let script;
+    const ok = await rede.liberarFirewall(appTmp, (bat) => {
+      script = fs.readFileSync(bat, "latin1");
+      return { ok: true };
+    });
+    assert.strictEqual(ok.porta, cfg.porta, "libera a porta que este PC está servindo");
+    assert.match(script, /delete rule name=all dir=in program=/, "o bloqueio antigo tem que sair antes");
+    assert.match(script, new RegExp(`add rule .*localport=${cfg.porta} remoteip=LocalSubnet`),
+      "só a rede da loja entra, mesmo que o Windows tenha marcado a rede como pública");
+
+    const cancelado = await rede.liberarFirewall(appTmp, () => ({ erro: "The operation was canceled by the user." }));
+    assert.match(cancelado.erro, /responda Sim/, "UAC recusado tem que virar instrução, não erro do Windows");
+  }
+
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log("rede OK — servidor, token, versão e queda do principal");
 })();

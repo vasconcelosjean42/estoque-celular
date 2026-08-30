@@ -98,6 +98,26 @@ app.whenReady().then(() => {
   ipcMain.handle("rede-info", () => ({ ...rede.ler(app), ips: rede.ips(), porta_padrao: rede.PORTA_PADRAO }));
   ipcMain.handle("rede-salvar", (_e, novo) => rede.salvar(novo));
   ipcMain.handle("rede-testar", (_e, { url, token }) => rede.testar(url, token));
+  ipcMain.handle("rede-firewall", () => rede.liberarFirewall(app));
+
+  // Saída de emergência do balcão. Com o principal desligado (ou tirado da loja)
+  // o terminal não carrega NADA: o Login pede a lista de usuários pela rede,
+  // ela falha, e a Config — onde se troca o modo — está atrás do login. O
+  // sistema fica inacessível sem editar rede.json na mão. Este handler desfaz a
+  // conexão e reabre o app já usando o banco desta máquina.
+  //
+  // url e token continuam gravados: reconectar depois é escolher "PC do balcão"
+  // de novo, sem digitar o endereço outra vez.
+  ipcMain.handle("rede-desconectar", () => {
+    rede.salvar({ modo: "sozinho" });
+    // O teste precisa da janela viva pra conferir o resultado; o app de verdade
+    // reabre sozinho porque pedir "feche e abra" a quem está travado é pedir demais.
+    if (!process.env.SMOKE) {
+      app.relaunch();
+      app.exit(0); // exit e não quit: 'window-all-closed' não pode cancelar o relaunch
+    }
+    return { ok: true };
+  });
 
   // Passo 22: lê a planilha no processo principal e devolve matriz de strings.
   ipcMain.handle("abrir-planilha", async () => {

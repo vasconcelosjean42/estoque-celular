@@ -228,12 +228,14 @@ export default function Clientes({ dono = true }) {
             Compraram <strong style={{ color: "#0f172a" }}>{fmtReais(gastoVisivel)}</strong> em{" "}
             {comprasVisiveis} compra{comprasVisiveis === 1 ? "" : "s"}{sufixo && ` ${sufixo}`}
           </div>
+          {/* A legenda usa a mesma tag da tabela: se a cor mudar, muda nos dois.
+              Só na Config: na aba do colaborador a tela é a lista de ligações do
+              dia inteiro, e a cor se explica sozinha depois da primeira vez. */}
+          <div style={{ display: "flex", gap: 6, alignItems: "center", color: "#64748b", fontSize: 14, marginBottom: 10 }}>
+            {tagDias(1)} um dia sem comprar · {tagDias(2)} dois dias ou mais — hora de ligar
+          </div>
         </>
       )}
-      {/* A legenda usa a mesma tag da tabela: se a cor mudar, muda nos dois. */}
-      <div style={{ display: "flex", gap: 6, alignItems: "center", color: "#64748b", fontSize: 14, marginBottom: 10 }}>
-        {tagDias(1)} um dia sem comprar · {tagDias(2)} dois dias ou mais — hora de ligar
-      </div>
       {/* A Config é estreita: a tabela rola em vez de espremer as colunas. */}
       <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", minWidth: 620, borderCollapse: "collapse", fontSize: 15 }}>
@@ -282,7 +284,11 @@ export default function Clientes({ dono = true }) {
                     {c.nome}
                   </button>
                 </td>
-                <td style={{ padding: 8, color: c.contato ? undefined : "#94a3b8" }}>{c.contato || "—"}</td>
+                {/* nowrap: telefone quebrado em duas linhas obriga a remontar o
+                    número na cabeça na hora de discar. */}
+                <td style={{ padding: 8, whiteSpace: "nowrap", color: c.contato ? undefined : "#94a3b8" }}>
+                  {c.contato || "—"}
+                </td>
                 <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(c.total)}</td>
                 <td style={{ padding: 8 }}>{c.compras}</td>
                 <td style={{ padding: 8, color: "#64748b" }}>{dataBR(c.ultima)}</td>
