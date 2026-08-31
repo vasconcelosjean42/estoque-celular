@@ -9,6 +9,13 @@
 // board da atualização nova ocupa o lugar do anterior, nunca empilha.
 export default [
   {
+    versao: "1.0.1",
+    data: "31/08/2026",
+    itens: [
+      "Na aba Clientes do colaborador saiu a coluna com o total que cada cliente já gastou. Ele continua vendo o nome, o telefone, quantas compras o cliente fez, a última e há quantos dias está sem comprar — que é o que ele usa pra ligar. O administrador continua vendo o valor normalmente, na Config.",
+    ],
+  },
+  {
     versao: "1.0.0",
     data: "30/08/2026",
     itens: [

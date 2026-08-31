@@ -1051,7 +1051,7 @@ const path = require("path");
       assert(await win.locator('th:text-is("Total gasto")').count(), "em Tudo o título volta ao seco");
     });
 
-    await caso("161. colaborador não vê o filtro de período nem a soma em dinheiro", async () => {
+    await caso("161. colaborador não vê filtro de período, soma em dinheiro nem total do cliente", async () => {
       await sql("INSERT INTO usuarios (nome, pin, papel) VALUES ('Colab161','8181','funcionario')");
       await trocarUsuario("Colab161", "8181");
       try {
@@ -1062,8 +1062,17 @@ const path = require("path");
         assert.strictEqual(await win.locator('button:text-is("Este mês")').count(), 0);
         assert.strictEqual(await win.locator('[role="status"]').count(), 0,
           "a soma em dinheiro da loja não é da funcionária");
-        // O total do cliente continua lá, no valor cheio: é o que ela já via.
-        await conferir(celula("Recente159", TOTAL), "R$ 600,00", "total cheio na visão do colaborador");
+        // v1.0.1: quanto o cliente gastou saiu da visão dela. Nº de compras fica —
+        // é o que diz se o cliente é de casa ou apareceu uma vez só.
+        assert.strictEqual(await win.locator('th:text("Total gasto")').count(), 0,
+          "o valor gasto pelo cliente é do administrador");
+        // Preso na linha do cliente: "Compras de hoje", logo abaixo, mostra o valor
+        // de cada pedido do dia e não segue a busca — um td solto casaria com ela.
+        assert.strictEqual(
+          await win.locator('tr:has(span[title]):has-text("Recente159") td:text-is("R$ 600,00")').count(), 0,
+          "tirar o cabeçalho e deixar o valor na linha não adianta");
+        // A coluna some inteira, então Compras sobe para o lugar dela.
+        await conferir(celula("Recente159", TOTAL), "2", "compras do Recente159 sem a coluna de total");
       } finally {
         await trocarUsuario("Administrador", "1234");
         await sql("DELETE FROM usuarios WHERE nome = 'Colab161'");
