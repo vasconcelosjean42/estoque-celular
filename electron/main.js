@@ -63,6 +63,15 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, "preload.js") },
   });
   win.maximize(); // maximizada (com barra de título), não quiosque — leigo precisa minimizar
+
+  // As duas mortes que o cliente relata como "reiniciou sozinho", porque em
+  // ambas ele mata no Gerenciador de Tarefas e abre de novo: a tela quebrando
+  // por baixo (o processo do Chromium morre e a janela fica branca) e o app
+  // pendurado — que é o que acontece numa exceção não tratada no main, medido
+  // aqui: ele não fecha, trava numa caixa de erro que o leigo não sabe fechar.
+  win.webContents.on("render-process-gone", (_e, d) => log("TELA MORREU:", d.reason, "exitCode:", d.exitCode));
+  win.on("unresponsive", () => log("APP PENDURADO (nao responde)"));
+  win.on("responsive", () => log("app voltou a responder"));
   // Link externo abre no navegador do cliente, não numa janela Electron pelada.
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/.test(url)) shell.openExternal(url);
@@ -279,3 +288,15 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => app.quit());
+
+// Marcos de fechamento. Sem eles o log é uma pilha de "abrindo" sem contexto, e
+// não dá pra distinguir o que mais importa: "abriu" logo depois de "fechando" é
+// gente fechando e reabrindo; "abriu" SEM "fechando" antes é morte súbita —
+// crash, Gerenciador de Tarefas ou queda de energia. É essa diferença que o
+// cliente não sabe relatar por telefone.
+app.on("before-quit", () => log("--- fechando (saída pedida)"));
+
+// Só o Windows dispara: a sessão está terminando (desligar/reiniciar/logoff).
+// Vale para a outra investigação — "fechando" seguido disto é exatamente a
+// condição em que o instalador silencioso do updater roda com o PC indo abaixo.
+app.on("session-end", () => log("--- Windows encerrando a sessao (desligar/logoff)"));
