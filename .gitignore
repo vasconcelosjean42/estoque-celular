@@ -1,5 +1,7 @@
 node_modules/
 dist/
-release/
+# Ancorados na raiz: sem a barra da frente, "release/" casava com QUALQUER pasta
+# de qualquer nível com esse nome (foi assim que .claude/skills/release/ sumiu).
+/release/
 *.db
 .claude/settings.local.json
