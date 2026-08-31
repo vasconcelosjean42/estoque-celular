@@ -9,6 +9,13 @@
 // board da atualização nova ocupa o lugar do anterior, nunca empilha.
 export default [
   {
+    versao: "1.0.2",
+    data: "31/08/2026",
+    itens: [
+      "Correção de bugs.",
+    ],
+  },
+  {
     versao: "1.0.1",
     data: "31/08/2026",
     itens: [
