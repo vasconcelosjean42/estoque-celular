@@ -3,6 +3,18 @@ const path = require("path");
 const fs = require("fs");
 const planilha = require("./planilha");
 const rede = require("./rede");
+const { log, logger } = require("./log");
+
+// Rede de segurança e, principalmente, rastro: o cliente só sabe dizer "fechou
+// sozinho", e sem log a investigação vira adivinhação a 400km de distância.
+//
+// Medido no Electron 33 (não é o padrão do Node): rejeição não tratada só emite
+// aviso e o app SEGUE VIVO — então aqui não se mata nada, senão a gente passa a
+// derrubar o app em caso que hoje ele aguenta. Já exceção síncrona não tratada
+// trava numa caixa de erro do Chromium que o leigo não sabe fechar; morrer com
+// o motivo escrito é melhor do que ficar pendurado.
+process.on("unhandledRejection", (e) => log("PROMESSA REJEITADA (app segue):", e));
+process.on("uncaughtException", (e) => { log("ERRO NAO TRATADO:", e); app.exit(1); });
 
 // Smoke test (test/smoke.js): banco isolado num diretório temporário.
 if (process.env.ESTOQUE_DB_DIR) app.setPath("userData", process.env.ESTOQUE_DB_DIR);
@@ -22,17 +34,23 @@ app.on("second-instance", () => {
 
 let db;
 
+// O try abraça a função INTEIRA de propósito. Isto roda de hora em hora num
+// setInterval, onde ninguém espera o retorno, e o SELECT abaixo ficava de fora
+// do try: uma falha ali virava rejeição não tratada. O Electron não derruba o
+// app por isso (medido) — o estrago era pior de outro jeito: o backup parava de
+// acontecer em silêncio, sem nada na tela nem no log, e só se descobriria no
+// dia de precisar da cópia. Agora falha registra e devolve o erro pra Config.
 async function backupDiario() {
-  // Copia o .db para a pasta de backup (aponte para a pasta do Google Drive
-  // desktop nas configurações e o Drive sobe sozinho quando tiver internet).
-  const row = db.prepare("SELECT valor FROM config WHERE chave = 'pasta_backup'").get();
-  if (!row || !row.valor) return { ok: false, erro: "Nenhuma pasta de backup escolhida." };
-  const destino = path.join(row.valor, `estoque-${new Date().toISOString().slice(0, 10)}.db`);
   try {
+    // Copia o .db para a pasta de backup (aponte para a pasta do Google Drive
+    // desktop nas configurações e o Drive sobe sozinho quando tiver internet).
+    const row = db.prepare("SELECT valor FROM config WHERE chave = 'pasta_backup'").get();
+    if (!row || !row.valor) return { ok: false, erro: "Nenhuma pasta de backup escolhida." };
+    const destino = path.join(row.valor, `estoque-${new Date().toISOString().slice(0, 10)}.db`);
     await db.backup(destino);
     return { ok: true, destino };
   } catch (e) {
-    console.error("backup falhou:", e.message);
+    log("backup falhou:", e);
     return { ok: false, erro: e.message };
   }
 }
@@ -58,6 +76,9 @@ app.whenReady().then(() => {
   // Passo 27: no PC terminal o banco não fica nesta máquina — db.js nem carrega.
   const modo = rede.ler(app).modo;
   const terminal = modo === "cliente";
+  // Marco de abertura: é o que permite ler o log e ver "abriu 08:12, morreu
+  // 09:12, abriu 09:15" — a cadência é metade do diagnóstico.
+  log("--- abrindo versao", app.getVersion(), "modo:", modo);
 
   // ponytail: renderer manda SQL direto — app local, sem conteúdo remoto. Passa a
   // valer também na LAN da loja (token no header); se um dia sair dela, trocar
@@ -225,9 +246,12 @@ app.whenReady().then(() => {
 
   // Auto-update via GitHub Releases: banco fica em userData, o update não toca nos dados.
   let autoUpdater;
-  try { autoUpdater = require("electron-updater").autoUpdater; } catch (e) { console.error("updater indisponível:", e.message); }
+  try { autoUpdater = require("electron-updater").autoUpdater; } catch (e) { log("updater indisponível:", e.message); }
 
   if (autoUpdater) {
+    // Sem isto o updater não registra nada: era ele quem baixava e instalava em
+    // silêncio, e não havia como saber se tinha rodado naquele PC.
+    autoUpdater.logger = logger;
     const envia = (estado, extra = {}) =>
       BrowserWindow.getAllWindows()[0]?.webContents.send("update-status", { estado, ...extra });
     autoUpdater.on("checking-for-update", () => envia("checando"));

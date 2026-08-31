@@ -13,6 +13,7 @@ const http = require("http");
 const os = require("os");
 const crypto = require("crypto");
 const { execFile } = require("child_process");
+const { log } = require("./log");
 
 const PORTA_PADRAO = 5174;
 
@@ -59,9 +60,24 @@ const ips = () =>
 // minhaVersao fixa no boot: o servidor compara contra o que ELE subiu rodando.
 function servir(banco, { porta = PORTA_PADRAO, token } = {}, minhaVersao = versao) {
   const servidor = http.createServer((req, res) => {
+    // O balcão sumir no meio de um pedido é rotina — wifi da loja oscilando, ou
+    // alguém fechando o app durante a venda. Medido no Node 20: isto NÃO derruba
+    // o servidor, ele trata o aborto por dentro. Os ouvintes aqui são pelo
+    // registro: "caiu 40 vezes hoje" é o que diferencia rede ruim de bug nosso,
+    // e sem eles esse evento não aparece em lugar nenhum.
+    // Antes do teste de token, senão o 401 e o 409 saem daqui sem ouvinte algum.
+    req.on("error", (e) => log("rede: conexão do balcão caiu no meio do pedido:", e.message));
+    res.on("error", (e) => log("rede: resposta interrompida:", e.message));
+
     const responder = (status, corpo) => {
-      res.writeHead(status, { "content-type": "application/json" });
-      res.end(JSON.stringify(corpo));
+      // Se o balcão já foi embora, escrever na conexão morta levanta erro — e o
+      // catch lá de baixo responderia de novo, levantando outro.
+      try {
+        res.writeHead(status, { "content-type": "application/json" });
+        res.end(JSON.stringify(corpo));
+      } catch (e) {
+        log("rede: resposta perdida:", e.message);
+      }
     };
     if (req.headers["x-token"] !== token) return responder(401, { erro: "token" });
     // Os dois PCs se atualizam sozinhos, em horários diferentes. Por alguns
@@ -80,7 +96,7 @@ function servir(banco, { porta = PORTA_PADRAO, token } = {}, minhaVersao = versa
       }
     });
   });
-  servidor.on("error", (e) => console.error("servidor de rede:", e.message));
+  servidor.on("error", (e) => log("servidor de rede:", e.message));
   servidor.listen(porta, "0.0.0.0");
   return servidor;
 }

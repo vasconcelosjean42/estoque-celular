@@ -4,6 +4,7 @@
 // Rodar: node test/rede.js
 const assert = require("assert");
 const fs = require("fs");
+const net = require("net");
 const os = require("os");
 const path = require("path");
 const rede = require("../electron/rede");
@@ -50,6 +51,28 @@ const rede = require("../electron/rede");
   banco.executar = () => { throw new Error("no such column: fulano"); };
   await assert.rejects(() => rede.requisitar(url, cfg.token, "/db", { sql: "SELECT fulano" }),
     /no such column: fulano/);
+
+  // O balcão sumir no meio de um pedido é rotina na loja (wifi oscilando, app
+  // fechado durante a venda). A conexão aqui é cortada com o corpo pela metade
+  // — o content-length mente — e o que se cobra é o servidor continuar de pé
+  // para o próximo pedido. Passa hoje mesmo sem os ouvintes de erro, porque o
+  // Node trata o aborto por dentro; fica travando a propriedade para quando
+  // alguém mexer neste handler achando que pode responder de qualquer jeito.
+  banco.executar = (sql, params) => { feitos.push(["db", sql, params]); return [{ ok: 1 }]; };
+  await new Promise((pronto) => {
+    const socket = net.connect(cfg.porta, "127.0.0.1", () => {
+      socket.write(
+        `POST /db HTTP/1.1\r\nHost: x\r\nx-token: ${cfg.token}\r\nx-versao: 1.0.0\r\n` +
+        `content-type: application/json\r\ncontent-length: 200\r\n\r\n{"sql":"SELECT 1"`
+      );
+      setTimeout(() => { socket.destroy(); pronto(); }, 50);
+    });
+    socket.on("error", pronto);
+  });
+  await new Promise((r) => setTimeout(r, 100));
+  assert.deepStrictEqual(
+    await rede.requisitar(url, cfg.token, "/db", { sql: "SELECT 1", params: [] }), [{ ok: 1 }],
+    "conexão cortada no meio não pode derrubar o PC principal");
 
   servidor.close();
   await assert.rejects(() => rede.requisitar(url, cfg.token, "/db", { sql: "SELECT 1" }),
