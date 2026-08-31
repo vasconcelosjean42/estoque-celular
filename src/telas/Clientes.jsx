@@ -38,6 +38,10 @@ const COLUNAS = [
   ["ultima", "Última compra"], ["dias", "Dias sem comprar", -1],
 ];
 
+// Quanto o cliente já gastou é conversa de dono. Pra funcionária a tela serve
+// pra ligar pra quem sumiu: nome, telefone e dias resolvem, o valor não.
+const colunasDe = (dono) => (dono ? COLUNAS : COLUNAS.filter(([chave]) => chave !== "total"));
+
 const dataBR = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : "—");
 
 // Passo 28: a funcionária varre esta coluna com o olho antes de pegar o telefone.
@@ -204,6 +208,7 @@ export default function Clientes({ dono = true }) {
   // Somam o que está na tela, então acompanham a busca junto com o período:
   // procurar "Silva" responde quanto os Silva compraram no mês.
   const sufixo = sufixoTitulo(atalhoSel);
+  const colunas = colunasDe(dono);
   const gastoVisivel = visiveis.reduce((s, c) => s + c.total, 0);
   const comprasVisiveis = visiveis.reduce((s, c) => s + c.compras, 0);
 
@@ -241,7 +246,7 @@ export default function Clientes({ dono = true }) {
       <table style={{ width: "100%", minWidth: 620, borderCollapse: "collapse", fontSize: 15 }}>
         <thead>
           <tr style={{ borderBottom: "2px solid #cbd5e1" }}>
-            {COLUNAS.map(([chave, rotulo, inicial = 1, doPeriodo]) => (
+            {colunas.map(([chave, rotulo, inicial = 1, doPeriodo]) => (
               <th key={chave} style={th} title="Ordenar"
                 onClick={() => setOrdem([chave, col === chave ? -dir : inicial])}>
                 {/* O título diz de que período é o número, senão "Total gasto"
@@ -265,8 +270,9 @@ export default function Clientes({ dono = true }) {
                   <input style={{ ...inp, width: "100%" }} aria-label="Nome do cliente" value={editando.nome}
                     onChange={(e) => setEditando({ ...editando, nome: e.target.value })} />
                 </td>
-                {/* cobre contato, total, compras, última compra e dias */}
-                <td style={{ padding: 6 }} colSpan={5}>
+                {/* cobre tudo entre o nome e os botões: contato, total (só do
+                    dono), compras, última compra e dias */}
+                <td style={{ padding: 6 }} colSpan={colunas.length - 2}>
                   <input style={{ ...inp, width: "100%", maxWidth: 220 }} aria-label="Contato do cliente" placeholder="telefone ou email"
                     value={editando.contato} onChange={(e) => setEditando({ ...editando, contato: e.target.value })} />
                 </td>
@@ -289,7 +295,7 @@ export default function Clientes({ dono = true }) {
                 <td style={{ padding: 8, whiteSpace: "nowrap", color: c.contato ? undefined : "#94a3b8" }}>
                   {c.contato || "—"}
                 </td>
-                <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(c.total)}</td>
+                {dono && <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(c.total)}</td>}
                 <td style={{ padding: 8 }}>{c.compras}</td>
                 <td style={{ padding: 8, color: "#64748b" }}>{dataBR(c.ultima)}</td>
                 <td style={{ padding: 8 }}>{tagDias(c.dias)}</td>
@@ -309,7 +315,7 @@ export default function Clientes({ dono = true }) {
             )
           ))}
           {visiveis.length === 0 && (
-            <tr><td colSpan={COLUNAS.length + (dono ? 1 : 0)} style={{ padding: 16, color: "#64748b" }}>
+            <tr><td colSpan={colunas.length + (dono ? 1 : 0)} style={{ padding: 16, color: "#64748b" }}>
               Nenhum cliente {filtro ? "encontrado" : "cadastrado"}. O cadastro nasce sozinho quando você põe o nome numa venda.
             </td></tr>
           )}
