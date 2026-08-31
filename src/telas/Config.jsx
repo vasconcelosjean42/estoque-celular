@@ -24,6 +24,13 @@ const mascaraTelefone = (str) => {
 
 const bloco = { background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 16, marginBottom: 16 };
 const btn = { padding: "10px 18px", fontSize: 15, fontWeight: "bold", border: "none", borderRadius: 8, cursor: "pointer", background: "#38bdf8", color: "#0f172a" };
+const campo = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1" };
+const rotulo = { fontSize: 12, color: "#64748b", fontWeight: "bold", fontFamily: "sans-serif" };
+const MODOS_REDE = [
+  ["sozinho", "Este PC sozinho", "Como sempre foi: o banco fica aqui e nenhuma porta é aberta."],
+  ["servidor", "PC principal (guarda o banco)", "Publica o banco na rede da loja para o outro PC usar."],
+  ["cliente", "PC do balcão (usa o banco do principal)", "Não guarda dados: lê e grava no PC principal."],
+];
 
 // Vitrine de clientes: nome + contato. O POOL repete o índice de quem volta
 // sempre, então a tela de Clientes nasce com cliente fiel, cliente de duas
@@ -59,6 +66,9 @@ export default function Config({ aoMudar }) {
   const [pecasImport, setPecasImport] = useState([]); // estoque atual, p/ casar na importação
   const [appInfo, setAppInfo] = useState(null); // { versao, empacotado }
   const [upd, setUpd] = useState(null); // status do update vindo do main
+  const [rede, setRede] = useState(null); // { modo, porta, token, url, ips } — passo 27
+  const [redeForm, setRedeForm] = useState(null); // { url, token } enquanto edita o terminal
+  const [redeMsg, setRedeMsg] = useState("");
 
   const carregarUsuarios = () =>
     window.api.query("SELECT * FROM usuarios ORDER BY papel DESC, nome").then(setUsuarios);
@@ -67,6 +77,7 @@ export default function Config({ aoMudar }) {
     lerConfig().then(setCfg);
     carregarUsuarios();
     window.api.appInfo?.().then(setAppInfo);
+    window.api.redeInfo?.().then(setRede);
     window.api.onUpdateStatus?.(setUpd);
   }, []);
 
@@ -98,6 +109,64 @@ export default function Config({ aoMudar }) {
     if (u.estado === "pronto") return `✔ Versão ${u.versao} baixada. Clique para instalar.`;
     if (u.estado === "erro") return `✖ ${u.msg}`;
     return "";
+  };
+
+  // O leigo digita "192.168.0.10" e olhando pro papel; http:// e porta ele não
+  // digita, e é isso que faz o "não conecta" que ninguém entende.
+  const normalizarUrl = (v) => {
+    let u = String(v).trim().replace(/\/+$/, "");
+    if (!/^https?:\/\//.test(u)) u = `http://${u}`;
+    if (!/:\d+$/.test(u)) u = `${u}:${rede?.porta_padrao ?? 5174}`;
+    return u;
+  };
+
+  const mudarModoRede = async (modo) => {
+    setRedeMsg("");
+    if (modo === "cliente") return setRedeForm({ url: rede.url || "", token: rede.token || "" });
+    setRedeForm(null);
+    setRede({ ...rede, ...(await window.api.redeSalvar({ modo })) });
+    setRedeMsg("Salvo. Feche e abra o sistema para valer.");
+  };
+
+  const testarRede = async () => {
+    setRedeMsg("Testando…");
+    const r = await window.api.redeTestar(normalizarUrl(redeForm.url), redeForm.token.trim().toUpperCase());
+    setRedeMsg(r.ok ? "✔ Conectado ao PC principal." : `✖ ${r.erro}`);
+  };
+
+  // O aviso "rede privada/pública" do Windows só aparece uma vez na vida do
+  // programa — se ele já foi respondido (ou cancelado), não volta nem depois de
+  // atualizar. Este botão faz a liberação sem depender daquele aviso.
+  const liberarFirewall = async () => {
+    setRedeMsg("Responda Sim na janela do Windows que vai aparecer, pedindo permissão de administrador…");
+    const r = await window.api.redeFirewall?.();
+    setRedeMsg(
+      r?.ok
+        ? `✔ Sistema liberado na rede da loja (porta ${r.porta}). Agora teste a conexão no PC do balcão.`
+        : `✖ ${r?.erro ?? "Não foi possível liberar no Firewall."}`
+    );
+  };
+
+  // Mesma saída que o Login oferece quando o principal some, só que aqui pra
+  // quem ainda consegue entrar: mudar o rádio pra "Este PC sozinho" faz o mesmo,
+  // mas ninguém lê rádio como "desconectar" — e é isso que a pessoa procura.
+  const desconectarRede = async () => {
+    if (!window.confirm(
+      "Este computador vai parar de usar o banco do PC principal e voltar a usar o banco guardado aqui.\n\n" +
+      "Os dados que estão no PC principal continuam lá. Desconectar agora?"
+    )) return;
+    await window.api.redeDesconectar();
+    setRede({ ...rede, modo: "sozinho" });
+    setRedeMsg("✔ Desconectado. O sistema vai reabrir usando o banco deste computador.");
+  };
+
+  const salvarRedeCliente = async () => {
+    const cfg = await window.api.redeSalvar({
+      modo: "cliente", url: normalizarUrl(redeForm.url), token: redeForm.token.trim().toUpperCase(),
+    });
+    setRede({ ...rede, ...cfg });
+    setRedeForm(null);
+    setRedeMsg("Salvo. Feche e abra o sistema para conectar no PC principal.");
   };
 
   const salvarPinUsuario = async (u, valor) => {
@@ -475,7 +544,10 @@ export default function Config({ aoMudar }) {
   };
 
   return (
-    <div style={{ maxWidth: 880 }}>
+    // 1100 e não 880: a lista de clientes ganhou colunas (dias sem comprar,
+    // período) e o telefone não cabia inteiro na largura antiga. Os outros
+    // blocos acompanham pra não ficar um card mais largo que os vizinhos.
+    <div style={{ maxWidth: 1100 }}>
       <div style={bloco}>
         <h3 style={{ marginTop: 0 }}>Sobre / Atualização</h3>
         <div style={{ fontSize: 16, marginBottom: 10 }}>
@@ -651,7 +723,7 @@ export default function Config({ aoMudar }) {
         <div style={{ fontSize: 14, color: "#64748b", marginBottom: 10 }}>
           Clique no nome pra ver o que o cliente já comprou.
         </div>
-        <Clientes />
+        <Clientes dono />
       </div>
 
       <div style={bloco}>
@@ -729,6 +801,135 @@ export default function Config({ aoMudar }) {
           </button>
         </div>
         {msgBackup && <div style={{ marginTop: 8, fontSize: 15 }}>{msgBackup}</div>}
+      </div>
+
+      {/* Passo 27: dois PCs na loja, um banco só. */}
+      <div style={bloco}>
+        <h3 style={{ marginTop: 0 }}>Rede — dois computadores</h3>
+        {!rede ? (
+          <div style={{ color: "#64748b" }}>Carregando…</div>
+        ) : (
+          <>
+            <div style={{ fontSize: 14, color: "#64748b", marginBottom: 12 }}>
+              Para o balcão e o escritório usarem o sistema ao mesmo tempo, com o mesmo estoque:
+              um PC guarda o banco e o outro se conecta nele. Os dois precisam estar no mesmo
+              roteador da loja. Trocar de modo exige fechar e abrir o sistema.
+            </div>
+
+            {MODOS_REDE.map(([valor, titulo, ajuda]) => (
+              <label key={valor} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 16, cursor: "pointer", marginBottom: 8 }}>
+                <input
+                  type="radio"
+                  name="modo-rede"
+                  style={{ width: 20, height: 20, marginTop: 3 }}
+                  checked={(redeForm ? "cliente" : rede.modo) === valor}
+                  onChange={() => mudarModoRede(valor)}
+                />
+                <span>
+                  {titulo}
+                  <div style={{ fontSize: 13, color: "#64748b" }}>{ajuda}</div>
+                </span>
+              </label>
+            ))}
+
+            {/* Principal: o outro PC precisa destes dois dados, e ninguém descobre o IP sozinho. */}
+            {rede.modo === "servidor" && !redeForm && (
+              <div style={{ marginTop: 12, background: "white", border: "1px solid #e2e8f0", borderRadius: 8, padding: 14 }}>
+                <div style={{ fontSize: 15, marginBottom: 10 }}>Digite estes dois dados no PC do balcão:</div>
+                <div style={{ display: "flex", gap: 32, flexWrap: "wrap", fontFamily: "monospace", fontSize: 24, color: "#0f172a" }}>
+                  <div><div style={rotulo}>ENDEREÇO</div>{rede.ips[0] ?? "sem rede"}:{rede.porta}</div>
+                  <div><div style={rotulo}>TOKEN</div>{rede.token}</div>
+                </div>
+                {rede.ips.length > 1 && (
+                  <div style={{ fontSize: 13, color: "#64748b", marginTop: 10 }}>
+                    Este PC tem mais de um endereço ({rede.ips.join(", ")}). Use o que começa com 192.168.
+                  </div>
+                )}
+                <ul style={{ fontSize: 14, color: "#334155", margin: "12px 0 0", paddingLeft: 20 }}>
+                  <li>O Windows vai perguntar se libera o sistema na rede: marque <strong>rede privada</strong> e permita.</li>
+                  {/* Ele só pergunta uma vez por programa: se alguém já respondeu antes, não aparece nada. */}
+                  <li>
+                    Se ele não perguntou nada, ou se alguém respondeu errado naquele dia, use o botão
+                    abaixo — ele libera a <strong>porta {rede.porta}</strong> no Firewall do Windows sem
+                    depender daquele aviso, que não volta a aparecer.
+                  </li>
+                  <li>Peça ao técnico da internet para <strong>fixar este IP no roteador</strong>. Se ele mudar, o balcão para de conectar.</li>
+                  <li>Este PC precisa estar ligado para o balcão funcionar. O backup continua sendo feito só aqui.</li>
+                </ul>
+                <button style={{ ...btn, marginTop: 12 }} onClick={liberarFirewall}>
+                  Liberar o sistema no Firewall do Windows
+                </button>
+                <div style={{ fontSize: 13, color: "#64748b", marginTop: 6 }}>
+                  Pode clicar quantas vezes quiser. Só libera para os computadores ligados neste mesmo
+                  roteador — nada da internet entra por aqui.
+                </div>
+              </div>
+            )}
+
+            {/* Balcão: endereço + token do principal, com teste antes de salvar. */}
+            {(redeForm || rede.modo === "cliente") && (
+              <div style={{ marginTop: 12, background: "white", border: "1px solid #e2e8f0", borderRadius: 8, padding: 14 }}>
+                {redeForm ? (
+                  <>
+                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+                      <label>
+                        <div style={rotulo}>ENDEREÇO DO PC PRINCIPAL</div>
+                        <input
+                          style={{ ...campo, width: 220 }}
+                          placeholder="192.168.0.10"
+                          value={redeForm.url}
+                          onChange={(e) => setRedeForm({ ...redeForm, url: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        <div style={rotulo}>TOKEN</div>
+                        <input
+                          style={{ ...campo, width: 140, textTransform: "uppercase", fontFamily: "monospace" }}
+                          placeholder="A1B2C3D4"
+                          value={redeForm.token}
+                          onChange={(e) => setRedeForm({ ...redeForm, token: e.target.value })}
+                        />
+                      </label>
+                      <button style={btn} onClick={testarRede}>Testar conexão</button>
+                      <button style={{ ...btn, background: "#22c55e", color: "white" }} onClick={salvarRedeCliente}>Salvar</button>
+                      <button
+                        style={{ ...btn, background: "#e2e8f0" }}
+                        onClick={() => { setRedeForm(null); setRedeMsg(""); }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                    <div style={{ fontSize: 13, color: "#64748b", marginTop: 10 }}>
+                      Os dois dados aparecem na tela Config → Rede do PC principal.
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ display: "flex", gap: 24, alignItems: "flex-end", flexWrap: "wrap" }}>
+                    <div style={{ fontFamily: "monospace", fontSize: 20 }}>
+                      <div style={rotulo}>CONECTADO EM</div>{rede.url}
+                    </div>
+                    <button style={btn} onClick={() => setRedeForm({ url: rede.url || "", token: rede.token || "" })}>
+                      Alterar endereço…
+                    </button>
+                    <button style={{ ...btn, background: "#fee2e2", color: "#dc2626" }} onClick={desconectarRede}>
+                      Desconectar
+                    </button>
+                    <div style={{ fontSize: 13, color: "#64748b", flexBasis: "100%" }}>
+                      Desconectar solta este PC do principal e volta a usar o banco guardado aqui. Os dados
+                      que estão no PC principal ficam lá; o endereço continua gravado para reconectar depois.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {redeMsg && (
+              <div style={{ marginTop: 10, fontSize: 15, whiteSpace: "pre-line", color: redeMsg.startsWith("✖") ? "#dc2626" : "#334155" }}>
+                {redeMsg}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <div style={{ fontSize: 11, color: "#cbd5e1", margin: "2px 0 1px" }}>

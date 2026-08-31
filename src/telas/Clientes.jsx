@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { fmtReais } from "./Estoque.jsx";
 import { rotuloForma, agruparPedidos, totalPedido, descontoPedido, tagDesconto } from "./Venda.jsx";
+import FiltroData, { sufixoTitulo } from "./FiltroData.jsx";
 
 const proximoCodigo = async () => {
   const [{ n }] = await window.api.query(
@@ -28,28 +29,77 @@ const btn = { padding: "8px 14px", fontSize: 14, fontWeight: "bold", border: "no
 const inp = { padding: 8, fontSize: 15, borderRadius: 6, border: "1px solid #cbd5e1", boxSizing: "border-box" };
 const th = { padding: 8, textAlign: "left", cursor: "pointer", userSelect: "none" };
 
+// [chave, rótulo, direção do primeiro clique, segue o filtro de período?]
+// -1 em "dias": o primeiro clique já traz quem sumiu há mais tempo, que é a ordem
+// de quem vai ligar. Nas outras colunas o primeiro clique é crescente.
 const COLUNAS = [
   ["codigo", "Código"], ["nome", "Nome"], ["contato", "Contato"],
-  ["total", "Total gasto"], ["compras", "Compras"], ["ultima", "Última compra"],
+  ["total", "Total gasto", 1, true], ["compras", "Compras", 1, true],
+  ["ultima", "Última compra"], ["dias", "Dias sem comprar", -1],
 ];
 
 const dataBR = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : "—");
 
-export default function Clientes() {
+// Passo 28: a funcionária varre esta coluna com o olho antes de pegar o telefone.
+// 1 dia sem comprar acende laranja, 2 ou mais acende vermelho. Quem comprou hoje
+// não acende nada — o que interessa é a ausência, não a presença.
+export const alertaDias = (dias) =>
+  dias == null || dias < 1 ? null
+    : dias === 1 ? { background: "#ffedd5", color: "#c2410c" }
+    : { background: "#fee2e2", color: "#b91c1c" };
+
+const textoDias = (dias) => (dias == null ? "—" : dias === 0 ? "hoje" : `${dias} dia${dias === 1 ? "" : "s"}`);
+// Título separado do texto: "2 dias" sozinho não diz de quê, e é ele que o
+// mouse parado em cima mostra.
+const tituloDias = (dias) =>
+  dias == null ? "nunca comprou" : dias === 0 ? "comprou hoje" : `${textoDias(dias)} sem comprar`;
+
+export const tagDias = (dias) => {
+  const alerta = alertaDias(dias);
+  return (
+    <span title={tituloDias(dias)}
+      style={{ borderRadius: 4, padding: "1px 6px", fontSize: 13, color: "#64748b", ...alerta, fontWeight: alerta ? "bold" : undefined }}>
+      {textoDias(dias)}
+    </span>
+  );
+};
+
+export default function Clientes({ dono = true }) {
   const [clientes, setClientes] = useState([]);
   const [busca, setBusca] = useState("");
   const [ordem, setOrdem] = useState(["nome", 1]); // [coluna, 1 crescente | -1 decrescente]
   const [detalhe, setDetalhe] = useState(null); // { cliente, itens }
   const [editando, setEditando] = useState(null); // { id, codigo, nome, contato }
   const [doDia, setDoDia] = useState([]);
+  // '' nas duas pontas = "Tudo", que é como a lista sempre abriu. Só o
+  // administrador troca o período; o colaborador fica no total de sempre.
+  const [de, setDe] = useState("");
+  const [ate, setAte] = useState("");
+  const [atalhoSel, setAtalhoSel] = useState("tudo"); // null = período escolhido na mão
 
   const carregar = () => {
-    // Compras = pedidos, não itens: um carrinho de 3 peças é uma compra só.
+    const cond = [];
+    const params = [];
+    if (de) { cond.push("date(v.criado_em) >= ?"); params.push(de); }
+    if (ate) { cond.push("date(v.criado_em) <= ?"); params.push(ate); }
+    const noPeriodo = cond.length ? cond.join(" AND ") : "1";
+    // O período recorta só quanto e quantas vezes o cliente comprou. Última compra
+    // e dias sem comprar ficam absolutos de propósito: são o alerta de quem sumiu,
+    // e recortá-los pelo mês faria a loja inteira parecer sumida todo dia 1º.
+    // O CASE (em vez de WHERE) mantém na lista quem não comprou nada no período —
+    // é justamente ele que o dono quer enxergar.
     window.api
-      .query(`SELECT c.*, COUNT(DISTINCT v.pedido_id) AS compras,
-                     COALESCE(SUM(v.preco_venda * v.quantidade + v.mao_de_obra - v.desconto), 0) AS total,
-                     MAX(v.criado_em) AS ultima
-              FROM clientes c LEFT JOIN vendas v ON v.cliente_id = c.id GROUP BY c.id`)
+      // Compras = pedidos, não itens: um carrinho de 3 peças é uma compra só.
+      .query(`SELECT c.*,
+                     COUNT(DISTINCT CASE WHEN ${noPeriodo} THEN v.pedido_id END) AS compras,
+                     COALESCE(SUM(CASE WHEN ${noPeriodo}
+                                       THEN v.preco_venda * v.quantidade + v.mao_de_obra - v.desconto END), 0) AS total,
+                     MAX(v.criado_em) AS ultima,
+                     -- Dia de calendário, não 24h: quem comprou ontem às 23h já
+                     -- conta 1 dia hoje de manhã, que é como a loja fala.
+                     CAST(julianday(date('now','localtime')) - julianday(date(MAX(v.criado_em))) AS INTEGER) AS dias
+              FROM clientes c LEFT JOIN vendas v ON v.cliente_id = c.id GROUP BY c.id`,
+        [...params, ...params]) // as duas colunas repetem a mesma condição
       .then(setClientes);
     window.api
       .query(`SELECT v.*, p.nome, p.modelo, c.nome AS cliente_nome, c.codigo AS cliente_codigo
@@ -59,7 +109,7 @@ export default function Clientes() {
       .then(setDoDia);
   };
 
-  useEffect(carregar, []);
+  useEffect(carregar, [de, ate]);
 
   const abrir = async (c) => {
     const itens = await window.api.query(
@@ -142,32 +192,65 @@ export default function Clientes() {
   const visiveis = clientes
     .filter((c) => !filtro || `${c.codigo} ${c.nome}`.toLowerCase().includes(filtro))
     .sort((a, b) => {
-      const x = a[col] ?? "";
-      const y = b[col] ?? "";
+      const x = a[col];
+      const y = b[col];
+      // Quem nunca comprou não tem dias nem última compra: vai pro fim nas duas
+      // direções, senão o topo da lista de ligações enche de quem não tem o que cobrar.
+      if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;
       return (typeof x === "number" ? x - y : String(x).localeCompare(String(y), "pt-BR")) * dir;
     });
 
   const pedidosDoDia = agruparPedidos(doDia);
+  // Somam o que está na tela, então acompanham a busca junto com o período:
+  // procurar "Silva" responde quanto os Silva compraram no mês.
+  const sufixo = sufixoTitulo(atalhoSel);
+  const gastoVisivel = visiveis.reduce((s, c) => s + c.total, 0);
+  const comprasVisiveis = visiveis.reduce((s, c) => s + c.compras, 0);
 
   return (
     <div>
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
         <input style={{ ...inp, flex: 1 }} placeholder="Buscar cliente por código ou nome…"
           value={busca} onChange={(e) => setBusca(e.target.value)} />
-        <span style={{ color: "#64748b", fontSize: 14 }}>{visiveis.length} cliente{visiveis.length === 1 ? "" : "s"}</span>
+        <span style={{ color: "#64748b", fontSize: 14, whiteSpace: "nowrap" }}>
+          {visiveis.length} cliente{visiveis.length === 1 ? "" : "s"}
+        </span>
       </div>
+      {dono && (
+        <>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+            <FiltroData sel={atalhoSel} de={de} ate={ate}
+              aoEscolher={(chave, d, a) => { setAtalhoSel(chave); setDe(d); setAte(a); }} />
+          </div>
+          {/* role=status: o número muda ao trocar o período sem nada sair do
+              lugar na tela — quem usa leitor de tela precisa ser avisado. */}
+          <div role="status" style={{ fontSize: 16, color: "#475569", marginBottom: 10 }}>
+            Compraram <strong style={{ color: "#0f172a" }}>{fmtReais(gastoVisivel)}</strong> em{" "}
+            {comprasVisiveis} compra{comprasVisiveis === 1 ? "" : "s"}{sufixo && ` ${sufixo}`}
+          </div>
+          {/* A legenda usa a mesma tag da tabela: se a cor mudar, muda nos dois.
+              Só na Config: na aba do colaborador a tela é a lista de ligações do
+              dia inteiro, e a cor se explica sozinha depois da primeira vez. */}
+          <div style={{ display: "flex", gap: 6, alignItems: "center", color: "#64748b", fontSize: 14, marginBottom: 10 }}>
+            {tagDias(1)} um dia sem comprar · {tagDias(2)} dois dias ou mais — hora de ligar
+          </div>
+        </>
+      )}
       {/* A Config é estreita: a tabela rola em vez de espremer as colunas. */}
       <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", minWidth: 620, borderCollapse: "collapse", fontSize: 15 }}>
         <thead>
           <tr style={{ borderBottom: "2px solid #cbd5e1" }}>
-            {COLUNAS.map(([chave, rotulo]) => (
+            {COLUNAS.map(([chave, rotulo, inicial = 1, doPeriodo]) => (
               <th key={chave} style={th} title="Ordenar"
-                onClick={() => setOrdem([chave, col === chave ? -dir : 1])}>
-                {rotulo}{col === chave ? (dir === 1 ? " ▲" : " ▼") : ""}
+                onClick={() => setOrdem([chave, col === chave ? -dir : inicial])}>
+                {/* O título diz de que período é o número, senão "Total gasto"
+                    mentiria quando o dono estivesse olhando só a semana. */}
+                {rotulo}{doPeriodo && sufixo ? ` ${sufixo}` : ""}
+                {col === chave ? (dir === 1 ? " ▲" : " ▼") : ""}
               </th>
             ))}
-            <th style={{ padding: 8 }} />
+            {dono && <th style={{ padding: 8 }} />}
           </tr>
         </thead>
         <tbody>
@@ -182,7 +265,8 @@ export default function Clientes() {
                   <input style={{ ...inp, width: "100%" }} aria-label="Nome do cliente" value={editando.nome}
                     onChange={(e) => setEditando({ ...editando, nome: e.target.value })} />
                 </td>
-                <td style={{ padding: 6 }} colSpan={4}>
+                {/* cobre contato, total, compras, última compra e dias */}
+                <td style={{ padding: 6 }} colSpan={5}>
                   <input style={{ ...inp, width: "100%", maxWidth: 220 }} aria-label="Contato do cliente" placeholder="telefone ou email"
                     value={editando.contato} onChange={(e) => setEditando({ ...editando, contato: e.target.value })} />
                 </td>
@@ -200,25 +284,32 @@ export default function Clientes() {
                     {c.nome}
                   </button>
                 </td>
-                <td style={{ padding: 8, color: c.contato ? undefined : "#94a3b8" }}>{c.contato || "—"}</td>
+                {/* nowrap: telefone quebrado em duas linhas obriga a remontar o
+                    número na cabeça na hora de discar. */}
+                <td style={{ padding: 8, whiteSpace: "nowrap", color: c.contato ? undefined : "#94a3b8" }}>
+                  {c.contato || "—"}
+                </td>
                 <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(c.total)}</td>
                 <td style={{ padding: 8 }}>{c.compras}</td>
                 <td style={{ padding: 8, color: "#64748b" }}>{dataBR(c.ultima)}</td>
-                <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
-                  <button style={{ ...btn, background: "#e2e8f0", marginRight: 6 }} aria-label={`Editar ${c.nome}`}
-                    onClick={() => setEditando({ id: c.id, codigo: c.codigo, nome: c.nome, contato: c.contato })}>
-                    Editar
-                  </button>
-                  <button style={{ ...btn, background: "#fee2e2", color: "#dc2626" }} aria-label={`Excluir ${c.nome}`}
-                    onClick={() => excluir(c)}>
-                    Excluir
-                  </button>
-                </td>
+                <td style={{ padding: 8 }}>{tagDias(c.dias)}</td>
+                {dono && (
+                  <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
+                    <button style={{ ...btn, background: "#e2e8f0", marginRight: 6 }} aria-label={`Editar ${c.nome}`}
+                      onClick={() => setEditando({ id: c.id, codigo: c.codigo, nome: c.nome, contato: c.contato })}>
+                      Editar
+                    </button>
+                    <button style={{ ...btn, background: "#fee2e2", color: "#dc2626" }} aria-label={`Excluir ${c.nome}`}
+                      onClick={() => excluir(c)}>
+                      Excluir
+                    </button>
+                  </td>
+                )}
               </tr>
             )
           ))}
           {visiveis.length === 0 && (
-            <tr><td colSpan={7} style={{ padding: 16, color: "#64748b" }}>
+            <tr><td colSpan={COLUNAS.length + (dono ? 1 : 0)} style={{ padding: 16, color: "#64748b" }}>
               Nenhum cliente {filtro ? "encontrado" : "cadastrado"}. O cadastro nasce sozinho quando você põe o nome numa venda.
             </td></tr>
           )}

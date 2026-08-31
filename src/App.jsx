@@ -6,10 +6,13 @@ import Config, { lerConfig } from "./telas/Config.jsx";
 import Trocas from "./telas/Trocas.jsx";
 import Login from "./telas/Login.jsx";
 import Fechamento from "./telas/Fechamento.jsx";
+import Clientes from "./telas/Clientes.jsx";
 
 const TELAS = ["Estoque", "Venda", "Dashboard", "Trocas", "Config"];
 // Colaborador fecha a gaveta no fim do expediente sem depender do administrador.
-const TELAS_COLABORADOR = ["Estoque", "Venda", "Fechamento"];
+// Clientes está aqui porque quem liga pra quem sumiu é ela: o administrador vê a
+// mesma lista dentro da Config, onde ela sempre morou.
+const TELAS_COLABORADOR = ["Estoque", "Venda", "Clientes", "Fechamento"];
 
 export default function App() {
   const [tela, setTela] = useState("Estoque");
@@ -71,6 +74,7 @@ export default function App() {
         {tela === "Estoque" ? <Estoque dono={dono} />
           : tela === "Venda" ? <Venda maoDeObraOn={cfg.mao_de_obra !== "0"} dono={dono} cfg={cfg} usuario={usuario} aoTrocar={(v) => { setTrocaDe(v); setTela("Trocas"); }} />
           : tela === "Fechamento" ? <Fechamento destaque />
+          : tela === "Clientes" ? <Clientes dono={dono} />
           : tela === "Dashboard" ? <Dashboard />
           // Colaborador chega aqui só pelo botão Trocar da venda: vê o formulário
           // da troca e volta pra Venda ao terminar, sem a gestão de lotes.
