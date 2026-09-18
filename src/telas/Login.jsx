@@ -29,7 +29,7 @@ export default function Login({ aoEntrar }) {
       "As vendas que estão no PC principal continuam lá — elas voltam a aparecer quando você conectar nele de novo, em Config → Rede.\n\n" +
       "Desconectar agora?"
     )) return;
-    await window.api.redeDesconectar();
+    await window.api.redeDesconectar("tela de login, sem conexão com o principal");
     setDesfeito(true); // o app reabre sozinho; se não reabrir, o aviso fica na tela
   };
 

@@ -15,7 +15,9 @@ contextBridge.exposeInMainWorld("api", {
   redeSalvar: (cfg) => ipcRenderer.invoke("rede-salvar", cfg),
   redeTestar: (url, token) => ipcRenderer.invoke("rede-testar", { url, token }),
   redeFirewall: () => ipcRenderer.invoke("rede-firewall"),
-  redeDesconectar: () => ipcRenderer.invoke("rede-desconectar"),
+  // origem: de qual tela veio o clique — vai pro log, que é onde se descobre
+  // por que um balcão "desconectou sozinho".
+  redeDesconectar: (origem) => ipcRenderer.invoke("rede-desconectar", origem),
   abrirPlanilha: () => ipcRenderer.invoke("abrir-planilha"),
   salvarPlanilha: (sugestao, linhas) => ipcRenderer.invoke("salvar-planilha", { sugestao, linhas }),
   escolherPasta: () => ipcRenderer.invoke("escolher-pasta"),

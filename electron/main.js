@@ -1,9 +1,10 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell, powerMonitor, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const planilha = require("./planilha");
 const rede = require("./rede");
-const { log, logger } = require("./log");
+const { log, logger, caminho: caminhoLog } = require("./log");
 
 // Rede de segurança e, principalmente, rastro: o cliente só sabe dizer "fechou
 // sozinho", e sem log a investigação vira adivinhação a 400km de distância.
@@ -13,8 +14,8 @@ const { log, logger } = require("./log");
 // derrubar o app em caso que hoje ele aguenta. Já exceção síncrona não tratada
 // trava numa caixa de erro do Chromium que o leigo não sabe fechar; morrer com
 // o motivo escrito é melhor do que ficar pendurado.
-process.on("unhandledRejection", (e) => log("PROMESSA REJEITADA (app segue):", e));
-process.on("uncaughtException", (e) => { log("ERRO NAO TRATADO:", e); app.exit(1); });
+process.on("unhandledRejection", (e) => log("[app] PROMESSA REJEITADA (app segue):", e));
+process.on("uncaughtException", (e) => { log("[app] ERRO NAO TRATADO:", e); app.exit(1); });
 
 // Smoke test (test/smoke.js): banco isolado num diretório temporário.
 if (process.env.ESTOQUE_DB_DIR) app.setPath("userData", process.env.ESTOQUE_DB_DIR);
@@ -22,6 +23,7 @@ if (process.env.ESTOQUE_DB_DIR) app.setPath("userData", process.env.ESTOQUE_DB_D
 // Dois cliques no ícone abriam duas janelas no mesmo banco: a segunda mostrava
 // estoque velho e sobrescrevia o da primeira. Agora a 2ª só foca a que já existe.
 if (!app.requestSingleInstanceLock()) {
+  log("[app] já havia uma janela aberta; esta segunda instância fecha e foca a primeira");
   app.quit();
   return; // módulo CommonJS: nada mais é registrado nesta instância
 }
@@ -50,12 +52,57 @@ async function backupDiario() {
     await db.backup(destino);
     return { ok: true, destino };
   } catch (e) {
-    log("backup falhou:", e);
+    log("[app] backup falhou:", e);
     return { ok: false, erro: e.message };
   }
 }
 
+// Barra de menu. Até aqui era a padrão do Electron (File/Edit/View/Window/Help,
+// com o Help apontando pra documentação do Electron — inútil pra loja). O que
+// precisa estar ali é o caminho até o log sem instrução por telefone: "Ajuda >
+// Ver logs" abre a pasta com o log.txt já selecionado, é só arrastar pro
+// WhatsApp. O resto é o menu padrão, só traduzido.
+function montarMenu() {
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { label: "Arquivo", submenu: [{ role: "quit", label: "Sair" }] },
+    {
+      label: "Editar",
+      submenu: [
+        { role: "undo", label: "Desfazer" }, { role: "redo", label: "Refazer" }, { type: "separator" },
+        { role: "cut", label: "Recortar" }, { role: "copy", label: "Copiar" }, { role: "paste", label: "Colar" },
+        { role: "selectAll", label: "Selecionar tudo" },
+      ],
+    },
+    {
+      label: "Exibir",
+      submenu: [
+        { role: "reload", label: "Recarregar" }, { role: "toggleDevTools", label: "Ferramentas do desenvolvedor" }, { type: "separator" },
+        { role: "resetZoom", label: "Tamanho normal" }, { role: "zoomIn", label: "Aumentar" }, { role: "zoomOut", label: "Diminuir" }, { type: "separator" },
+        { role: "togglefullscreen", label: "Tela cheia" },
+      ],
+    },
+    { label: "Janela", submenu: [{ role: "minimize", label: "Minimizar" }, { role: "close", label: "Fechar" }] },
+    {
+      label: "Ajuda",
+      submenu: [
+        {
+          label: "Ver logs",
+          click: () => {
+            // Fica no log também: "abriu o Ver logs 14:02" diz que a loja mandou
+            // o arquivo logo depois do problema, e não o de uma semana atrás.
+            log("[app] Ajuda > Ver logs");
+            shell.showItemInFolder(caminhoLog());
+          },
+        },
+        { type: "separator" },
+        { label: `Versão ${app.getVersion()}`, enabled: false },
+      ],
+    },
+  ]));
+}
+
 function createWindow() {
+  montarMenu();
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -69,9 +116,17 @@ function createWindow() {
   // por baixo (o processo do Chromium morre e a janela fica branca) e o app
   // pendurado — que é o que acontece numa exceção não tratada no main, medido
   // aqui: ele não fecha, trava numa caixa de erro que o leigo não sabe fechar.
-  win.webContents.on("render-process-gone", (_e, d) => log("TELA MORREU:", d.reason, "exitCode:", d.exitCode));
-  win.on("unresponsive", () => log("APP PENDURADO (nao responde)"));
-  win.on("responsive", () => log("app voltou a responder"));
+  win.webContents.on("render-process-gone", (_e, d) => log("[app] TELA MORREU:", d.reason, "exitCode:", d.exitCode));
+  win.on("unresponsive", () => log("[app] APP PENDURADO (nao responde)"));
+  win.on("responsive", () => log("[app] app voltou a responder"));
+  win.webContents.on("did-fail-load", (_e, code, desc, url) => log("[app] tela não carregou:", code, desc, url));
+  // O que a tela mostrou pro cliente. src/main.jsx joga todo erro de operação
+  // no console.error antes do diálogo — sem isto, o lado de cá do log sabe que
+  // a rede falhou mas não sabe se alguém viu o aviso, nem em qual tela.
+  // Só nível 3 (error): o resto é ruído de desenvolvimento.
+  win.webContents.on("console-message", (_e, nivel, msg) => {
+    if (nivel === 3) log("[tela]", String(msg).replace(/\s+/g, " ").slice(0, 400));
+  });
   // Link externo abre no navegador do cliente, não numa janela Electron pelada.
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/.test(url)) shell.openExternal(url);
@@ -83,11 +138,39 @@ function createWindow() {
 
 app.whenReady().then(() => {
   // Passo 27: no PC terminal o banco não fica nesta máquina — db.js nem carrega.
-  const modo = rede.ler(app).modo;
+  const cfgRede = rede.ler(app);
+  const modo = cfgRede.modo;
   const terminal = modo === "cliente";
   // Marco de abertura: é o que permite ler o log e ver "abriu 08:12, morreu
-  // 09:12, abriu 09:15" — a cadência é metade do diagnóstico.
-  log("--- abrindo versao", app.getVersion(), "modo:", modo);
+  // 09:12, abriu 09:15" — a cadência é metade do diagnóstico. O "Windows ligado
+  // há" é pra ver a corrida da manhã: balcão abrindo antes do principal terminar
+  // de ligar é "sem conexão" garantido, e é aí que alguém clica em Desconectar.
+  log("--- abrindo versao", app.getVersion(), "modo:", modo,
+    "| PC:", os.hostname(), "| Windows", os.release(), "ligado há", Math.round(os.uptime() / 60), "min",
+    "| endereços:", rede.ips().join(", ") || "NENHUM",
+    terminal ? `| principal: ${cfgRede.url}` : modo === "servidor" ? `| porta: ${cfgRede.porta}` : "",
+    "| dados em:", app.getPath("userData"));
+
+  // Os motivos clássicos de "o principal sumiu" que nenhum log de rede pega:
+  // o PC dormiu, hibernou, foi bloqueado, desligou. Nos dois lados — no balcão
+  // explica o buraco de meia hora sem pedidos, no principal explica a queda.
+  for (const ev of ["suspend", "resume", "lock-screen", "unlock-screen", "shutdown", "on-ac", "on-battery"])
+    powerMonitor.on(ev, () => log("[energia]", {
+      suspend: "PC vai DORMIR/hibernar (suspend)", resume: "PC ACORDOU (resume)",
+      "lock-screen": "tela bloqueada", "unlock-screen": "tela desbloqueada",
+      shutdown: "Windows DESLIGANDO", "on-ac": "na tomada", "on-battery": "NA BATERIA (notebook desplugado)",
+    }[ev]));
+
+  // IP mudou / wifi caiu / cabo saiu: o endereço some da lista. Uma linha só
+  // quando muda — o normal é ficar anos igual.
+  let enderecos = rede.ips().join(", ");
+  setInterval(() => {
+    const agora = rede.ips().join(", ");
+    if (agora === enderecos) return;
+    log("[rede] endereços deste PC MUDARAM:", enderecos || "NENHUM", "->", agora || "NENHUM (sem rede)");
+    enderecos = agora;
+  }, 30 * 1000);
+  if (modo !== "sozinho") setInterval(rede.resumoPeriodico, 30 * 60 * 1000);
 
   // ponytail: renderer manda SQL direto — app local, sem conteúdo remoto. Passa a
   // valer também na LAN da loja (token no header); se um dia sair dela, trocar
@@ -116,7 +199,8 @@ app.whenReady().then(() => {
     db = require("./db");
     // Publica as MESMAS duas operações na rede local, e só se o usuário escolheu
     // "principal" na Config: instalação de um PC só não abre porta nenhuma.
-    if (modo === "servidor") rede.servir({ executar, transacao }, rede.ler(app));
+    if (modo === "servidor")
+      rede.servir({ executar, transacao }, cfgRede, app.getVersion(), { ocioso: () => powerMonitor.getSystemIdleTime() });
   }
 
   ipcMain.handle("db", (_e, sql, params = []) =>
@@ -138,11 +222,15 @@ app.whenReady().then(() => {
   //
   // url e token continuam gravados: reconectar depois é escolher "PC do balcão"
   // de novo, sem digitar o endereço outra vez.
-  ipcMain.handle("rede-desconectar", () => {
+  ipcMain.handle("rede-desconectar", (_e, origem) => {
+    // É o clique que "desconecta o balcão do servidor" de vez. Quem, quando e de
+    // qual tela — porque a versão da loja é sempre "ninguém mexeu em nada".
+    log("[rede] DESCONECTAR clicado em", origem || "(tela não informada)", "— este PC deixa de usar o principal", cfgRede.url, "e passa a usar o banco local");
     rede.salvar({ modo: "sozinho" });
     // O teste precisa da janela viva pra conferir o resultado; o app de verdade
     // reabre sozinho porque pedir "feche e abra" a quem está travado é pedir demais.
     if (!process.env.SMOKE) {
+      log("[app] reabrindo o sistema no modo sozinho");
       app.relaunch();
       app.exit(0); // exit e não quit: 'window-all-closed' não pode cancelar o relaunch
     }
@@ -229,15 +317,26 @@ app.whenReady().then(() => {
 
   // alert/confirm do Chromium travam mouse/teclado no Windows até a janela
   // perder o foco (bug do Electron) — diálogo do sistema no lugar.
+  //
+  // ATENÇÃO: showMessageBoxSync BLOQUEIA o processo principal inteiro enquanto
+  // o diálogo está na tela — inclusive o servidor de rede. No PC principal, um
+  // aviso deixado aberto significa balcão parado: os pedidos dele ficam
+  // pendurados e, passados 5 min (limite do fetch), viram "Sem conexão". É por
+  // isso que cada diálogo do principal deixa no log quanto tempo ficou aberto.
   ipcMain.on("dialogo", (e, { tipo, msg }) => {
     if (process.env.SMOKE) return (e.returnValue = 0); // teste: sempre "OK"
     const win = BrowserWindow.fromWebContents(e.sender);
+    const t0 = Date.now();
     e.returnValue = dialog.showMessageBoxSync(win, {
       type: tipo === "confirm" ? "question" : "info",
       message: msg,
       buttons: tipo === "confirm" ? ["OK", "Cancelar"] : ["OK"],
       cancelId: 1,
     });
+    const ms = Date.now() - t0;
+    if (modo === "servidor" || ms > 30 * 1000)
+      log("[app] diálogo", tipo, "ficou", Math.round(ms / 1000) + "s", "aberto",
+        modo === "servidor" ? "(servidor de rede parado enquanto isso):" : ":", String(msg).replace(/\s+/g, " ").slice(0, 80));
   });
 
   // Abrir junto com o Windows (só faz sentido no app instalado; checkbox na Config).
@@ -255,7 +354,7 @@ app.whenReady().then(() => {
 
   // Auto-update via GitHub Releases: banco fica em userData, o update não toca nos dados.
   let autoUpdater;
-  try { autoUpdater = require("electron-updater").autoUpdater; } catch (e) { log("updater indisponível:", e.message); }
+  try { autoUpdater = require("electron-updater").autoUpdater; } catch (e) { log("[updater] indisponível:", e.message); }
 
   if (autoUpdater) {
     // Sem isto o updater não registra nada: era ele quem baixava e instalava em
@@ -275,9 +374,13 @@ app.whenReady().then(() => {
       try { await autoUpdater.checkForUpdates(); return {}; }
       catch (e) { return { erro: e.message }; }
     });
-    ipcMain.handle("install-update", () => { if (app.isPackaged) autoUpdater.quitAndInstall(); });
+    ipcMain.handle("install-update", () => {
+      if (!app.isPackaged) return;
+      log("[updater] usuário clicou em instalar a atualização: fechando para instalar");
+      autoUpdater.quitAndInstall();
+    });
 
-    if (app.isPackaged) autoUpdater.checkForUpdatesAndNotify().catch((e) => console.error("update:", e.message));
+    if (app.isPackaged) autoUpdater.checkForUpdatesAndNotify().catch((e) => log("[updater] ERRO na checagem:", e.message));
   }
 
   if (!terminal) {
@@ -287,7 +390,10 @@ app.whenReady().then(() => {
   createWindow();
 });
 
-app.on("window-all-closed", () => app.quit());
+app.on("window-all-closed", () => { log("[app] janela fechada pelo usuário"); app.quit(); });
+// Processo filho do Chromium (GPU, utilitário) morrendo é o outro jeito de a
+// janela ficar branca ou sumir sem "fechando" no log.
+app.on("child-process-gone", (_e, d) => log("[app] processo filho morreu:", d.type, d.reason, "exitCode:", d.exitCode));
 
 // Marcos de fechamento. Sem eles o log é uma pilha de "abrindo" sem contexto, e
 // não dá pra distinguir o que mais importa: "abriu" logo depois de "fechando" é
@@ -295,6 +401,7 @@ app.on("window-all-closed", () => app.quit());
 // crash, Gerenciador de Tarefas ou queda de energia. É essa diferença que o
 // cliente não sabe relatar por telefone.
 app.on("before-quit", () => log("--- fechando (saída pedida)"));
+app.on("quit", (_e, codigo) => log("--- fechado, código", codigo));
 
 // Só o Windows dispara: a sessão está terminando (desligar/reiniciar/logoff).
 // Vale para a outra investigação — "fechando" seguido disto é exatamente a

@@ -155,7 +155,7 @@ export default function Config({ aoMudar }) {
       "Este computador vai parar de usar o banco do PC principal e voltar a usar o banco guardado aqui.\n\n" +
       "Os dados que estão no PC principal continuam lá. Desconectar agora?"
     )) return;
-    await window.api.redeDesconectar();
+    await window.api.redeDesconectar("Config → Rede");
     setRede({ ...rede, modo: "sozinho" });
     setRedeMsg("✔ Desconectado. O sistema vai reabrir usando o banco deste computador.");
   };
