@@ -9,10 +9,16 @@
 // board da atualização nova ocupa o lugar do anterior, nunca empilha.
 export default [
   {
-    versao: "1.0.3",
+    versao: "1.0.4",
     data: "18/09/2026",
     itens: [
       "No menu de cima apareceu \"Ajuda > Ver logs\": abre a pasta com o arquivo de registro já selecionado. Quando o suporte pedir o log, é só clicar ali e mandar o arquivo.",
+    ],
+  },
+  {
+    versao: "1.0.3",
+    data: "17/09/2026",
+    itens: [
       "Quando o computador do balcão perde a conexão com o PC principal, o sistema agora anota o motivo (o PC principal desligou ou dormiu, o programa foi fechado lá, o Wi-Fi caiu, alguém clicou em Desconectar). Se acontecer de novo, o suporte pede o arquivo de registro e descobre a causa sem precisar ir até a loja.",
       "No aviso de \"Sem conexão com o PC principal\" passou a aparecer um detalhe técnico no fim. Uma foto desse aviso já ajuda o suporte.",
     ],
