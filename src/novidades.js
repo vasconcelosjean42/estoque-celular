@@ -9,6 +9,15 @@
 // board da atualização nova ocupa o lugar do anterior, nunca empilha.
 export default [
   {
+    versao: "1.0.5",
+    data: "25/09/2026",
+    itens: [
+      "Se o notebook abrir o sistema antes do Wi-Fi conectar (comum logo depois de acordar), aparece um aviso grande dizendo que ele não está na rede ou está no Wi-Fi errado. O sistema fica tentando sozinho e entra assim que a rede voltar. Não precisa fechar nem clicar em nada.",
+      "Quando o problema é o PC principal (desligado ou com o sistema fechado), o aviso diz isso, e o notebook também entra sozinho quando ele voltar.",
+      "O botão \"Usar o banco deste computador\" agora só aparece depois de 2 minutos sem conexão. Ele serve só para quando o PC principal não vai voltar.",
+    ],
+  },
+  {
     versao: "1.0.4",
     data: "18/09/2026",
     itens: [

@@ -379,6 +379,26 @@ const abrirPorta = (host, porta) =>
     s.on("error", (e) => fim({ ok: false, code: e.code, motivo: e.message }));
   });
 
+// A tela de espera do balcão chama isto a cada 3s. Não passa por chamar(): uma
+// hora esperando o Wi-Fi seriam 1200 linhas de FALHA no log. Só abre a porta e
+// diz de quem é a culpa — deste PC (sem rede / rede errada) ou do principal.
+//
+// Por que existe: o notebook acorda, o sistema abre antes do Wi-Fi pegar IP
+// (169.254.x = ainda sem endereço do roteador), aparece "sem conexão" e alguém
+// clica em sair. Na loja isto aconteceu 8 segundos depois da rede voltar.
+async function sondar() {
+  const meus = ips();
+  const { hostname: host, port } = new URL(cfg.url);
+  const tcp = await abrirPorta(host, Number(port) || 80);
+  const validos = meus.filter((ip) => !ip.startsWith("169.254."));
+  const faixa = (ip) => ip.split(".").slice(0, 3).join(".");
+  const situacao = tcp.ok ? "ok"
+    : !validos.length ? "sem-rede"
+    : net.isIPv4(host) && !validos.some((ip) => faixa(ip) === faixa(host)) ? "outra-rede"
+    : "principal";
+  return { situacao, ips: meus };
+}
+
 const testar = async (url, token) => {
   const t0 = Date.now();
   try {
@@ -391,4 +411,4 @@ const testar = async (url, token) => {
   }
 };
 
-module.exports = { ler, salvar, ips, servir, chamar, testar, requisitar, liberarFirewall, resumoPeriodico, PORTA_PADRAO };
+module.exports = { ler, salvar, ips, servir, chamar, sondar, testar, requisitar, liberarFirewall, resumoPeriodico, PORTA_PADRAO };

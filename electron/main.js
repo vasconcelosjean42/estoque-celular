@@ -212,6 +212,7 @@ app.whenReady().then(() => {
   ipcMain.handle("rede-info", () => ({ ...rede.ler(app), ips: rede.ips(), porta_padrao: rede.PORTA_PADRAO }));
   ipcMain.handle("rede-salvar", (_e, novo) => rede.salvar(novo));
   ipcMain.handle("rede-testar", (_e, { url, token }) => rede.testar(url, token));
+  ipcMain.handle("rede-sondar", () => rede.sondar());
   ipcMain.handle("rede-firewall", () => rede.liberarFirewall(app));
 
   // Saída de emergência do balcão. Com o principal desligado (ou tirado da loja)

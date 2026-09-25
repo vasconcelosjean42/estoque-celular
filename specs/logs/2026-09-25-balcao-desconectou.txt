@@ -1,0 +1,566 @@
+2026-08-31T20:44:39.694Z --- abrindo versao 1.0.2 modo: sozinho
+2026-08-31T20:44:39.913Z [updater] Checking for update
+2026-08-31T20:44:40.716Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-08-31T20:44:48.892Z [updater] Checking for update
+2026-08-31T20:44:49.173Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-08-31T20:45:25.892Z [updater] Checking for update
+2026-08-31T20:45:26.837Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-08-31T20:47:11.922Z --- fechando (saída pedida)
+2026-08-31T20:47:36.194Z --- abrindo versao 1.0.2 modo: cliente
+2026-08-31T20:47:36.366Z [updater] Checking for update
+2026-08-31T20:47:37.673Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-08-31T20:54:19.088Z --- fechando (saída pedida)
+2026-08-31T20:55:16.254Z --- abrindo versao 1.0.2 modo: cliente
+2026-08-31T20:55:16.530Z [updater] Checking for update
+2026-08-31T20:55:18.320Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-08-31T20:55:52.603Z --- fechando (saída pedida)
+2026-08-31T21:00:53.197Z --- abrindo versao 1.0.2 modo: cliente
+2026-08-31T21:00:53.450Z [updater] Checking for update
+2026-08-31T21:00:55.472Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-08-31T21:01:37.410Z --- fechando (saída pedida)
+2026-09-01T11:13:37.368Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-01T11:13:37.559Z [updater] Checking for update
+2026-09-01T11:13:38.776Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-02T11:18:22.235Z --- fechando (saída pedida)
+2026-09-02T11:18:26.570Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-02T11:18:26.757Z [updater] Checking for update
+2026-09-02T11:18:29.120Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-02T21:06:42.996Z --- fechando (saída pedida)
+2026-09-03T11:20:47.100Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-03T11:20:47.362Z [updater] Checking for update
+2026-09-03T11:20:49.360Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-03T18:46:05.218Z --- fechando (saída pedida)
+2026-09-03T18:46:11.278Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-03T18:46:11.443Z [updater] Checking for update
+2026-09-03T18:46:15.529Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-04T09:35:57.181Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-04T09:35:57.442Z [updater] Checking for update
+2026-09-04T09:35:58.022Z [updater] ERRO: Error: Error: net::ERR_INTERNET_DISCONNECTED
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-09T11:26:51.414Z --- fechando (saída pedida)
+2026-09-09T11:26:57.897Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-09T11:26:58.114Z [updater] Checking for update
+2026-09-09T11:27:00.132Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-09T21:15:26.742Z --- fechando (saída pedida)
+2026-09-10T11:23:06.237Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-10T11:23:06.503Z [updater] Checking for update
+2026-09-10T11:23:08.764Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-10T20:46:11.619Z --- fechando (saída pedida)
+2026-09-11T11:36:04.219Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-11T11:36:04.420Z [updater] Checking for update
+2026-09-11T11:36:04.701Z [updater] ERRO: Error: Error: net::ERR_INTERNET_DISCONNECTED
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-11T11:36:12.370Z --- fechando (saída pedida)
+2026-09-11T11:36:17.100Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-11T11:36:17.284Z [updater] Checking for update
+2026-09-11T11:36:19.353Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-11T21:09:49.393Z --- fechando (saída pedida)
+2026-09-12T11:20:11.560Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-12T11:20:11.833Z [updater] Checking for update
+2026-09-12T11:20:13.627Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-14T11:14:06.633Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-14T11:14:06.932Z [updater] Checking for update
+2026-09-14T11:14:09.457Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-14T22:01:55.132Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-14T22:01:55.397Z [updater] Checking for update
+2026-09-14T22:01:59.062Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T11:59:13.602Z --- fechando (saída pedida)
+2026-09-16T11:59:20.994Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-16T11:59:21.172Z [updater] Checking for update
+2026-09-16T11:59:23.641Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T18:06:28.154Z --- fechando (saída pedida)
+2026-09-16T18:06:36.970Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-16T18:06:37.145Z [updater] Checking for update
+2026-09-16T18:06:37.448Z [updater] ERRO: Error: Error: net::ERR_INTERNET_DISCONNECTED
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-16T18:07:00.755Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T18:07:00.973Z [updater] Checking for update
+2026-09-16T18:07:03.732Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T18:07:04.125Z --- fechando (saída pedida)
+2026-09-16T18:07:19.991Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T18:07:20.182Z [updater] Checking for update
+2026-09-16T18:07:21.857Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T18:07:32.064Z --- fechando (saída pedida)
+2026-09-16T18:07:34.792Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T18:07:34.960Z [updater] Checking for update
+2026-09-16T18:07:36.374Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T18:07:38.115Z --- fechando (saída pedida)
+2026-09-16T18:07:47.416Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T18:07:47.609Z [updater] Checking for update
+2026-09-16T18:07:49.045Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T18:08:04.199Z --- fechando (saída pedida)
+2026-09-16T18:08:55.161Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T18:08:55.557Z [updater] Checking for update
+2026-09-16T18:08:57.919Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T18:10:07.965Z --- fechando (saída pedida)
+2026-09-16T18:11:05.298Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T18:11:05.484Z [updater] Checking for update
+2026-09-16T18:11:07.910Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T18:11:08.446Z --- fechando (saída pedida)
+2026-09-16T18:12:15.199Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T18:12:15.467Z [updater] Checking for update
+2026-09-16T18:12:17.793Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T18:12:19.828Z --- fechando (saída pedida)
+2026-09-16T18:12:48.517Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T18:12:48.707Z [updater] Checking for update
+2026-09-16T18:12:50.157Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T18:13:47.815Z --- fechando (saída pedida)
+2026-09-16T18:15:00.481Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T18:15:00.668Z [updater] Checking for update
+2026-09-16T18:15:03.078Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T18:15:05.038Z --- fechando (saída pedida)
+2026-09-16T18:17:48.943Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T18:17:49.121Z [updater] Checking for update
+2026-09-16T18:17:51.694Z --- fechando (saída pedida)
+2026-09-16T18:18:40.187Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T18:18:40.402Z [updater] Checking for update
+2026-09-16T18:18:42.381Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T18:18:43.940Z --- fechando (saída pedida)
+2026-09-16T18:18:51.187Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T18:18:51.377Z [updater] Checking for update
+2026-09-16T18:18:52.822Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T18:19:05.064Z --- fechando (saída pedida)
+2026-09-16T18:28:51.112Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T18:28:51.306Z [updater] Checking for update
+2026-09-16T18:28:54.322Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T18:28:59.159Z --- fechando (saída pedida)
+2026-09-16T18:29:05.824Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T18:29:06.008Z [updater] Checking for update
+2026-09-16T18:29:07.437Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T18:29:11.333Z --- fechando (saída pedida)
+2026-09-16T19:27:01.655Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T19:27:01.842Z [updater] Checking for update
+2026-09-16T19:27:04.552Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T19:27:05.994Z --- fechando (saída pedida)
+2026-09-16T19:31:14.041Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T19:31:14.351Z [updater] Checking for update
+2026-09-16T19:31:17.072Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T19:31:18.542Z --- fechando (saída pedida)
+2026-09-16T19:32:01.381Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T19:32:01.630Z [updater] Checking for update
+2026-09-16T19:32:03.624Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-16T20:10:27.881Z --- fechando (saída pedida)
+2026-09-16T20:16:10.610Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T20:16:10.877Z [updater] Checking for update
+2026-09-16T20:16:11.310Z [updater] ERRO: Error: Error: net::ERR_INTERNET_DISCONNECTED
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-16T20:19:15.173Z --- fechando (saída pedida)
+2026-09-16T20:27:12.532Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-16T20:27:12.723Z [updater] Checking for update
+2026-09-16T20:27:12.941Z [updater] ERRO: Error: Error: net::ERR_INTERNET_DISCONNECTED
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-16T20:27:16.150Z --- fechando (saída pedida)
+2026-09-17T11:16:24.515Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-17T11:16:24.788Z [updater] Checking for update
+2026-09-17T11:16:25.107Z [updater] ERRO: Error: Error: net::ERR_INTERNET_DISCONNECTED
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-17T12:55:49.611Z --- fechando (saída pedida)
+2026-09-17T12:55:51.742Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-17T12:55:51.948Z [updater] Checking for update
+2026-09-17T12:55:54.166Z [updater] ERRO: Error: Error: net::ERR_ADDRESS_UNREACHABLE
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-17T12:56:16.781Z --- fechando (saída pedida)
+2026-09-17T12:56:18.149Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-17T12:56:18.330Z [updater] Checking for update
+2026-09-17T12:56:21.075Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-17T13:39:35.373Z --- fechando (saída pedida)
+2026-09-17T13:49:17.886Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-17T13:49:18.082Z [updater] Checking for update
+2026-09-17T13:49:18.314Z [updater] ERRO: Error: Error: net::ERR_INTERNET_DISCONNECTED
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-17T13:49:30.512Z --- fechando (saída pedida)
+2026-09-17T14:05:41.924Z --- abrindo versao 1.0.2 modo: cliente
+2026-09-17T14:05:42.096Z [updater] Checking for update
+2026-09-17T14:05:42.270Z [updater] ERRO: Error: Error: net::ERR_INTERNET_DISCONNECTED
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-17T14:05:49.537Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-17T14:05:49.720Z [updater] Checking for update
+2026-09-17T14:05:49.883Z [updater] ERRO: Error: Error: net::ERR_INTERNET_DISCONNECTED
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-17T15:00:06.787Z --- fechando (saída pedida)
+2026-09-17T17:10:32.176Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-17T17:10:32.461Z [updater] Checking for update
+2026-09-17T17:10:32.735Z [updater] ERRO: Error: Error: net::ERR_INTERNET_DISCONNECTED
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-17T17:10:56.347Z --- fechando (saída pedida)
+2026-09-17T17:11:00.981Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-17T17:11:01.159Z [updater] Checking for update
+2026-09-17T17:11:01.310Z [updater] ERRO: Error: Error: net::ERR_INTERNET_DISCONNECTED
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-17T18:18:55.094Z --- fechando (saída pedida)
+2026-09-17T18:19:49.124Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-17T18:19:49.424Z [updater] Checking for update
+2026-09-17T18:19:49.810Z [updater] ERRO: Error: Error: net::ERR_INTERNET_DISCONNECTED
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-17T18:26:22.664Z --- fechando (saída pedida)
+2026-09-17T19:32:37.858Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-17T19:32:38.057Z [updater] Checking for update
+2026-09-17T19:32:40.807Z [updater] Update for version 1.0.2 is not available (latest version: 1.0.2, downgrade is disallowed).
+2026-09-17T19:32:48.031Z --- fechando (saída pedida)
+2026-09-17T19:44:01.001Z --- abrindo versao 1.0.2 modo: sozinho
+2026-09-17T19:44:01.217Z [updater] Checking for update
+2026-09-17T19:44:04.038Z [updater] Found version 1.0.3 (url: Estoque-Celular-Setup-1.0.3.exe)
+2026-09-17T19:44:04.042Z [updater] Downloading update from Estoque-Celular-Setup-1.0.3.exe
+2026-09-17T19:44:04.079Z [updater] Cached update sha512 checksum doesn't match the latest available update. New update must be downloaded. Cached: NcCzO/6WJbQKOw+hiY1XKjDHcBn8eifxJnIUxLWAxdZIRKa3jFInK+IVgogj8CWUw9C/vLfrR76tUf/mIlJABQ==, expected: FlHY9tSz07UHgyhvHEZ1kZEQVtSkcN6+/wQsWab0RqCm65OIu/Lt0ZYmWy/Z2qY8Y7ZY+rEfRiE/P7A0wVVeoA==. Directory for cached update will be cleaned
+2026-09-17T19:44:04.090Z [updater] aviso: disableWebInstaller is set to false, you should set it to true if you do not plan on using a web installer. This will default to true in a future version.
+2026-09-17T19:44:04.091Z [updater] Download block maps (old: "https://github.com/vasconcelosjean42/estoque-celular/releases/download/v1.0.2/Estoque-Celular-Setup-1.0.2.exe.blockmap", new: https://github.com/vasconcelosjean42/estoque-celular/releases/download/v1.0.3/Estoque-Celular-Setup-1.0.3.exe.blockmap)
+2026-09-17T19:44:04.592Z [updater] File has 48 changed blocks
+2026-09-17T19:44:04.641Z [updater] Full: 83,560.99 KB, To download: 1,057.74 KB (1%)
+2026-09-17T19:44:05.720Z [updater] Differential download: https://github.com/vasconcelosjean42/estoque-celular/releases/download/v1.0.3/Estoque-Celular-Setup-1.0.3.exe
+2026-09-17T19:44:06.067Z [updater] Redirect to https://release-assets.githubusercontent.com/github-production-release-asset/1309113890/209297b1-d87e-4504-aa9b-860b5f6624d2
+2026-09-17T19:44:07.352Z [updater] New version 1.0.3 has been downloaded to C:\Users\martinho\AppData\Local\estoque-celular-updater\pending\Estoque-Celular-Setup-1.0.3.exe
+2026-09-17T20:57:10.228Z --- fechando (saída pedida)
+2026-09-17T20:57:10.229Z [updater] Auto install update on quit
+2026-09-17T20:57:10.230Z [updater] Install: isSilent: true, isForceRunAfter: false
+2026-09-17T20:57:10.231Z [updater] Executing: C:\Users\martinho\AppData\Local\estoque-celular-updater\pending\Estoque-Celular-Setup-1.0.3.exe with args: --updated,/S
+2026-09-18 14:08:28.746 -03:00 --- abrindo versao 1.0.4 modo: sozinho | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 1369 min | endereços: 192.168.1.14  | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-18 14:08:29.018 -03:00 [updater] Checking for update
+2026-09-18 14:08:31.471 -03:00 [updater] Update for version 1.0.4 is not available (latest version: 1.0.4, downgrade is disallowed).
+2026-09-18 14:10:53.563 -03:00 [rede] teste de conexão com http://192.168.1.250:5174 OK em 171ms
+2026-09-18 14:10:56.409 -03:00 [app] janela fechada pelo usuário
+2026-09-18 14:10:56.413 -03:00 --- fechando (saída pedida)
+2026-09-18 14:10:56.415 -03:00 --- fechado, código 0
+2026-09-18 14:10:58.110 -03:00 --- abrindo versao 1.0.4 modo: sozinho | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 1372 min | endereços: 192.168.1.14  | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-18 14:10:58.332 -03:00 [updater] Checking for update
+2026-09-18 14:11:00.330 -03:00 [updater] Update for version 1.0.4 is not available (latest version: 1.0.4, downgrade is disallowed).
+2026-09-18 14:11:20.833 -03:00 [rede] teste de conexão com http://192.168.1.250:5174 OK em 161ms
+2026-09-18 14:11:24.221 -03:00 [rede] configuração salva: {"modo":"sozinho","url":"http://192.168.1.250:5174","token":"***"} -> {"modo":"cliente","url":"http://192.168.1.250:5174","token":"***"}
+2026-09-18 14:11:37.463 -03:00 [app] janela fechada pelo usuário
+2026-09-18 14:11:37.465 -03:00 --- fechando (saída pedida)
+2026-09-18 14:11:37.466 -03:00 --- fechado, código 0
+2026-09-18 14:11:39.021 -03:00 --- abrindo versao 1.0.4 modo: cliente | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 1372 min | endereços: 192.168.1.14 | principal: http://192.168.1.250:5174 | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-18 14:11:39.227 -03:00 [updater] Checking for update
+2026-09-18 14:11:39.704 -03:00 [rede] primeira resposta do principal http://192.168.1.250:5174 em 82ms
+2026-09-18 14:11:41.265 -03:00 [updater] Update for version 1.0.4 is not available (latest version: 1.0.4, downgrade is disallowed).
+2026-09-18 14:13:48.370 -03:00 [app] Ajuda > Ver logs
+2026-09-18 14:14:08.602 -03:00 [app] janela fechada pelo usuário
+2026-09-18 14:14:08.603 -03:00 --- fechando (saída pedida)
+2026-09-18 14:14:08.604 -03:00 --- fechado, código 0
+2026-09-18 14:15:01.744 -03:00 --- abrindo versao 1.0.4 modo: cliente | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 0 min | endereços: 192.168.1.14 | principal: http://192.168.1.250:5174 | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-18 14:15:02.023 -03:00 [updater] Checking for update
+2026-09-18 14:15:02.724 -03:00 [rede] primeira resposta do principal http://192.168.1.250:5174 em 60ms
+2026-09-18 14:15:04.569 -03:00 [updater] Update for version 1.0.4 is not available (latest version: 1.0.4, downgrade is disallowed).
+2026-09-18 14:15:06.175 -03:00 [app] já havia uma janela aberta; esta segunda instância fecha e foca a primeira
+2026-09-18 14:45:01.821 -03:00 [rede] resumo dos últimos 30 min: 26 pedidos ok, 0 com falha | média 125ms, mais lento 1117ms | conexão viva (última resposta há 484s) | endereços deste PC: 192.168.1.14
+2026-09-18 14:52:37.177 -03:00 [energia] tela bloqueada
+2026-09-18 14:52:37.240 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-18 14:53:07.403 -03:00 [rede] endereços deste PC MUDARAM: 192.168.1.14 -> NENHUM (sem rede)
+2026-09-18 14:53:07.405 -03:00 [energia] PC ACORDOU (resume)
+2026-09-18 14:53:11.894 -03:00 [energia] tela desbloqueada
+2026-09-18 14:53:37.403 -03:00 [rede] endereços deste PC MUDARAM: NENHUM -> 192.168.1.14
+2026-09-18 15:15:01.834 -03:00 [rede] resumo dos últimos 30 min: 22 pedidos ok, 0 com falha | média 256ms, mais lento 1063ms | conexão viva (última resposta há 1149s) | endereços deste PC: 192.168.1.14
+2026-09-18 15:42:23.839 -03:00 [energia] na tomada
+2026-09-18 15:45:01.834 -03:00 [rede] resumo dos últimos 30 min: 70 pedidos ok, 0 com falha | média 42ms, mais lento 98ms | conexão viva (última resposta há 137s) | endereços deste PC: 192.168.1.14
+2026-09-18 16:15:02.934 -03:00 [rede] resumo dos últimos 30 min: 8 pedidos ok, 0 com falha | média 51ms, mais lento 89ms | conexão viva (última resposta há 1705s) | endereços deste PC: 192.168.1.14
+2026-09-18 16:26:05.086 -03:00 [energia] tela bloqueada
+2026-09-18 16:26:05.140 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-18 16:56:48.551 -03:00 [rede] endereços deste PC MUDARAM: 192.168.1.14 -> NENHUM (sem rede)
+2026-09-18 16:56:48.574 -03:00 [rede] resumo dos últimos 42 min: 0 pedidos ok, 0 com falha | conexão viva (última resposta há 4211s) | endereços deste PC: NENHUM
+2026-09-18 16:56:48.576 -03:00 [energia] PC ACORDOU (resume)
+2026-09-18 16:56:50.432 -03:00 [energia] tela desbloqueada
+2026-09-18 16:57:18.548 -03:00 [rede] endereços deste PC MUDARAM: NENHUM -> 192.168.1.14
+2026-09-18 17:26:48.580 -03:00 [rede] resumo dos últimos 30 min: 35 pedidos ok, 0 com falha | média 199ms, mais lento 1173ms | conexão viva (última resposta há 1283s) | endereços deste PC: 192.168.1.14
+2026-09-18 17:35:45.389 -03:00 [energia] tela bloqueada
+2026-09-18 17:35:45.447 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-18 17:51:20.273 -03:00 [rede] endereços deste PC MUDARAM: 192.168.1.14 -> NENHUM (sem rede)
+2026-09-18 17:51:20.274 -03:00 [energia] PC ACORDOU (resume)
+2026-09-18 17:51:21.214 -03:00 [energia] tela desbloqueada
+2026-09-18 17:51:24.306 -03:00 [app] janela fechada pelo usuário
+2026-09-18 17:51:24.307 -03:00 --- fechando (saída pedida)
+2026-09-18 17:51:24.308 -03:00 --- fechado, código 0
+2026-09-19 08:23:45.430 -03:00 --- abrindo versao 1.0.4 modo: cliente | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 1089 min | endereços: 192.168.1.14 | principal: http://192.168.1.250:5174 | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-19 08:23:45.686 -03:00 [updater] Checking for update
+2026-09-19 08:23:46.556 -03:00 [rede] primeira resposta do principal http://192.168.1.250:5174 em 104ms
+2026-09-19 08:23:52.077 -03:00 [updater] Update for version 1.0.4 is not available (latest version: 1.0.4, downgrade is disallowed).
+2026-09-19 08:45:02.605 -03:00 [energia] tela bloqueada
+2026-09-19 08:45:02.648 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-19 08:54:31.459 -03:00 [rede] endereços deste PC MUDARAM: 192.168.1.14 -> NENHUM (sem rede)
+2026-09-19 08:54:31.474 -03:00 [rede] resumo dos últimos 31 min: 12 pedidos ok, 0 com falha | média 217ms, mais lento 1130ms | conexão viva (última resposta há 1786s) | endereços deste PC: NENHUM
+2026-09-19 08:54:31.475 -03:00 [energia] PC ACORDOU (resume)
+2026-09-19 08:54:34.041 -03:00 [energia] tela desbloqueada
+2026-09-19 08:55:01.434 -03:00 [rede] endereços deste PC MUDARAM: NENHUM -> 192.168.1.14
+2026-09-19 09:10:28.335 -03:00 [energia] tela bloqueada
+2026-09-19 09:10:28.371 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-19 10:04:19.895 -03:00 [rede] endereços deste PC MUDARAM: 192.168.1.14 -> NENHUM (sem rede)
+2026-09-19 10:04:19.914 -03:00 [rede] resumo dos últimos 70 min: 0 pedidos ok, 0 com falha | conexão viva (última resposta há 5974s) | endereços deste PC: NENHUM
+2026-09-19 10:04:19.916 -03:00 [energia] PC ACORDOU (resume)
+2026-09-19 10:04:27.736 -03:00 [energia] tela desbloqueada
+2026-09-19 10:04:49.898 -03:00 [rede] endereços deste PC MUDARAM: NENHUM -> 192.168.1.14
+2026-09-19 10:21:17.388 -03:00 [energia] tela bloqueada
+2026-09-19 10:21:17.436 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-19 10:23:42.846 -03:00 [rede] endereços deste PC MUDARAM: 192.168.1.14 -> NENHUM (sem rede)
+2026-09-19 10:23:43.442 -03:00 [energia] PC ACORDOU (resume)
+2026-09-19 10:23:46.077 -03:00 [energia] tela desbloqueada
+2026-09-19 10:24:12.853 -03:00 [rede] endereços deste PC MUDARAM: NENHUM -> 192.168.1.14
+2026-09-19 10:34:19.906 -03:00 [rede] resumo dos últimos 30 min: 8 pedidos ok, 0 com falha | média 245ms, mais lento 1054ms | conexão viva (última resposta há 1786s) | endereços deste PC: 192.168.1.14
+2026-09-19 11:04:19.932 -03:00 [rede] resumo dos últimos 30 min: 14 pedidos ok, 0 com falha | média 73ms, mais lento 141ms | conexão viva (última resposta há 1134s) | endereços deste PC: 192.168.1.14
+2026-09-19 11:30:10.125 -03:00 [energia] tela bloqueada
+2026-09-19 11:30:10.169 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-19 11:41:07.553 -03:00 [rede] endereços deste PC MUDARAM: 192.168.1.14 -> NENHUM (sem rede)
+2026-09-19 11:41:07.568 -03:00 [rede] resumo dos últimos 37 min: 0 pedidos ok, 0 com falha | conexão viva (última resposta há 3342s) | endereços deste PC: NENHUM
+2026-09-19 11:41:07.569 -03:00 [energia] PC ACORDOU (resume)
+2026-09-19 11:41:09.066 -03:00 [energia] tela desbloqueada
+2026-09-19 11:41:37.495 -03:00 [rede] endereços deste PC MUDARAM: NENHUM -> 192.168.1.14
+2026-09-19 12:00:47.616 -03:00 [energia] tela bloqueada
+2026-09-19 12:00:48.376 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-19 12:00:55.253 -03:00 [energia] PC ACORDOU (resume)
+2026-09-19 12:00:55.823 -03:00 [energia] tela desbloqueada
+2026-09-19 12:00:59.922 -03:00 [app] janela fechada pelo usuário
+2026-09-19 12:00:59.923 -03:00 --- fechando (saída pedida)
+2026-09-19 12:00:59.924 -03:00 --- fechado, código 0
+2026-09-21 08:41:23.479 -03:00 --- abrindo versao 1.0.4 modo: cliente | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 1 min | endereços: 192.168.1.14 | principal: http://192.168.1.250:5174 | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-21 08:41:23.742 -03:00 [updater] Checking for update
+2026-09-21 08:41:24.590 -03:00 [rede] primeira resposta do principal http://192.168.1.250:5174 em 81ms
+2026-09-21 08:41:26.476 -03:00 [updater] Update for version 1.0.4 is not available (latest version: 1.0.4, downgrade is disallowed).
+2026-09-21 09:11:23.515 -03:00 [rede] resumo dos últimos 30 min: 34 pedidos ok, 0 com falha | média 115ms, mais lento 1164ms | conexão viva (última resposta há 911s) | endereços deste PC: 192.168.1.14
+2026-09-21 09:41:23.525 -03:00 [rede] resumo dos últimos 30 min: 0 pedidos ok, 0 com falha | conexão viva (última resposta há 2711s) | endereços deste PC: 192.168.1.14
+2026-09-21 10:11:23.541 -03:00 [rede] resumo dos últimos 30 min: 0 pedidos ok, 0 com falha | conexão viva (última resposta há 4511s) | endereços deste PC: 192.168.1.14
+2026-09-21 10:41:23.554 -03:00 [rede] resumo dos últimos 30 min: 0 pedidos ok, 0 com falha | conexão viva (última resposta há 6311s) | endereços deste PC: 192.168.1.14
+2026-09-21 11:04:23.700 -03:00 [energia] tela bloqueada
+2026-09-21 11:04:23.740 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-21 11:59:35.645 -03:00 [rede] endereços deste PC MUDARAM: 192.168.1.14 -> NENHUM (sem rede)
+2026-09-21 11:59:35.653 -03:00 [rede] resumo dos últimos 78 min: 0 pedidos ok, 0 com falha | conexão viva (última resposta há 11003s) | endereços deste PC: NENHUM
+2026-09-21 11:59:36.356 -03:00 [energia] PC ACORDOU (resume)
+2026-09-21 11:59:42.571 -03:00 [energia] tela desbloqueada
+2026-09-21 12:00:35.657 -03:00 [rede] endereços deste PC MUDARAM: NENHUM -> 192.168.1.11
+2026-09-21 12:29:03.284 -03:00 [energia] tela bloqueada
+2026-09-21 12:29:03.332 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-21 15:29:06.984 -03:00 [rede] endereços deste PC MUDARAM: 192.168.1.11 -> NENHUM (sem rede)
+2026-09-21 15:29:07.733 -03:00 [rede] resumo dos últimos 210 min: 0 pedidos ok, 0 com falha | conexão viva (última resposta há 23575s) | endereços deste PC: NENHUM
+2026-09-21 19:04:42.937 -03:00 [rede] resumo dos últimos 216 min: 0 pedidos ok, 0 com falha | conexão viva (última resposta há 36510s) | endereços deste PC: NENHUM
+2026-09-21 19:04:42.982 -03:00 [energia] PC ACORDOU (resume)
+2026-09-21 19:07:23.176 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-21 20:32:14.602 -03:00 [rede] resumo dos últimos 88 min: 0 pedidos ok, 0 com falha | conexão viva (última resposta há 41762s) | endereços deste PC: NENHUM
+2026-09-21 20:32:14.603 -03:00 [energia] PC ACORDOU (resume)
+2026-09-21 20:32:30.750 -03:00 [energia] tela desbloqueada
+2026-09-21 20:32:39.114 -03:00 [rede] FALHA /db (6ms): fetch failed <- connect EHOSTUNREACH 192.168.1.250:5174 (code=EHOSTUNREACH errno=-4073 syscall=connect address=192.168.1.250 port=5174) | SELECT c.*, COUNT(DISTINCT CASE WHEN 1 THEN v.pedido_id END) AS compra | endereços deste PC: NENHUM (este PC está sem rede)
+2026-09-21 20:32:39.115 -03:00 [rede] CONEXÃO CAIU com http://192.168.1.250:5174 — última resposta boa há 41787s
+2026-09-21 20:32:39.143 -03:00 [rede] FALHA /db (35ms): fetch failed <- connect EHOSTUNREACH 192.168.1.250:5174 (code=EHOSTUNREACH errno=-4073 syscall=connect address=192.168.1.250 port=5174) | SELECT v.*, p.nome, p.modelo, c.nome AS cliente_nome, c.codigo AS clie | endereços deste PC: NENHUM (este PC está sem rede)
+2026-09-21 20:32:39.149 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- connect EHOSTUNREACH 192.168.1.250:5174 (code=EHOSTUNREACH errno=-4073 syscall=connect address=192.168.1.250 port=5174)
+2026-09-21 20:32:43.126 -03:00 [rede] diagnóstico: ping 192.168.1.250 falhou (1); porta 5174 falhou (EHOSTUNREACH) => PC principal NÃO responde na rede: desligado, dormindo, sem cabo/wifi, ou o IP dele mudou
+2026-09-21 20:32:43.128 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- connect EHOSTUNREACH 192.168.1.250:5174 (code=EHOSTUNREACH errno=-4073 syscall=connect address=192.168.1.250 port=5174)
+2026-09-21 20:34:14.551 -03:00 [rede] endereços deste PC MUDARAM: NENHUM -> 192.168.3.164
+2026-09-21 21:02:14.649 -03:00 [rede] resumo dos últimos 30 min: 0 pedidos ok, 2 com falha | média 21ms, mais lento 35ms | SEM CONEXÃO desde 20:32:39 (2 falhas) | endereços deste PC: 192.168.3.164
+2026-09-21 21:22:06.938 -03:00 [energia] tela bloqueada
+2026-09-21 21:22:08.197 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-21 21:37:54.629 -03:00 [rede] endereços deste PC MUDARAM: 192.168.3.164 -> NENHUM (sem rede)
+2026-09-21 21:37:54.670 -03:00 [rede] resumo dos últimos 36 min: 0 pedidos ok, 0 com falha | SEM CONEXÃO desde 20:32:39 (2 falhas) | endereços deste PC: NENHUM
+2026-09-21 21:37:54.673 -03:00 [energia] PC ACORDOU (resume)
+2026-09-21 21:37:58.320 -03:00 [energia] tela desbloqueada
+2026-09-21 21:38:24.588 -03:00 [rede] endereços deste PC MUDARAM: NENHUM -> 192.168.3.164
+2026-09-21 21:43:54.859 -03:00 [energia] tela bloqueada
+2026-09-21 21:43:56.372 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-21 21:46:31.002 -03:00 [energia] PC ACORDOU (resume)
+2026-09-21 21:46:31.143 -03:00 [energia] na tomada
+2026-09-21 21:46:40.580 -03:00 [energia] tela desbloqueada
+2026-09-21 21:59:36.103 -03:00 [energia] tela bloqueada
+2026-09-21 21:59:37.569 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-22 16:49:05.420 -03:00 [rede] endereços deste PC MUDARAM: 192.168.3.164 -> NENHUM (sem rede)
+2026-09-22 16:49:05.464 -03:00 [rede] resumo dos últimos 1151 min: 0 pedidos ok, 0 com falha | SEM CONEXÃO desde 20:32:39 (2 falhas) | endereços deste PC: NENHUM
+2026-09-22 16:49:05.466 -03:00 [energia] PC ACORDOU (resume)
+2026-09-22 16:49:05.467 -03:00 [energia] NA BATERIA (notebook desplugado)
+2026-09-22 16:49:09.181 -03:00 [energia] tela desbloqueada
+2026-09-22 16:49:35.417 -03:00 [rede] endereços deste PC MUDARAM: NENHUM -> 192.168.3.164
+2026-09-22 16:50:44.498 -03:00 [rede] FALHA /db (10641ms): fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT) | SELECT * FROM pecas ORDER BY nome, modelo | endereços deste PC: 192.168.3.164
+2026-09-22 16:50:44.528 -03:00 [rede] FALHA /db (10674ms): fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT) | SELECT e.*, p.nome, p.modelo FROM entradas e JOIN pecas p ON p.id = e. | endereços deste PC: 192.168.3.164
+2026-09-22 16:50:44.540 -03:00 [rede] FALHA /db (10688ms): fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT) | SELECT e.importacao_id AS id, MIN(e.observacao) AS arquivo, MAX(e.cria | endereços deste PC: 192.168.3.164
+2026-09-22 16:50:44.542 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT)
+2026-09-22 16:50:47.255 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT)
+2026-09-22 16:50:47.256 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT)
+2026-09-22 16:50:47.533 -03:00 [rede] diagnóstico: ping 192.168.1.250 falhou (1); porta 5174 falhou (sem resposta em 3s) => PC principal NÃO responde na rede: desligado, dormindo, sem cabo/wifi, ou o IP dele mudou
+2026-09-22 16:50:49.279 -03:00 [rede] FALHA /db (12743ms): fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT) | SELECT * FROM pecas WHERE arquivado = 0 ORDER BY nome, modelo | endereços deste PC: 192.168.3.164
+2026-09-22 16:50:49.301 -03:00 [rede] FALHA /db (12746ms): fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT) | SELECT * FROM notas | endereços deste PC: 192.168.3.164
+2026-09-22 16:50:49.323 -03:00 [rede] FALHA /db (12775ms): fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT) | SELECT * FROM pagamentos ORDER BY id | endereços deste PC: 192.168.3.164
+2026-09-22 16:50:49.337 -03:00 [rede] FALHA /db (12798ms): fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT) | SELECT t.*, COALESCE(p.nome, '(peça removida)') AS nova_nome, COALESCE | endereços deste PC: 192.168.3.164
+2026-09-22 16:50:49.345 -03:00 [rede] FALHA /db (12814ms): fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT) | SELECT v.*, p.nome, p.modelo, p.codigo FROM vendas v JOIN pecas p ON p | endereços deste PC: 192.168.3.164
+2026-09-22 16:50:49.353 -03:00 [rede] FALHA /db (12824ms): fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT) | SELECT id, codigo, nome FROM clientes ORDER BY nome | endereços deste PC: 192.168.3.164
+2026-09-22 16:50:49.355 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT)
+2026-09-22 16:50:49.355 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT)
+2026-09-22 16:50:49.356 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT)
+2026-09-22 16:50:49.357 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT)
+2026-09-22 16:50:49.357 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT)
+2026-09-22 16:50:49.358 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT)
+2026-09-22 16:50:53.341 -03:00 [rede] FALHA /db (12473ms): fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT) | SELECT v.*, p.nome, p.modelo, c.nome AS cliente_nome, c.codigo AS clie | endereços deste PC: 192.168.3.164
+2026-09-22 16:50:53.358 -03:00 [rede] FALHA /db (12496ms): fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT) | SELECT c.*, COUNT(DISTINCT CASE WHEN 1 THEN v.pedido_id END) AS compra | endereços deste PC: 192.168.3.164
+2026-09-22 16:50:53.359 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT)
+2026-09-22 16:50:59.037 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT)
+2026-09-22 16:51:01.086 -03:00 [rede] FALHA /db (17828ms): fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT) | SELECT forma_pagamento, SUM(valor) AS total, SUM(tipo = 'venda') AS n  | endereços deste PC: 192.168.3.164
+2026-09-22 16:51:01.090 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT)
+2026-09-22 16:52:18.651 -03:00 --- abrindo versao 1.0.4 modo: cliente | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 1931 min | endereços: 192.168.3.164 | principal: http://192.168.1.250:5174 | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-22 16:52:18.846 -03:00 [updater] Checking for update
+2026-09-22 16:52:30.499 -03:00 [rede] FALHA /db (10827ms): fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT) | SELECT * FROM usuarios ORDER BY papel DESC, nome | endereços deste PC: 192.168.3.164
+2026-09-22 16:52:30.500 -03:00 [rede] CONEXÃO CAIU com http://192.168.1.250:5174 — nunca respondeu desde que o app abriu
+2026-09-22 16:52:30.529 -03:00 [rede] FALHA /db (10762ms): fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT) | SELECT id, nome, codigo FROM pecas ORDER BY id | endereços deste PC: 192.168.3.164
+2026-09-22 16:52:30.537 -03:00 [rede] FALHA /db (10773ms): fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT) | SELECT chave, valor FROM config | endereços deste PC: 192.168.3.164
+2026-09-22 16:52:30.553 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT)
+2026-09-22 16:54:16.504 -03:00 [app] diálogo alert ficou 106s aberto : Não foi possível concluir a operação. Sem conexão com o PC principal (http://192
+2026-09-22 16:54:16.518 -03:00 [rede] diagnóstico: ping 192.168.1.250 falhou (1); porta 5174 falhou (ETIMEDOUT) => PC principal NÃO responde na rede: desligado, dormindo, sem cabo/wifi, ou o IP dele mudou
+2026-09-22 16:54:16.545 -03:00 [updater] ERRO: Error: Error: net::ERR_CONNECTION_TIMED_OUT
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-22 16:54:16.549 -03:00 [updater] ERRO na checagem: net::ERR_CONNECTION_TIMED_OUT
+2026-09-22 16:54:16.565 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- ConnectTimeoutError Connect Timeout Error (attempted address: 192.168.1.250:5174, timeout: 10000ms) (code=UND_ERR_CONNECT_TIMEOUT)
+2026-09-22 16:56:16.967 -03:00 [energia] tela bloqueada
+2026-09-22 16:56:17.664 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-23 17:01:15.138 -03:00 [rede] endereços deste PC MUDARAM: 192.168.3.164 -> NENHUM (sem rede)
+2026-09-23 17:01:15.618 -03:00 [rede] resumo dos últimos 1449 min: 0 pedidos ok, 3 com falha | média 10787ms, mais lento 10827ms | SEM CONEXÃO desde 16:52:30 (3 falhas) | endereços deste PC: NENHUM
+2026-09-23 17:01:15.620 -03:00 [energia] PC ACORDOU (resume)
+2026-09-23 17:01:45.113 -03:00 [rede] endereços deste PC MUDARAM: NENHUM -> 192.168.3.115
+2026-09-23 17:04:28.888 -03:00 [energia] tela desbloqueada
+2026-09-23 17:23:16.205 -03:00 [energia] tela bloqueada
+2026-09-23 17:23:16.848 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-23 20:08:35.947 -03:00 [rede] endereços deste PC MUDARAM: 192.168.3.115 -> NENHUM (sem rede)
+2026-09-23 20:08:36.310 -03:00 [rede] resumo dos últimos 187 min: 0 pedidos ok, 0 com falha | SEM CONEXÃO desde 16:52:30 (3 falhas) | endereços deste PC: NENHUM
+2026-09-23 20:08:36.312 -03:00 [energia] PC ACORDOU (resume)
+2026-09-23 20:09:05.961 -03:00 [rede] endereços deste PC MUDARAM: NENHUM -> 192.168.3.115
+2026-09-23 20:09:05.975 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-24 17:13:01.615 -03:00 [rede] endereços deste PC MUDARAM: 192.168.3.115 -> NENHUM (sem rede)
+2026-09-24 17:13:01.655 -03:00 [rede] resumo dos últimos 1264 min: 0 pedidos ok, 0 com falha | SEM CONEXÃO desde 16:52:30 (3 falhas) | endereços deste PC: NENHUM
+2026-09-24 17:13:01.657 -03:00 [energia] PC ACORDOU (resume)
+2026-09-24 17:13:01.658 -03:00 [energia] na tomada
+2026-09-24 17:13:13.212 -03:00 [energia] tela desbloqueada
+2026-09-24 17:13:31.626 -03:00 [rede] endereços deste PC MUDARAM: NENHUM -> 192.168.1.9
+2026-09-24 17:13:37.442 -03:00 [app] já havia uma janela aberta; esta segunda instância fecha e foca a primeira
+2026-09-24 17:13:44.611 -03:00 [app] janela fechada pelo usuário
+2026-09-24 17:13:44.612 -03:00 --- fechando (saída pedida)
+2026-09-24 17:13:44.612 -03:00 --- fechado, código 0
+2026-09-24 17:14:41.778 -03:00 --- abrindo versao 1.0.4 modo: cliente | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 1 min | endereços: 192.168.1.9 | principal: http://192.168.1.250:5174 | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-24 17:14:42.044 -03:00 [updater] Checking for update
+2026-09-24 17:14:43.856 -03:00 [rede] primeira resposta do principal http://192.168.1.250:5174 em 134ms
+2026-09-24 17:14:45.391 -03:00 [updater] Update for version 1.0.4 is not available (latest version: 1.0.4, downgrade is disallowed).
+2026-09-24 17:21:20.737 -03:00 [energia] NA BATERIA (notebook desplugado)
+2026-09-24 17:21:34.897 -03:00 [energia] na tomada
+2026-09-24 17:44:41.811 -03:00 [rede] resumo dos últimos 30 min: 44 pedidos ok, 0 com falha | média 86ms, mais lento 1154ms | conexão viva (última resposta há 4s) | endereços deste PC: 192.168.1.9
+2026-09-24 17:55:42.231 -03:00 [energia] NA BATERIA (notebook desplugado)
+2026-09-24 17:55:56.404 -03:00 [app] janela fechada pelo usuário
+2026-09-24 17:55:56.406 -03:00 --- fechando (saída pedida)
+2026-09-24 17:55:56.407 -03:00 --- fechado, código 0
+2026-09-25 08:19:49.003 -03:00 --- abrindo versao 1.0.4 modo: cliente | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 906 min | endereços: NENHUM | principal: http://192.168.1.250:5174 | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-25 08:19:49.322 -03:00 [updater] Checking for update
+2026-09-25 08:19:49.788 -03:00 [updater] ERRO: Error: Error: net::ERR_INTERNET_DISCONNECTED
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-25 08:19:49.789 -03:00 [updater] ERRO na checagem: net::ERR_INTERNET_DISCONNECTED
+2026-09-25 08:19:50.368 -03:00 [rede] FALHA /db (108ms): fetch failed <- connect EHOSTUNREACH 192.168.1.250:5174 (code=EHOSTUNREACH errno=-4073 syscall=connect address=192.168.1.250 port=5174) | SELECT * FROM usuarios ORDER BY papel DESC, nome | endereços deste PC: NENHUM (este PC está sem rede)
+2026-09-25 08:19:50.368 -03:00 [rede] CONEXÃO CAIU com http://192.168.1.250:5174 — nunca respondeu desde que o app abriu
+2026-09-25 08:19:50.398 -03:00 [rede] FALHA /db (39ms): fetch failed <- connect EHOSTUNREACH 192.168.1.250:5174 (code=EHOSTUNREACH errno=-4073 syscall=connect address=192.168.1.250 port=5174) | SELECT chave, valor FROM config | endereços deste PC: NENHUM (este PC está sem rede)
+2026-09-25 08:19:50.413 -03:00 [rede] FALHA /db (45ms): fetch failed <- connect EHOSTUNREACH 192.168.1.250:5174 (code=EHOSTUNREACH errno=-4073 syscall=connect address=192.168.1.250 port=5174) | SELECT id, nome, codigo FROM pecas ORDER BY id | endereços deste PC: NENHUM (este PC está sem rede)
+2026-09-25 08:19:50.423 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- connect EHOSTUNREACH 192.168.1.250:5174 (code=EHOSTUNREACH errno=-4073 syscall=connect address=192.168.1.250 port=5174)
+2026-09-25 08:19:58.861 -03:00 [rede] diagnóstico: ping 192.168.1.250 falhou (1); porta 5174 falhou (EHOSTUNREACH) => PC principal NÃO responde na rede: desligado, dormindo, sem cabo/wifi, ou o IP dele mudou
+2026-09-25 08:19:58.871 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- connect EHOSTUNREACH 192.168.1.250:5174 (code=EHOSTUNREACH errno=-4073 syscall=connect address=192.168.1.250 port=5174)
+2026-09-25 08:20:01.102 -03:00 [app] janela fechada pelo usuário
+2026-09-25 08:20:01.103 -03:00 --- fechando (saída pedida)
+2026-09-25 08:20:01.104 -03:00 --- fechado, código 0
+2026-09-25 08:20:08.108 -03:00 --- abrindo versao 1.0.4 modo: cliente | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 906 min | endereços: NENHUM | principal: http://192.168.1.250:5174 | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-25 08:20:08.283 -03:00 [updater] Checking for update
+2026-09-25 08:20:08.468 -03:00 [updater] ERRO: Error: Error: net::ERR_INTERNET_DISCONNECTED
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-25 08:20:08.469 -03:00 [updater] ERRO na checagem: net::ERR_INTERNET_DISCONNECTED
+2026-09-25 08:20:08.722 -03:00 [rede] FALHA /db (54ms): fetch failed <- connect EHOSTUNREACH 192.168.1.250:5174 (code=EHOSTUNREACH errno=-4073 syscall=connect address=192.168.1.250 port=5174) | SELECT * FROM usuarios ORDER BY papel DESC, nome | endereços deste PC: NENHUM (este PC está sem rede)
+2026-09-25 08:20:08.723 -03:00 [rede] CONEXÃO CAIU com http://192.168.1.250:5174 — nunca respondeu desde que o app abriu
+2026-09-25 08:20:08.751 -03:00 [rede] FALHA /db (27ms): fetch failed <- connect EHOSTUNREACH 192.168.1.250:5174 (code=EHOSTUNREACH errno=-4073 syscall=connect address=192.168.1.250 port=5174) | SELECT chave, valor FROM config | endereços deste PC: NENHUM (este PC está sem rede)
+2026-09-25 08:20:08.759 -03:00 [rede] FALHA /db (39ms): fetch failed <- connect EHOSTUNREACH 192.168.1.250:5174 (code=EHOSTUNREACH errno=-4073 syscall=connect address=192.168.1.250 port=5174) | SELECT id, nome, codigo FROM pecas ORDER BY id | endereços deste PC: NENHUM (este PC está sem rede)
+2026-09-25 08:20:08.768 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- connect EHOSTUNREACH 192.168.1.250:5174 (code=EHOSTUNREACH errno=-4073 syscall=connect address=192.168.1.250 port=5174)
+2026-09-25 08:20:30.700 -03:00 [rede] diagnóstico: ping 192.168.1.250 falhou (1); porta 5174 falhou (EHOSTUNREACH) => PC principal NÃO responde na rede: desligado, dormindo, sem cabo/wifi, ou o IP dele mudou
+2026-09-25 08:20:30.703 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- connect EHOSTUNREACH 192.168.1.250:5174 (code=EHOSTUNREACH errno=-4073 syscall=connect address=192.168.1.250 port=5174)
+2026-09-25 08:20:33.520 -03:00 [app] janela fechada pelo usuário
+2026-09-25 08:20:33.521 -03:00 --- fechando (saída pedida)
+2026-09-25 08:20:33.522 -03:00 --- fechado, código 0
+2026-09-25 08:20:47.921 -03:00 --- abrindo versao 1.0.4 modo: cliente | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 907 min | endereços: 169.254.87.248 | principal: http://192.168.1.250:5174 | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-25 08:20:48.089 -03:00 [updater] Checking for update
+2026-09-25 08:20:57.198 -03:00 [rede] FALHA /db (8721ms): fetch failed <- connect ECONNABORTED 192.168.1.250:5174 (code=ECONNABORTED errno=-4079 syscall=connect address=192.168.1.250 port=5174) | SELECT id, nome, codigo FROM pecas ORDER BY id | endereços deste PC: 192.168.1.12
+2026-09-25 08:20:57.199 -03:00 [rede] CONEXÃO CAIU com http://192.168.1.250:5174 — nunca respondeu desde que o app abriu
+2026-09-25 08:20:57.243 -03:00 [rede] FALHA /db (8755ms): fetch failed <- connect ECONNABORTED 192.168.1.250:5174 (code=ECONNABORTED errno=-4079 syscall=connect address=192.168.1.250 port=5174) | SELECT chave, valor FROM config | endereços deste PC: 192.168.1.12
+2026-09-25 08:20:57.264 -03:00 [rede] FALHA /db (8830ms): fetch failed <- connect ECONNABORTED 192.168.1.250:5174 (code=ECONNABORTED errno=-4079 syscall=connect address=192.168.1.250 port=5174) | SELECT * FROM usuarios ORDER BY papel DESC, nome | endereços deste PC: 192.168.1.12
+2026-09-25 08:20:57.265 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- connect ECONNABORTED 192.168.1.250:5174 (code=ECONNABORTED errno=-4079 syscall=connect address=192.168.1.250 port=5174)
+2026-09-25 08:21:39.957 -03:00 [app] diálogo alert ficou 43s aberto : Não foi possível concluir a operação. Sem conexão com o PC principal (http://192
+2026-09-25 08:21:39.959 -03:00 [updater] ERRO: Error: Error: net::ERR_CONNECTION_ABORTED
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:118398)
+    at SimpleURLLoaderWrapper.emit (node:events:518:28)
+2026-09-25 08:21:39.960 -03:00 [updater] ERRO na checagem: net::ERR_CONNECTION_ABORTED
+2026-09-25 08:21:39.965 -03:00 [rede] diagnóstico: ping 192.168.1.250 ok em 42765ms; porta 5174 abriu em 42748ms => PC principal e sistema alcançáveis AGORA — a queda foi momentânea
+2026-09-25 08:21:39.973 -03:00 [rede] endereços deste PC MUDARAM: 169.254.87.248 -> 192.168.1.12
+2026-09-25 08:21:39.996 -03:00 [tela] operação falhou: Error: Sem conexão com o PC principal (http://192.168.1.250:5174). Verifique se ele está ligado e conectado na rede da loja. Detalhe técnico: fetch failed <- connect ECONNABORTED 192.168.1.250:5174 (code=ECONNABORTED errno=-4079 syscall=connect address=192.168.1.250 port=5174)
+2026-09-25 08:21:47.636 -03:00 [rede] DESCONECTAR clicado em tela de login, sem conexão com o principal — este PC deixa de usar o principal http://192.168.1.250:5174 e passa a usar o banco local
+2026-09-25 08:21:47.639 -03:00 [rede] configuração salva: {"modo":"cliente","url":"http://192.168.1.250:5174","token":"***"} -> {"modo":"sozinho","url":"http://192.168.1.250:5174","token":"***"}
+2026-09-25 08:21:47.640 -03:00 [app] reabrindo o sistema no modo sozinho
+2026-09-25 08:21:47.707 -03:00 --- fechado, código 0
+2026-09-25 08:21:48.021 -03:00 --- abrindo versao 1.0.4 modo: sozinho | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 908 min | endereços: 192.168.1.12  | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-25 08:21:48.222 -03:00 [updater] Checking for update
+2026-09-25 08:21:50.808 -03:00 [updater] Update for version 1.0.4 is not available (latest version: 1.0.4, downgrade is disallowed).
+2026-09-25 08:21:51.063 -03:00 [app] janela fechada pelo usuário
+2026-09-25 08:21:51.064 -03:00 --- fechando (saída pedida)
+2026-09-25 08:21:51.066 -03:00 --- fechado, código 0
+2026-09-25 08:22:48.077 -03:00 --- abrindo versao 1.0.4 modo: sozinho | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 0 min | endereços: 192.168.1.12  | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-25 08:22:48.357 -03:00 [updater] Checking for update
+2026-09-25 08:22:54.987 -03:00 [updater] Update for version 1.0.4 is not available (latest version: 1.0.4, downgrade is disallowed).
+2026-09-25 08:25:50.054 -03:00 [app] janela fechada pelo usuário
+2026-09-25 08:25:50.056 -03:00 --- fechando (saída pedida)
+2026-09-25 08:25:50.057 -03:00 --- fechado, código 0
+2026-09-25 08:26:49.220 -03:00 --- abrindo versao 1.0.4 modo: sozinho | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 0 min | endereços: 192.168.1.12  | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-25 08:26:49.496 -03:00 [updater] Checking for update
+2026-09-25 08:26:52.481 -03:00 [updater] Update for version 1.0.4 is not available (latest version: 1.0.4, downgrade is disallowed).
+2026-09-25 08:28:11.057 -03:00 [app] janela fechada pelo usuário
+2026-09-25 08:28:11.059 -03:00 --- fechando (saída pedida)
+2026-09-25 08:28:11.061 -03:00 --- fechado, código 0
+2026-09-25 08:28:17.983 -03:00 --- abrindo versao 1.0.4 modo: sozinho | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 2 min | endereços: 192.168.1.12  | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-25 08:28:18.175 -03:00 [updater] Checking for update
+2026-09-25 08:28:20.167 -03:00 [updater] Update for version 1.0.4 is not available (latest version: 1.0.4, downgrade is disallowed).
+2026-09-25 08:29:42.495 -03:00 [app] janela fechada pelo usuário
+2026-09-25 08:29:42.496 -03:00 --- fechando (saída pedida)
+2026-09-25 08:29:42.496 -03:00 --- fechado, código 0
+2026-09-25 08:29:50.868 -03:00 --- abrindo versao 1.0.4 modo: sozinho | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 3 min | endereços: 192.168.1.12  | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-25 08:29:51.054 -03:00 [updater] Checking for update
+2026-09-25 08:29:53.563 -03:00 [updater] Update for version 1.0.4 is not available (latest version: 1.0.4, downgrade is disallowed).
+2026-09-25 09:01:53.572 -03:00 [energia] tela bloqueada
+2026-09-25 09:01:53.613 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-25 09:05:05.881 -03:00 [rede] endereços deste PC MUDARAM: 192.168.1.12 -> NENHUM (sem rede)
+2026-09-25 09:05:05.900 -03:00 [energia] PC ACORDOU (resume)
+2026-09-25 09:05:35.880 -03:00 [rede] endereços deste PC MUDARAM: NENHUM -> 192.168.1.12
+2026-09-25 09:10:22.573 -03:00 [energia] tela desbloqueada
+2026-09-25 09:10:26.910 -03:00 [app] janela fechada pelo usuário
+2026-09-25 09:10:26.911 -03:00 --- fechando (saída pedida)
+2026-09-25 09:10:26.912 -03:00 --- fechado, código 0
+2026-09-25 09:11:19.971 -03:00 --- abrindo versao 1.0.4 modo: sozinho | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 0 min | endereços: 192.168.1.12  | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-25 09:11:20.293 -03:00 [updater] Checking for update
+2026-09-25 09:11:23.338 -03:00 [updater] Update for version 1.0.4 is not available (latest version: 1.0.4, downgrade is disallowed).
+2026-09-25 09:42:52.584 -03:00 [energia] tela bloqueada
+2026-09-25 09:42:52.626 -03:00 [energia] PC vai DORMIR/hibernar (suspend)
+2026-09-25 16:00:53.819 -03:00 [rede] endereços deste PC MUDARAM: 192.168.1.12 -> 169.254.87.248
+2026-09-25 16:00:53.851 -03:00 [energia] PC ACORDOU (resume)
+2026-09-25 16:00:59.432 -03:00 [energia] tela desbloqueada
+2026-09-25 16:01:02.361 -03:00 [app] janela fechada pelo usuário
+2026-09-25 16:01:02.362 -03:00 --- fechando (saída pedida)
+2026-09-25 16:01:02.363 -03:00 --- fechado, código 0
+2026-09-25 16:01:31.715 -03:00 --- abrindo versao 1.0.4 modo: sozinho | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 411 min | endereços: 192.168.1.18  | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-25 16:01:31.910 -03:00 [updater] Checking for update
+2026-09-25 16:01:36.477 -03:00 [app] Ajuda > Ver logs
+2026-09-25 16:01:36.724 -03:00 [updater] Update for version 1.0.4 is not available (latest version: 1.0.4, downgrade is disallowed).
+2026-09-25 16:03:24.920 -03:00 [app] janela fechada pelo usuário
+2026-09-25 16:03:24.922 -03:00 --- fechando (saída pedida)
+2026-09-25 16:03:24.923 -03:00 --- fechado, código 0
+2026-09-25 16:03:51.582 -03:00 --- abrindo versao 1.0.4 modo: sozinho | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 413 min | endereços: 192.168.1.18  | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-25 16:03:51.774 -03:00 [updater] Checking for update
+2026-09-25 16:03:53.767 -03:00 [updater] Update for version 1.0.4 is not available (latest version: 1.0.4, downgrade is disallowed).
+2026-09-25 16:04:12.991 -03:00 [app] Ajuda > Ver logs
+2026-09-25 16:06:28.893 -03:00 [app] janela fechada pelo usuário
+2026-09-25 16:06:28.895 -03:00 --- fechando (saída pedida)
+2026-09-25 16:06:28.897 -03:00 --- fechado, código 0
+2026-09-25 16:13:35.048 -03:00 --- abrindo versao 1.0.4 modo: sozinho | PC: DESKTOP-31EDLPN | Windows 10.0.19045 ligado há 423 min | endereços: 192.168.1.18  | dados em: C:\Users\martinho\AppData\Roaming\estoque-celular
+2026-09-25 16:13:35.306 -03:00 [updater] Checking for update
+2026-09-25 16:13:37.848 -03:00 [updater] Update for version 1.0.4 is not available (latest version: 1.0.4, downgrade is disallowed).
+2026-09-25 16:13:40.439 -03:00 [app] Ajuda > Ver logs

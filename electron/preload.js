@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("api", {
   redeInfo: () => ipcRenderer.invoke("rede-info"),
   redeSalvar: (cfg) => ipcRenderer.invoke("rede-salvar", cfg),
   redeTestar: (url, token) => ipcRenderer.invoke("rede-testar", { url, token }),
+  redeSondar: () => ipcRenderer.invoke("rede-sondar"),
   redeFirewall: () => ipcRenderer.invoke("rede-firewall"),
   // origem: de qual tela veio o clique — vai pro log, que é onde se descobre
   // por que um balcão "desconectou sozinho".

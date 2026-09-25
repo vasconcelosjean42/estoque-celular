@@ -22,17 +22,21 @@ export default function App() {
 
   const carregarCfg = () => lerConfig().then(setCfg);
 
-  useEffect(() => {
-    carregarCfg();
-    gerarCodigosFaltantes(); // produtos cadastrados antes do passo 10
-  }, []);
+  // Sem o PC principal, quem avisa é a tela de espera do Login. O diálogo de
+  // erro por cima dela travava a tela (e a nova tentativa) até alguém clicar OK.
+  const semPrincipal = (e) => { if (!/^Sem conexão com o PC principal/.test(e.message)) throw e; };
+  const iniciar = () => {
+    carregarCfg().catch(semPrincipal);
+    gerarCodigosFaltantes().catch(semPrincipal); // produtos cadastrados antes do passo 10
+  };
+  useEffect(iniciar, []);
 
   const titulo = cfg.titulo || "Estoque Celular";
   useEffect(() => {
     document.title = titulo;
   }, [titulo]);
 
-  if (!usuario) return <Login aoEntrar={(u) => { setUsuario(u); setTela("Estoque"); }} />;
+  if (!usuario) return <Login aoEntrar={(u) => { setUsuario(u); setTela("Estoque"); }} aoConectar={iniciar} />;
   const dono = usuario.papel === "dono";
   const telas = dono ? TELAS : TELAS_COLABORADOR;
 
