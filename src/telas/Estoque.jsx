@@ -244,7 +244,8 @@ export default function Estoque({ dono = true }) {
          UNION SELECT peca_id FROM entradas
          UNION SELECT peca_id FROM trocas WHERE peca_id IS NOT NULL
          UNION SELECT nova_peca_id FROM trocas WHERE nova_peca_id IS NOT NULL
-         UNION SELECT peca_id FROM perdas WHERE peca_id IS NOT NULL)`,
+         UNION SELECT peca_id FROM perdas WHERE peca_id IS NOT NULL
+         UNION SELECT peca_id FROM desfeitos)`,
       [imp.id],
     ]);
     await window.api.tx(comandos);
@@ -260,8 +261,9 @@ export default function Estoque({ dono = true }) {
     const [{ n }] = await window.api.query(
       `SELECT (SELECT COUNT(*) FROM vendas WHERE peca_id = ?)
             + (SELECT COUNT(*) FROM trocas WHERE peca_id = ? OR nova_peca_id = ?)
-            + (SELECT COUNT(*) FROM perdas WHERE peca_id = ?) AS n`,
-      [p.id, p.id, p.id, p.id]
+            + (SELECT COUNT(*) FROM perdas WHERE peca_id = ?)
+            + (SELECT COUNT(*) FROM desfeitos WHERE peca_id = ?) AS n`,
+      [p.id, p.id, p.id, p.id, p.id]
     );
     if (n) {
       alert(`"${p.nome} ${p.modelo}" tem ${n} movimento(s) registrado(s) (venda, troca ou perda) e não pode ser excluído — o histórico e o lucro do período seriam perdidos.\n\nSe a peça saiu de linha, use o botão Arquivar: ela some da lista e da busca da venda, sem mexer em nada do histórico.`);

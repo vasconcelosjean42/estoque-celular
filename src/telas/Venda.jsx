@@ -58,6 +58,20 @@ export const tagDesconto = (valor) => (
   </span>
 );
 
+// Próximo número de pedido. Não basta olhar vendas: pedido com todos os itens
+// desfeitos some de lá, mas os desfeitos, pagamentos e a nota dele continuam com
+// o número — reusar faria o pedido novo herdar tudo isso.
+export const SQL_PROXIMO_PEDIDO = `SELECT COALESCE(MAX(n),0)+1 AS n FROM (
+  SELECT MAX(pedido_id) AS n FROM vendas UNION ALL SELECT MAX(pedido_id) FROM desfeitos
+  UNION ALL SELECT MAX(pedido_id) FROM pagamentos UNION ALL SELECT MAX(pedido_id) FROM notas)`;
+
+// Pedido que teve item desfeito (passo 29) — a Venda e o Dashboard marcam igual.
+export const tagDesfeito = (n) => (
+  <span style={{ background: "#fee2e2", color: "#dc2626", borderRadius: 4, padding: "1px 6px", fontSize: 12, fontWeight: "bold", marginLeft: 6 }}>
+    {n} {n === 1 ? "item desfeito" : "itens desfeitos"}
+  </span>
+);
+
 export const tagEstorno = (valor) => (
   <span style={{ background: "#fee2e2", color: "#dc2626", borderRadius: 4, padding: "1px 6px", fontSize: 12, fontWeight: "bold", marginLeft: 6 }}>
     estornada {fmtReais(valor)}
@@ -75,6 +89,33 @@ export const calcDesconto = (desc, bruto) => {
   if (!desc) return 0;
   const d = desc.pct != null ? Math.round((bruto * desc.pct) / 100) : bruto - desc.final;
   return Math.min(Math.max(d, 0), bruto);
+};
+
+// Passo 29 — desfazer n unidades de um item do pedido. Uma conta só, usada pela
+// prévia na tela e pelo que é gravado, pra os dois nunca divergirem.
+//
+// O desconto é do pedido e sai proporcional ao que saiu do bruto (itens + mão de
+// obra, a mesma base do calcDesconto). Mão de obra e desconto vivem numa linha
+// só: se ela zerar, os dois mudam pra uma linha que sobrou. Se não sobrar
+// nenhuma, sai tudo — inclusive a mão de obra — e o pedido fica vazio.
+//
+// Conta que os testes conferem: linhas que sobraram + (valor, lucro) do
+// desfeito = o que o pedido valia antes, ao centavo.
+export const calcDesfazerItem = (itens, vendaId, n) => {
+  const v = itens.find((x) => x.id === vendaId);
+  const bruto = itens.reduce((s, x) => s + x.preco_venda * x.quantidade + x.mao_de_obra, 0);
+  const desc = descontoPedido(itens);
+  const mo = itens.reduce((s, x) => s + x.mao_de_obra, 0);
+  const restantes = itens.filter((x) => x.id !== vendaId || x.quantidade > n);
+  const vazio = restantes.length === 0;
+  const brutoSai = v.preco_venda * n + (vazio ? mo : 0);
+  const descNovo = vazio ? 0 : Math.round((desc * (bruto - brutoSai)) / bruto);
+  const descSai = desc - descNovo;
+  return {
+    v, restantes, mo, descNovo,
+    valor: brutoSai - descSai,
+    lucro: (v.preco_venda - v.preco_compra) * n + (vazio ? mo : 0) - descSai,
+  };
 };
 
 const inp = { padding: 10, fontSize: 16, borderRadius: 6, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" };
@@ -99,6 +140,8 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
   const [fechando, setFechando] = useState(null); // { maoDeObra, forma, cliente, desc, descontoPor }
   const [descUI, setDescUI] = useState(null); // painel de desconto aberto: { modo, valor, pin }
   const [abertos, setAbertos] = useState(new Set()); // pedidos expandidos na lista
+  const [desfeitosPorPedido, setDesfeitosPorPedido] = useState({}); // pedido_id → itens desfeitos
+  const [desfazendo, setDesfazendo] = useState(null); // { id, qtd } — painel "Desfazer item" aberto
   const [[fSel, fDe, fAte], setFiltroData] = useState(() => ["hoje", ...calcAtalho("hoje")]);
 
   const carregar = () => {
@@ -133,6 +176,14 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
       const m = {};
       rows.forEach((p) => (m[p.pedido_id] ||= []).push(p));
       setPagosPorPedido(m);
+    });
+    window.api.query(
+      `SELECT d.*, p.nome, p.modelo, u.nome AS quem FROM desfeitos d
+       JOIN pecas p ON p.id = d.peca_id LEFT JOIN usuarios u ON u.id = d.usuario_id ORDER BY d.id`
+    ).then((rows) => {
+      const m = {};
+      rows.forEach((d) => (m[d.pedido_id] ||= []).push(d));
+      setDesfeitosPorPedido(m);
     });
     // ponytail: varre notas inteiro (tabela pequena numa loja); filtrar por pedido se crescer.
     if (notaOn) {
@@ -213,7 +264,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
     }
     // Nome novo vira cadastro aqui mesmo; nome já conhecido volta com o id dele.
     const cli = await resolverCliente(fechando.cliente, clientes);
-    const [{ n: pedidoId }] = await window.api.query("SELECT COALESCE(MAX(pedido_id),0)+1 AS n FROM vendas");
+    const [{ n: pedidoId }] = await window.api.query(SQL_PROXIMO_PEDIDO);
     const comandos = [];
     carrinho.forEach((it, i) => {
       comandos.push(["UPDATE pecas SET quantidade = quantidade - ? WHERE id = ?", [Number(it.qtd), it.peca.id]]);
@@ -313,10 +364,17 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
     carregar();
   };
 
-  // Desfazer é do pedido inteiro: devolver item solto de pedido já pago é troca/estorno.
+  // Desfazer do pedido inteiro: apaga a venda como se não tivesse existido (o dia
+  // da venda muda). Pedido que já teve item desfeito não passa por aqui — a
+  // devolução dele saiu no Pix de outro dia, e as duas regras não se misturam.
   const desfazer = async (itens) => {
     const desc = itens.map((v) => `${v.quantidade}x ${v.nome} ${v.modelo}`.trim()).join(", ");
     if (!confirm(`Desfazer a venda de ${desc}?`)) return;
+    const pid = itens[0].pedido_id ?? itens[0].id;
+    if ((await window.api.query("SELECT 1 FROM desfeitos WHERE pedido_id = ?", [pid])).length) {
+      alert("Este pedido já teve item desfeito (pode ter sido no outro PC). Desfaça item por item.");
+      return carregar();
+    }
     // As formas do pedido dividido saem junto, senão o dinheiro fica no caixa sem venda.
     const comandos = [["DELETE FROM pagamentos WHERE pedido_id = ?", [itens[0].pedido_id ?? itens[0].id]]];
     itens.forEach((v) => {
@@ -324,6 +382,50 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
       comandos.push(["UPDATE pecas SET quantidade = quantidade + ? WHERE id = ?", [v.quantidade, v.peca_id]]);
     });
     await window.api.tx(comandos);
+    carregar();
+  };
+
+  // Passo 29: desfaz n unidades de um item. O item volta ao estoque, o resto do
+  // pedido continua valendo e a devolução sai no Pix de hoje (via view movimentos).
+  const desfazerItem = async (vendaId, n) => {
+    // Relê o pedido do banco: a conta do desconto não pode partir da tela velha.
+    const [linha] = await window.api.query("SELECT pedido_id FROM vendas WHERE id = ?", [vendaId]);
+    if (!linha) { alert("Este item já foi desfeito (pode ter sido no outro PC)."); setDesfazendo(null); return carregar(); }
+    const itens = await window.api.query("SELECT * FROM vendas WHERE pedido_id = ? ORDER BY id", [linha.pedido_id]);
+    const dividido = (await window.api.query("SELECT 1 FROM pagamentos WHERE pedido_id = ?", [linha.pedido_id])).length > 0;
+    const { v, restantes, mo, descNovo, valor, lucro } = calcDesfazerItem(itens, vendaId, n);
+    const descPor = itens.find((x) => x.desconto > 0)?.desconto_por ?? null;
+
+    const comandos = [
+      // Primeiro: o trigger desfeitos_confere_venda recusa se a linha já não tem n.
+      [`INSERT INTO desfeitos (pedido_id, venda_id, peca_id, quantidade, valor, lucro, forma_venda, vendido_em, usuario_id)
+        VALUES (?,?,?,?,?,?,?,?,?)`,
+       [v.pedido_id, v.id, v.peca_id, n, valor, lucro, dividido ? null : v.forma_pagamento, v.criado_em, usuario?.id ?? null]],
+    ];
+    if (restantes.length) {
+      // Mão de obra e desconto numa linha só, como a venda grava: fica na que já
+      // carregava, se ela sobrou; senão na primeira que sobrou.
+      const dona = restantes.find((x) => x.mao_de_obra || x.desconto) || restantes[0];
+      itens.filter((x) => x.id !== dona.id && (x.mao_de_obra || x.desconto)).forEach((x) =>
+        comandos.push(["UPDATE vendas SET mao_de_obra = 0, desconto = 0, desconto_por = NULL WHERE id = ?", [x.id]]));
+      comandos.push(["UPDATE vendas SET mao_de_obra = ?, desconto = ?, desconto_por = ? WHERE id = ?",
+        [mo, descNovo, descNovo ? descPor : null, dona.id]]);
+    }
+    if (v.quantidade > n) {
+      comandos.push(["UPDATE vendas SET quantidade = quantidade - ? WHERE id = ?", [n, v.id]]);
+    } else {
+      // Nota de antes do carrinho aponta pra linha; solta antes, senão a FK barra.
+      comandos.push(["UPDATE notas SET venda_id = NULL WHERE venda_id = ?", [v.id]]);
+      comandos.push(["DELETE FROM vendas WHERE id = ?", [v.id]]);
+    }
+    comandos.push(["UPDATE pecas SET quantidade = quantidade + ? WHERE id = ?", [n, v.peca_id]]);
+    try {
+      await window.api.tx(comandos);
+    } catch (e) {
+      // Trigger recusou (desfeito no outro PC) ou o banco barrou: nada foi gravado.
+      alert(`Não deu para desfazer o item.\n\n${e.message}`);
+    }
+    setDesfazendo(null);
     carregar();
   };
 
@@ -528,6 +630,72 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
     </button>
   );
 
+  // Passo 29. Item com troca/estorno não desfaz: o dinheiro dele já passou pelo
+  // caixa por outro caminho. Pedido de 1 item com 1 unidade usa o Desfazer do
+  // pedido — a não ser que já tenha tido item desfeito (aí é só por item).
+  const podeDesfazerItem = (v, itens, pid) =>
+    !(trocasPorVenda[v.id] || []).length &&
+    (itens.length > 1 || v.quantidade > 1 || !!desfeitosPorPedido[pid]);
+
+  const botaoDesfazerItem = (v) => (
+    <button style={{ ...btnMini, background: "#fee2e2", color: "#dc2626" }}
+      onClick={() => setDesfazendo({ id: v.id, qtd: String(v.quantidade) })}>
+      Desfazer item
+    </button>
+  );
+
+  // Linha que abre embaixo do item: quantas unidades e quanto volta no Pix.
+  const painelDesfazer = (v, itens, pid) => {
+    if (desfazendo?.id !== v.id) return null;
+    const n = Number(desfazendo.qtd);
+    const valido = Number.isInteger(n) && n >= 1 && n <= v.quantidade;
+    const { valor } = valido ? calcDesfazerItem(itens, v.id, n) : { valor: 0 };
+    return (
+      <tr id={`desfazer-${v.id}`} style={{ background: "#fef2f2", borderBottom: "1px solid #e2e8f0" }}>
+        <td />
+        <td colSpan={4} style={{ padding: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <strong>Desfazer {v.nome} {v.modelo}</strong>
+            {v.quantidade > 1 && (
+              <label>
+                Quantas?{" "}
+                <input type="number" min={1} max={v.quantidade} value={desfazendo.qtd} aria-label="Quantas desfazer"
+                  onChange={(e) => setDesfazendo({ ...desfazendo, qtd: e.target.value })}
+                  style={{ ...inp, width: 70, padding: 6, display: "inline-block" }} /> de {v.quantidade}
+              </label>
+            )}
+            <span style={{ fontSize: 17 }}>
+              Devolver ao cliente: <strong style={{ color: "#dc2626" }}>{valido ? fmtReais(valor) : "—"} no Pix</strong>
+            </span>
+            <button style={{ ...btnMini, background: "#dc2626", color: "white" }} disabled={!valido}
+              onClick={() => desfazerItem(v.id, n)}>
+              Confirmar
+            </button>
+            <button style={{ ...btnMini, background: "#e2e8f0", color: "#334155" }} onClick={() => setDesfazendo(null)}>
+              Cancelar
+            </button>
+          </div>
+          {notasPorPedido[pid] && (
+            <div style={{ fontSize: 13, color: "#b45309", marginTop: 6 }}>
+              A nota deste pedido já foi emitida e não muda: reimprimir sai com os itens e o valor da época.
+            </div>
+          )}
+        </td>
+      </tr>
+    );
+  };
+
+  const linhasDesfeitos = (pid) =>
+    (desfeitosPorPedido[pid] || []).map((d) => (
+      <tr key={`d${d.id}`} style={{ background: "#fef2f2", borderBottom: "1px solid #e2e8f0" }}>
+        <td style={{ padding: 8, color: "#64748b" }}>{quandoBR(d.criado_em)}</td>
+        <td style={{ padding: 8 }} colSpan={4}>
+          ↳ <strong style={{ color: "#dc2626" }}>desfeito</strong>: {d.quantidade}x {d.nome} {d.modelo} —{" "}
+          {fmtReais(d.valor)} devolvido no Pix{d.quem ? ` (${d.quem})` : ""}
+        </td>
+      </tr>
+    ));
+
   const linhasTroca = (v) => {
     const cadeia = trocasPorVenda[v.id] || [];
     return cadeia.map((t, i) => {
@@ -677,7 +845,8 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
                   🧾 {notasPorPedido[pid] ? "Reimprimir" : "Nota"}
                 </button>
               );
-              const botaoDesfazer = !temTroca && (
+              const temDesfeito = !!desfeitosPorPedido[pid];
+              const botaoDesfazer = !temTroca && !temDesfeito && (
                 <button style={{ ...btnMini, background: "#fee2e2", color: "#dc2626" }} onClick={() => desfazer(itens)}>
                   Desfazer
                 </button>
@@ -701,10 +870,12 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
                       <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
                         {botaoNota}
                         {trocada ? <span style={{ color: "#b45309", fontSize: 14, fontWeight: "bold" }}>trocada ↓</span>
-                          : <>{acoesTroca(v)}{botaoDesfazer}</>}
+                          : <>{acoesTroca(v)}{podeDesfazerItem(v, itens, pid) && <span style={{ marginRight: 6 }}>{botaoDesfazerItem(v)}</span>}{botaoDesfazer}</>}
                       </td>
                     </tr>
+                    {painelDesfazer(v, itens, pid)}
                     {linhasTroca(v)}
+                    {linhasDesfeitos(pid)}
                   </React.Fragment>
                 );
               }
@@ -719,6 +890,7 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
                       {setaPedido(aberto)} Pedido com {itens.length} itens
                       {itens[0].cliente && <span style={{ color: "#64748b", fontWeight: "normal" }}> — {itens[0].cliente}</span>}
                       {desconto > 0 && tagDesconto(desconto)}
+                      {temDesfeito && tagDesfeito(desfeitosPorPedido[pid].length)}
                     </td>
                     <td style={{ padding: 8, fontWeight: "bold" }}>{fmtReais(total)}</td>
                     <td style={{ padding: 8 }}>{rotuloForma(itens[0].forma_pagamento, pagosPorPedido[pid])}</td>
@@ -732,19 +904,22 @@ export default function Venda({ maoDeObraOn = true, dono = true, cfg = {}, usuar
                     const trocada = (trocasPorVenda[v.id] || []).length > 0;
                     return (
                       <React.Fragment key={v.id}>
-                        <tr style={{ borderBottom: i === itens.length - 1 && !trocada ? "1px solid #e2e8f0" : "none", background: fundo }}>
+                        <tr id={`item-${v.id}`} style={{ borderBottom: i === itens.length - 1 && !trocada ? "1px solid #e2e8f0" : "none", background: fundo }}>
                           <td />
                           <td style={{ padding: "6px 8px", paddingLeft: 24 }}>↳ {v.quantidade}x {v.nome} {v.modelo}</td>
                           <td style={{ padding: "6px 8px" }}>{fmtReais(v.preco_venda * v.quantidade + v.mao_de_obra)}</td>
                           <td />
                           <td style={{ padding: "6px 8px", textAlign: "right", whiteSpace: "nowrap" }}>
-                            {trocada ? <span style={{ color: "#b45309", fontSize: 14, fontWeight: "bold" }}>trocada ↓</span> : acoesTroca(v)}
+                            {trocada ? <span style={{ color: "#b45309", fontSize: 14, fontWeight: "bold" }}>trocada ↓</span>
+                              : <>{acoesTroca(v)}{podeDesfazerItem(v, itens, pid) && botaoDesfazerItem(v)}</>}
                           </td>
                         </tr>
+                        {painelDesfazer(v, itens, pid)}
                         {linhasTroca(v)}
                       </React.Fragment>
                     );
                   })}
+                  {aberto && linhasDesfeitos(pid)}
                 </React.Fragment>
               );
             })}

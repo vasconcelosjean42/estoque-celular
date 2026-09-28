@@ -9,6 +9,16 @@
 // board da atualização nova ocupa o lugar do anterior, nunca empilha.
 export default [
   {
+    versao: "1.0.6",
+    data: "27/09/2026",
+    itens: [
+      "Na Venda apareceu o botão \"Desfazer item\": dá para devolver só uma peça de um pedido (ou só algumas unidades dela), sem desfazer o pedido inteiro. A peça volta para o estoque e o resto do pedido continua valendo.",
+      "Antes de confirmar, a tela mostra quanto devolver ao cliente. A devolução sai sempre no Pix, no dia em que foi feita; o dia da venda continua com o mesmo faturamento e lucro de antes.",
+      "Se o pedido teve desconto, o desconto diminui na mesma proporção da peça devolvida.",
+      "O pedido fica marcado com \"item desfeito\", e o histórico mostra o que saiu, quando, quanto voltou e quem desfez.",
+    ],
+  },
+  {
     versao: "1.0.5",
     data: "25/09/2026",
     itens: [

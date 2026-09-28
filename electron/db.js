@@ -104,6 +104,25 @@ CREATE TABLE IF NOT EXISTS pagamentos (
 );
 CREATE INDEX IF NOT EXISTS idx_pagamentos_pedido ON pagamentos(pedido_id);
 
+-- Passo 29: item desfeito de um pedido (ou parte da quantidade dele). A linha de
+-- vendas diminui (ou some) e o item volta ao estoque; esta tabela guarda o que
+-- saiu, pra view movimentos devolver ao dia da venda exatamente o que a linha
+-- perdeu e tirar o dinheiro no Pix do dia em que desfez (decisão do cliente).
+CREATE TABLE IF NOT EXISTS desfeitos (
+  id          INTEGER PRIMARY KEY,
+  pedido_id   INTEGER NOT NULL,
+  venda_id    INTEGER,              -- sem FK: a linha de vendas some quando zera
+  peca_id     INTEGER NOT NULL REFERENCES pecas(id),
+  quantidade  INTEGER NOT NULL,
+  valor       INTEGER NOT NULL,     -- centavos devolvidos = preço × qtd − desconto que saiu
+  lucro       INTEGER NOT NULL,     -- lucro que saiu = (preço − custo) × qtd − desconto que saiu
+  forma_venda TEXT,                 -- forma do pedido na venda; NULL se foi dividido
+  vendido_em  TEXT NOT NULL,        -- criado_em da venda original
+  usuario_id  INTEGER REFERENCES usuarios(id),
+  criado_em   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_desfeitos_pedido ON desfeitos(pedido_id);
+
 CREATE TABLE IF NOT EXISTS notas (
   id              INTEGER PRIMARY KEY,
   venda_id        INTEGER REFERENCES vendas(id),
@@ -235,7 +254,21 @@ CREATE VIEW movimentos AS
   -- Perda não passa pela gaveta (valor 0), mas come lucro: é peça comprada que
   -- virou lixo. Sem isto o Dashboard erra PRA CIMA, que é o lado perigoso.
   SELECT 'perda', criado_em, NULL, 0, -valor
-    FROM perdas;
+    FROM perdas
+  UNION ALL
+  -- Item desfeito (passo 29). A linha de vendas perdeu o item; este ramo devolve
+  -- ao DIA DA VENDA exatamente o que ela perdeu, então aquele dia não muda nem
+  -- no caixa nem no lucro. Pedido dividido tem o dinheiro em pagamentos, que
+  -- ficou intocado: aqui volta só o lucro. Tipo 'ajuste' e não 'venda', senão o
+  -- "N vendas hoje" do fechamento contaria o item duas vezes.
+  SELECT 'ajuste', vendido_em, forma_venda,
+         CASE WHEN forma_venda IS NULL THEN 0 ELSE valor END, lucro
+    FROM desfeitos
+  UNION ALL
+  -- E a saída de verdade: no dia em que desfez, sempre no Pix (quem devolve é o
+  -- administrador, e ele controla pelo Pix).
+  SELECT 'desfeito', criado_em, 'pix', -valor, -lucro
+    FROM desfeitos;
 `);
 
 // Passo 14: os nomes soltos em vendas.cliente viram cadastro. Roda uma vez só —
@@ -268,6 +301,16 @@ BEFORE UPDATE OF quantidade ON pecas
 WHEN NEW.quantidade < 0
 BEGIN
   SELECT RAISE(ABORT, 'O estoque desta peça acabou (pode ter sido vendida no outro PC). Atualize a tela e refaça.');
+END;
+
+-- Passo 29: o mesmo item desfeito nos dois PCs (ou duas vezes numa tela velha)
+-- devolveria o estoque e o Pix em dobro. O INSERT em desfeitos vem primeiro na
+-- transação, então é ele que confere se a linha ainda tem essa quantidade.
+CREATE TRIGGER IF NOT EXISTS desfeitos_confere_venda
+BEFORE INSERT ON desfeitos
+WHEN NOT EXISTS (SELECT 1 FROM vendas WHERE id = NEW.venda_id AND quantidade >= NEW.quantidade)
+BEGIN
+  SELECT RAISE(ABORT, 'Este item já foi desfeito (pode ter sido no outro PC). Atualize a tela e refaça.');
 END;
 `);
 

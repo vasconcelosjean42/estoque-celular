@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Clientes from "./Clientes.jsx";
 import { fmtReais } from "./Estoque.jsx";
+import { SQL_PROXIMO_PEDIDO } from "./Venda.jsx";
 import Importacao, { gravarImportacao } from "./Importacao.jsx";
 import NOVIDADES from "../novidades.js";
 
@@ -225,6 +226,7 @@ export default function Config({ aoMudar }) {
     await window.api.tx([
       ["UPDATE vendas SET usuario_id = NULL WHERE usuario_id = ?", [u.id]],
       ["UPDATE vendas SET desconto_por = NULL WHERE desconto_por = ?", [u.id]],
+      ["UPDATE desfeitos SET usuario_id = NULL WHERE usuario_id = ?", [u.id]],
       ["DELETE FROM usuarios WHERE id = ?", [u.id]],
     ]);
     carregarUsuarios();
@@ -291,7 +293,7 @@ export default function Config({ aoMudar }) {
     // descontos — sem isso a etiqueta de desconto ficaria sem dono na tela.
     const [dono] = await window.api.query("SELECT id FROM usuarios WHERE papel = 'dono' ORDER BY id LIMIT 1");
     const formas = ["especie", "pix", "debito", "credito_avista", "credito_parcelado"];
-    const [{ n: basePedido }] = await window.api.query("SELECT COALESCE(MAX(pedido_id),0)+1 AS n FROM vendas");
+    const [{ n: basePedido }] = await window.api.query(SQL_PROXIMO_PEDIDO);
     const [{ n: baseNota }] = await window.api.query("SELECT COALESCE(MAX(numero),0)+1 AS n FROM notas");
     let pedidoId = basePedido, numeroNota = baseNota;
     const cmdVendas = [], linhas = [], cmdPagamentos = [], cmdNotas = [];
@@ -494,6 +496,8 @@ export default function Config({ aoMudar }) {
         [`UPDATE trocas SET venda_id = NULL WHERE venda_id IN (${vendasDemo})`, []],
         // antes de vendas: sem a venda não dá mais pra achar o pedido dividido
         [`DELETE FROM pagamentos WHERE pedido_id IN (SELECT pedido_id FROM vendas WHERE id IN (${vendasDemo}))`, []],
+        // item desfeito de pedido da demo, ou de peça da demo (passo 29)
+        [`DELETE FROM desfeitos WHERE peca_id IN (${p}) OR pedido_id IN (SELECT pedido_id FROM vendas WHERE id IN (${vendasDemo}))`, []],
         [`DELETE FROM vendas   WHERE id IN (${em(ids.vendas)})   OR peca_id IN (${p})`, []],
         [`DELETE FROM entradas WHERE id IN (${em(ids.entradas)}) OR peca_id IN (${p})`, []],
         [`UPDATE trocas SET peca_id = NULL      WHERE peca_id IN (${p})`, []],
@@ -530,6 +534,7 @@ export default function Config({ aoMudar }) {
         ["DELETE FROM lotes", []],
         ["DELETE FROM entradas", []],
         ["DELETE FROM pagamentos", []],
+        ["DELETE FROM desfeitos", []],
         ["DELETE FROM vendas", []],
         ["DELETE FROM clientes", []], // depois de vendas: é ela que referencia o cliente
         ["DELETE FROM pecas", []],
