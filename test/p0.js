@@ -142,8 +142,7 @@ const path = require("path");
       console.log(`  ok    ${nome}`);
     } catch (e) {
       falhas++;
-      console.log(`  FALHA ${nome}\n        ${String(e.message).split("\n")[0]}`);
-    }
+      console.log(`  FALHA ${nome}\n        ${String(e.message).split("\n")[0]}`);    }
   };
 
   try {
@@ -1372,7 +1371,12 @@ const path = require("path");
                                     WHERE date(recebido_em) = date('now','localtime') AND forma_pagamento IS NOT NULL`);
       const [{ caixa }] = await sql(`SELECT COALESCE(SUM(valor),0) AS caixa FROM movimentos
                                      WHERE date(criado_em) = date('now','localtime')`);
-      assert.strictEqual(caixa, vendas + difs, "o caixa do dia é venda + diferença de troca");
+      // Passo 29: item desfeito devolve ao dia da venda o que a linha perdeu e sai hoje no Pix.
+      const [{ desf }] = await sql(`SELECT COALESCE(SUM(CASE WHEN date(vendido_em) = date('now','localtime')
+                                                              AND forma_venda IS NOT NULL THEN valor ELSE 0 END), 0)
+                                          - COALESCE(SUM(CASE WHEN date(criado_em) = date('now','localtime') THEN valor ELSE 0 END), 0) AS desf
+                                   FROM desfeitos`);
+      assert.strictEqual(caixa, vendas + difs + desf, "o caixa do dia é venda + diferença de troca (± item desfeito)");
       assert(difs !== 0, "o teste só vale se houve diferença hoje");
 
       // Lucro = margem das vendas + margem real da troca − perdas. A margem da
@@ -1387,7 +1391,10 @@ const path = require("path");
                                              AND nova_preco_compra IS NOT NULL`);
       const [{ perdas }] = await sql(`SELECT COALESCE(SUM(valor),0) AS perdas FROM perdas
                                       WHERE date(criado_em) = date('now','localtime')`);
-      assert.strictEqual(lucroCaixa, lucroVendas + margemTroca - perdas, "lucro do dia bate com as três parcelas");
+      const [{ desfLucro }] = await sql(`SELECT COALESCE(SUM(CASE WHEN date(vendido_em) = date('now','localtime') THEN lucro ELSE 0 END), 0)
+                                               - COALESCE(SUM(CASE WHEN date(criado_em) = date('now','localtime') THEN lucro ELSE 0 END), 0) AS desfLucro
+                                        FROM desfeitos`);
+      assert.strictEqual(lucroCaixa, lucroVendas + margemTroca - perdas + desfLucro, "lucro do dia bate com as três parcelas (± item desfeito)");
       assert(perdas !== 0, "o teste só vale se houve perda hoje");
 
       // E o bloco na tela tem que mostrar o mesmo número do banco.
@@ -2652,6 +2659,281 @@ const path = require("path");
       assert(texto.includes(`${n} venda`), `o fechamento do Dashboard tem que contar as mesmas ${n} vendas`);
       const linha = await win.locator('tbody tr:has-text("P43")').first().innerText();
       assert(linha.includes("não informado"), "venda sem vendedor aparece como 'não informado'");
+    });
+
+    console.log("\nDesfazer item do pedido (passo 29)");
+
+    // As mesmas contas de src/telas/Venda.jsx (totalPedido/lucroPedido): o teste
+    // não importa JSX, e conferir com a fórmula escrita de novo é o ponto.
+    const totalPedido29 = (itens) => itens.reduce((s, v) => s + v.preco_venda * v.quantidade + v.mao_de_obra - v.desconto, 0);
+    const lucroPedido29 = (itens) =>
+      itens.reduce((s, v) => s + (v.preco_venda - v.preco_compra) * v.quantidade + v.mao_de_obra - v.desconto, 0);
+    const descontoPedido29 = (itens) => itens.reduce((s, v) => s + v.desconto, 0);
+
+    // Pedido pela UI: [[nome, qtd], …]. Opções: forma, mao, pct/final (desconto),
+    // cliente, partes (pagamento dividido). Devolve o pedido_id.
+    const pedido29 = async (itens, o = {}) => {
+      await recarregar("Venda");
+      for (const [nome, qtd] of itens) await aoCarrinho(nome, qtd > 1 ? { qtd } : {});
+      await win.click('button:text("Finalizar venda")');
+      if (o.mao) await win.fill('label:has-text("Mão de obra") input', o.mao);
+      if (o.cliente) await win.fill('input[list="clientes-cadastrados"]', o.cliente);
+      if (o.forma) await win.click(`button:text-is("${o.forma}")`);
+      if (o.pct || o.final) await descontar(o.pct ? { pct: o.pct } : { final: o.final });
+      if (o.partes) await dividir(o.partes);
+      await confirmarVenda();
+      return (await um("SELECT pedido_id FROM vendas WHERE peca_id = (SELECT id FROM pecas WHERE nome = ?) ORDER BY id DESC",
+        [itens[0][0]])).pedido_id;
+    };
+    const linhaDe = (pid, nome) =>
+      um("SELECT v.* FROM vendas v JOIN pecas p ON p.id = v.peca_id WHERE v.pedido_id = ? AND p.nome = ?", [pid, nome]);
+    const itensDe = (pid) => sql("SELECT * FROM vendas WHERE pedido_id = ? ORDER BY id", [pid]);
+    // Pela tela, como o operador: expande o pedido se precisar, abre o painel,
+    // escolhe quantas e confirma. Devolve o texto do painel (a prévia do valor).
+    const desfazerItem29 = async (pid, vid, n) => {
+      const noItem = win.locator(`#item-${vid} button:text-is("Desfazer item")`);
+      const noPedido = win.locator(`#pedido-${pid} button:text-is("Desfazer item")`);
+      if (!(await noItem.count()) && !(await noPedido.count())) await win.click(`#pedido-${pid}`); // expande
+      await ((await noItem.count()) ? noItem : noPedido).click();
+      const painel = win.locator(`#desfazer-${vid}`);
+      if (n !== undefined) await painel.locator('input[aria-label="Quantas desfazer"]').fill(String(n));
+      const previa = await painel.innerText();
+      await painel.locator('button:text-is("Confirmar")').click();
+      await win.waitForSelector(`#desfazer-${vid}`, { state: "detached", timeout: 8000 });
+      return previa;
+    };
+    const hoje29 = async () => (await um("SELECT date('now','localtime') AS d")).d;
+    const dia29 = (d) => um(`SELECT COALESCE(SUM(valor),0) AS valor, COALESCE(SUM(lucro),0) AS lucro
+                              FROM movimentos WHERE date(criado_em) = ?`, [d]);
+
+    await caso("162. desfazer 1 item de 3: volta ao estoque, o resto fica e a devolução sai no Pix de hoje", async () => {
+      const a = await novaPeca("D162A", 5, 5000, 10000);
+      const b = await novaPeca("D162B", 5, 2000, 5000);
+      await novaPeca("D162C", 5, 1000, 3000);
+      const especie = await caixaHoje("especie");
+      const pix = await caixaHoje("pix");
+      const pid = await pedido29([["D162A", 1], ["D162B", 1], ["D162C", 1]]);
+      const vb = await linhaDe(pid, "D162B");
+      const previa = await desfazerItem29(pid, vb.id);
+      assert(previa.includes("50,00"), `a prévia tinha que mostrar R$ 50,00:\n${previa}`);
+      assert.strictEqual((await peca(b)).quantidade, 5, "o item desfeito volta ao estoque");
+      assert.strictEqual((await peca(a)).quantidade, 4, "os outros continuam vendidos");
+      assert.strictEqual((await itensDe(pid)).length, 2, "o pedido fica com os outros dois itens");
+      assert.strictEqual(totalPedido29(await itensDe(pid)), 13000);
+      assert.strictEqual(await caixaHoje("pix"), pix - 5000, "a devolução sai no Pix");
+      assert.strictEqual(await caixaHoje("especie"), especie + 18000, "a espécie do pedido não muda");
+      const d = await um("SELECT * FROM desfeitos WHERE venda_id = ?", [vb.id]);
+      assert.strictEqual(d.valor, 5000);
+      assert.strictEqual(d.lucro, 3000);
+      // Depois de item desfeito, o pedido só se desfaz item por item.
+      await recarregar("Venda");
+      assert.strictEqual(await win.locator(`#pedido-${pid} button:text-is("Desfazer")`).count(), 0,
+        "o Desfazer do pedido inteiro some: as duas regras de data não se misturam");
+      assert(await win.locator(`#pedido-${pid}:has-text("1 item desfeito")`).count(), "o pedido fica marcado");
+      // O fechamento na tela bate com o banco.
+      const { valor: caixa } = await dia29(await hoje29());
+      await recarregar("Dashboard");
+      const bloco = await win.locator('h3:text("Fechamento de hoje")').locator("..").innerText();
+      assert(bloco.includes(reaisBR(caixa)), `Fechamento devia mostrar ${reaisBR(caixa)}:\n${bloco}`);
+    });
+
+    await caso("163. venda de ontem desfeita hoje: ontem não muda, a saída cai hoje no Pix", async () => {
+      await novaPeca("D163A", 5, 4000, 10000);
+      await novaPeca("D163B", 5, 3000, 8000);
+      const pid = await pedido29([["D163A", 1], ["D163B", 1]], { forma: "Débito" });
+      // A tela continua mostrando o pedido (não recarregou): é o operador
+      // desfazendo pela lista com o filtro de ontem.
+      await sql("UPDATE vendas SET criado_em = datetime(criado_em, '-1 day') WHERE pedido_id = ?", [pid]);
+      const ontem = (await um("SELECT date(criado_em) AS d FROM vendas WHERE pedido_id = ?", [pid])).d;
+      const antes = await dia29(ontem);
+      const hoje = await dia29(await hoje29());
+      const vb = await linhaDe(pid, "D163B");
+      await desfazerItem29(pid, vb.id);
+      assert.deepStrictEqual(await dia29(ontem), antes, "faturamento e lucro de ontem ficam idênticos");
+      const depois = await dia29(await hoje29());
+      assert.strictEqual(depois.valor - hoje.valor, -8000, "hoje sai o valor do item");
+      assert.strictEqual(depois.lucro - hoje.lucro, -5000, "e o lucro dele");
+      assert.strictEqual((await um("SELECT forma_venda FROM desfeitos WHERE venda_id = ?", [vb.id])).forma_venda, "debito");
+    });
+
+    await caso("164. desconto proporcional: 10% de R$ 300, desfaz R$ 100 → desconto R$ 20, devolve R$ 90", async () => {
+      for (const n of ["D164A", "D164B", "D164C"]) await novaPeca(n, 5, 4000, 10000);
+      const pid = await pedido29([["D164A", 1], ["D164B", 1], ["D164C", 1]], { pct: "10" });
+      assert.strictEqual(descontoPedido29(await itensDe(pid)), 3000);
+      const previa = await desfazerItem29(pid, (await linhaDe(pid, "D164B")).id);
+      assert(previa.includes("90,00"), `a prévia tinha que mostrar R$ 90,00:\n${previa}`);
+      const itens = await itensDe(pid);
+      assert.strictEqual(descontoPedido29(itens), 2000, "o desconto cai na mesma proporção");
+      assert.strictEqual(totalPedido29(itens), 18000);
+      assert.strictEqual((await um("SELECT valor FROM desfeitos WHERE pedido_id = ?", [pid])).valor, 9000);
+      assert.strictEqual(itens.filter((v) => v.desconto > 0).length, 1, "o desconto continua numa linha só");
+      assert(itens.find((v) => v.desconto > 0).desconto_por, "quem autorizou continua registrado");
+    });
+
+    await caso("165. desfazer a linha que carrega mão de obra e desconto: os dois mudam de linha", async () => {
+      await novaPeca("D165A", 5, 4000, 10000);
+      await novaPeca("D165B", 5, 2000, 6000);
+      const pid = await pedido29([["D165A", 1], ["D165B", 1]], { mao: "50,00", pct: "10" });
+      const antes = await itensDe(pid);
+      const dona = antes.find((v) => v.mao_de_obra > 0);
+      const outra = antes.find((v) => v.id !== dona.id);
+      assert.strictEqual(dona.desconto, 2100, "10% de (100 + 60 + 50)");
+      await desfazerItem29(pid, dona.id);
+      const depois = await itensDe(pid);
+      assert.strictEqual(depois.length, 1);
+      const [sobrou] = depois;
+      assert.strictEqual(sobrou.id, outra.id);
+      assert.strictEqual(sobrou.mao_de_obra, 5000, "a mão de obra é do pedido: continua nele");
+      assert.strictEqual(sobrou.desconto, Math.round((2100 * (21000 - dona.preco_venda)) / 21000));
+      const d = await um("SELECT * FROM desfeitos WHERE pedido_id = ?", [pid]);
+      assert.strictEqual(totalPedido29(depois) + d.valor, totalPedido29(antes), "o que sobrou + o devolvido = o pedido de antes");
+      assert.strictEqual(lucroPedido29(depois) + d.lucro, lucroPedido29(antes), "idem no lucro");
+    });
+
+    await caso("166. quantidade: 3 unidades, desfaz 1 — a linha fica com 2", async () => {
+      const id = await novaPeca("D166", 5, 1000, 2500);
+      const pix = await caixaHoje("pix");
+      const pid = await pedido29([["D166", 3]]);
+      const [v] = await itensDe(pid);
+      // Pedido de 1 item com 3 unidades: os dois botões, o do item e o do pedido.
+      assert(await win.locator(`#pedido-${pid} button:text-is("Desfazer")`).count(), "o Desfazer do pedido continua");
+      const previa = await desfazerItem29(pid, v.id, 1);
+      assert(previa.includes("25,00"), `a prévia tinha que mostrar R$ 25,00:\n${previa}`);
+      assert.strictEqual((await itensDe(pid))[0].quantidade, 2);
+      assert.strictEqual((await peca(id)).quantidade, 3, "5 − 3 vendidas + 1 desfeita");
+      assert.strictEqual(await caixaHoje("pix"), pix - 2500);
+    });
+
+    await caso("167. pedido dividido: as formas pagas ficam, a devolução sai no Pix", async () => {
+      await novaPeca("D167A", 5, 3000, 7000);
+      await novaPeca("D167B", 5, 1000, 3000);
+      const debito = await caixaHoje("debito");
+      const especie = await caixaHoje("especie");
+      const pix = await caixaHoje("pix");
+      const pid = await pedido29([["D167A", 1], ["D167B", 1]], { partes: [["especie", "40,00"], ["debito", "60,00"]] });
+      const pagosAntes = await sql("SELECT forma, valor FROM pagamentos WHERE pedido_id = ? ORDER BY id", [pid]);
+      await desfazerItem29(pid, (await linhaDe(pid, "D167B")).id);
+      assert.deepStrictEqual(await sql("SELECT forma, valor FROM pagamentos WHERE pedido_id = ? ORDER BY id", [pid]), pagosAntes,
+        "o que foi pago continua registrado como foi pago");
+      assert.strictEqual(await caixaHoje("especie"), especie + 4000);
+      assert.strictEqual(await caixaHoje("debito"), debito + 6000);
+      assert.strictEqual(await caixaHoje("pix"), pix - 3000, "a devolução sai no Pix");
+      assert.strictEqual((await um("SELECT forma_venda FROM desfeitos WHERE pedido_id = ?", [pid])).forma_venda, null);
+    });
+
+    await caso("168. cliente: total gasto cai o devolvido; desfazendo tudo, a compra some", async () => {
+      const a = await novaPeca("D168A", 5, 3000, 9000);
+      const b = await novaPeca("D168B", 5, 1000, 4000);
+      const pid = await pedido29([["D168A", 1], ["D168B", 1]], { cliente: "Cliente168" });
+      const cli = () => um(
+        `SELECT COUNT(DISTINCT v.pedido_id) AS compras,
+                COALESCE(SUM(v.preco_venda*v.quantidade + v.mao_de_obra - v.desconto),0) AS total
+         FROM clientes c LEFT JOIN vendas v ON v.cliente_id = c.id WHERE c.nome = 'Cliente168'`);
+      assert.deepStrictEqual(await cli(), { compras: 1, total: 13000 });
+      await desfazerItem29(pid, (await linhaDe(pid, "D168B")).id);
+      assert.deepStrictEqual(await cli(), { compras: 1, total: 9000 }, "a compra continua, o total cai");
+      // Sobrou 1 item com 1 unidade: como o pedido já teve desfeito, é por item.
+      await recarregar("Venda");
+      assert.strictEqual(await win.locator(`#pedido-${pid} button:text-is("Desfazer")`).count(), 0);
+      await desfazerItem29(pid, (await linhaDe(pid, "D168A")).id);
+      assert.deepStrictEqual(await cli(), { compras: 0, total: 0 }, "sem item nenhum, a compra sai do cliente");
+      assert.strictEqual((await peca(a)).quantidade, 5);
+      assert.strictEqual((await peca(b)).quantidade, 5);
+      const { devolvido } = await um("SELECT SUM(valor) AS devolvido FROM desfeitos WHERE pedido_id = ?", [pid]);
+      assert.strictEqual(devolvido, 13000, "devolveu exatamente o que o pedido valia");
+    });
+
+    await caso("169. item com troca não desfaz; o outro item do mesmo pedido desfaz", async () => {
+      await novaPeca("D169A", 5, 3000, 9000);
+      await novaPeca("D169B", 5, 1000, 4000);
+      const pid = await pedido29([["D169A", 1], ["D169B", 1]]);
+      const va = await linhaDe(pid, "D169A");
+      const vb = await linhaDe(pid, "D169B");
+      const t = (await sql("INSERT INTO trocas (modelo, defeito, venda_id, peca_id) VALUES ('D169A','não liga',?,?)",
+        [va.id, va.peca_id])).lastInsertRowid;
+      try {
+        await recarregar("Venda");
+        await win.click(`#pedido-${pid}`);
+        assert.strictEqual(await win.locator(`#item-${va.id} button:text-is("Desfazer item")`).count(), 0,
+          "o dinheiro do item trocado já passou pelo caixa por outro caminho");
+        assert(await win.locator(`#item-${vb.id} button:text-is("Desfazer item")`).count(), "o outro item continua livre");
+        await desfazerItem29(pid, vb.id);
+        assert.strictEqual((await itensDe(pid)).length, 1);
+      } finally {
+        await sql("DELETE FROM trocas WHERE id = ?", [t]);
+      }
+    });
+
+    await caso("170. centavos: R$ 10,00 de desconto em 3 itens iguais não perde centavo", async () => {
+      for (const n of ["D170A", "D170B", "D170C"]) await novaPeca(n, 5, 300, 1000);
+      const pid = await pedido29([["D170A", 1], ["D170B", 1], ["D170C", 1]], { final: "20,00" });
+      assert.strictEqual(totalPedido29(await itensDe(pid)), 2000);
+      const hoje = await dia29(await hoje29());
+      for (const n of ["D170A", "D170B", "D170C"]) {
+        const antes = await itensDe(pid);
+        await desfazerItem29(pid, (await linhaDe(pid, n)).id);
+        const depois = await itensDe(pid);
+        const d = await um("SELECT * FROM desfeitos WHERE pedido_id = ? ORDER BY id DESC", [pid]);
+        assert.strictEqual(totalPedido29(depois) + d.valor, totalPedido29(antes), `ao desfazer ${n}: nada some nem aparece`);
+        assert.strictEqual(lucroPedido29(depois) + d.lucro, lucroPedido29(antes), `ao desfazer ${n}: o lucro fecha`);
+      }
+      const { devolvido } = await um("SELECT SUM(valor) AS devolvido FROM desfeitos WHERE pedido_id = ?", [pid]);
+      assert.strictEqual(devolvido, 2000, "devolveu os R$ 20,00 pagos, ao centavo");
+      // Venda e devolução no mesmo dia: o caixa do dia volta exatamente ao que era.
+      assert.strictEqual((await dia29(await hoje29())).valor, hoje.valor - 2000);
+    });
+
+    await caso("171. colaborador também desfaz item, e fica o nome de quem desfez", async () => {
+      await novaPeca("D171A", 5, 3000, 9000);
+      await novaPeca("D171B", 5, 1000, 4000);
+      await sql("INSERT INTO usuarios (nome, pin, papel) VALUES ('Colab171','7171','funcionario')");
+      let pid;
+      await trocarUsuario("Colab171", "7171");
+      try {
+        pid = await pedido29([["D171A", 1], ["D171B", 1]]);
+        await desfazerItem29(pid, (await linhaDe(pid, "D171B")).id);
+      } finally {
+        await trocarUsuario("Administrador", "1234");
+      }
+      const d = await um("SELECT u.nome FROM desfeitos d JOIN usuarios u ON u.id = d.usuario_id WHERE d.pedido_id = ?", [pid]);
+      assert.strictEqual(d?.nome, "Colab171");
+      // E excluir quem desfez não pode ser barrado pela chave estrangeira.
+      await aba("Config");
+      await win.click('button[aria-label="Remover Colab171"]');
+      await win.waitForSelector('button[aria-label="Remover Colab171"]', { state: "detached", timeout: 8000 });
+      assert.strictEqual((await um("SELECT usuario_id FROM desfeitos WHERE pedido_id = ?", [pid])).usuario_id, null,
+        "o desfeito continua, só perde o nome");
+    });
+
+    await caso("172. produto com item desfeito não pode ser excluído (é histórico)", async () => {
+      const id = await novaPeca("D172X", 5, 1000, 3000);
+      await novaPeca("D172Y", 5, 1000, 3000);
+      const pid = await pedido29([["D172X", 1], ["D172Y", 1]]);
+      await desfazerItem29(pid, (await linhaDe(pid, "D172X")).id);
+      assert.strictEqual((await vendasDe(id)).length, 0, "a peça não tem mais linha de venda");
+      await recarregar("Estoque");
+      await win.click('tr:has-text("D172X") button:text-is("Excluir")');
+      await win.waitForTimeout(500);
+      assert(await peca(id), "o desfeito conta como movimento: a peça fica");
+    });
+
+    await caso("173. pedido todo desfeito não empresta o número pro próximo pedido", async () => {
+      await novaPeca("D173A", 5, 3000, 7000);
+      await novaPeca("D173B", 5, 1000, 3000);
+      await novaPeca("D173C", 5, 1000, 3000);
+      // Dividido: os pagamentos ficam com o número mesmo depois que as linhas somem.
+      const pid = await pedido29([["D173A", 1], ["D173B", 1]], { partes: [["especie", "40,00"], ["debito", "60,00"]] });
+      await desfazerItem29(pid, (await linhaDe(pid, "D173A")).id);
+      await desfazerItem29(pid, (await linhaDe(pid, "D173B")).id);
+      assert.strictEqual((await itensDe(pid)).length, 0);
+      const novo = await pedido29([["D173C", 1]]);
+      assert(novo > pid, `o pedido novo (${novo}) não pode reusar o número ${pid}`);
+      assert.strictEqual((await sql("SELECT 1 FROM desfeitos WHERE pedido_id = ?", [novo])).length, 0,
+        "o pedido novo não herda item desfeito");
+      assert.strictEqual((await sql("SELECT 1 FROM pagamentos WHERE pedido_id = ?", [novo])).length, 0,
+        "nem as formas de pagamento do pedido antigo");
+      await recarregar("Venda");
+      assert(await win.locator(`#pedido-${novo} button:text-is("Desfazer")`).count(), "o Desfazer do pedido novo aparece");
     });
 
     console.log("\nUsuários e permissões");

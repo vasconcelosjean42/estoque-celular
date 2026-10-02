@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { fmtReais } from "./Estoque.jsx";
-import { FORMAS, rotuloForma, agruparPedidos, setaPedido, totalPedido, lucroPedido, descontoPedido, tagDesconto, tagEstorno } from "./Venda.jsx";
+import { FORMAS, rotuloForma, agruparPedidos, setaPedido, totalPedido, lucroPedido, descontoPedido, tagDesconto, tagEstorno, tagDesfeito } from "./Venda.jsx";
 import FiltroData, { isoDia } from "./FiltroData.jsx";
 import Fechamento from "./Fechamento.jsx";
 
@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [vendedor, setVendedor] = useState(""); // "" = todos
   const [historico, setHistorico] = useState([]);
   const [pagosPorPedido, setPagosPorPedido] = useState({}); // pedido_id → formas, só nos pedidos divididos
+  const [desfeitosPorPedido, setDesfeitosPorPedido] = useState({}); // pedido_id → itens desfeitos (passo 29)
   const [de, setDe] = useState(() => isoDia(Date.now()));
   const [ate, setAte] = useState(() => isoDia(Date.now()));
   const [atalhoSel, setAtalhoSel] = useState("hoje"); // null = período manual
@@ -86,6 +87,14 @@ export default function Dashboard() {
       const m = {};
       rows.forEach((p) => (m[p.pedido_id] ||= []).push(p));
       setPagosPorPedido(m);
+    });
+    window.api.query(
+      `SELECT d.*, p.nome, p.modelo, u.nome AS quem FROM desfeitos d
+       JOIN pecas p ON p.id = d.peca_id LEFT JOIN usuarios u ON u.id = d.usuario_id ORDER BY d.id`
+    ).then((rows) => {
+      const m = {};
+      rows.forEach((d) => (m[d.pedido_id] ||= []).push(d));
+      setDesfeitosPorPedido(m);
     });
     setPagina(0);
   }, [de, ate, vendedor]);
@@ -305,14 +314,31 @@ export default function Dashboard() {
                 ) : ""}
               </td>
             );
+            // O total e o lucro do pedido já são os de depois do desfeito; estas
+            // linhas dizem o que saiu, quando e por onde o dinheiro voltou.
+            const desfeitos = desfeitosPorPedido[pid] || [];
+            const linhasDesfeitos = desfeitos.map((d) => (
+              <tr key={`d${d.id}`} style={{ background: "#fef2f2", borderBottom: "1px solid #e2e8f0" }}>
+                <td style={{ padding: "6px 8px", color: "#64748b" }}>{d.criado_em.slice(8, 10)}/{d.criado_em.slice(5, 7)} {d.criado_em.slice(11, 16)}</td>
+                <td style={{ padding: "6px 8px", paddingLeft: 24 }}>↳ <strong style={{ color: "#dc2626" }}>desfeito</strong>: {d.quantidade}x {d.nome} {d.modelo}</td>
+                <td style={{ padding: "6px 8px" }}>{d.quantidade}</td>
+                <td />
+                <td style={{ padding: "6px 8px", color: "#dc2626" }}>−{fmtReais(d.valor)}</td>
+                <td style={{ padding: "6px 8px" }}>Pix</td>
+                <td style={{ padding: "6px 8px", color: "#64748b" }}>{d.quem || "—"}</td>
+                <td style={{ padding: "6px 8px", color: "#dc2626" }}>−{fmtReais(d.lucro)}</td>
+              </tr>
+            ));
             if (itens.length === 1) {
               return (
-                <tr key={pid} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                <React.Fragment key={pid}>
+                <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
                   <td style={{ padding: 8, color: "#64748b" }}>{quando}</td>
                   <td style={{ padding: 8 }}>
                     {v0.quantidade}x {v0.nome} {v0.modelo}
                     {desconto > 0 && tagDesconto(desconto)}
                     {estornado > 0 && tagEstorno(estornado)}
+                    {desfeitos.length > 0 && tagDesfeito(desfeitos.length)}
                   </td>
                   <td style={{ padding: 8 }}>{v0.quantidade}</td>
                   {colDesconto}
@@ -321,6 +347,8 @@ export default function Dashboard() {
                   {vendedor}
                   <td style={{ padding: 8, color: "#16a34a", fontWeight: "bold" }}>{fmtReais(lucro)}</td>
                 </tr>
+                {linhasDesfeitos}
+                </React.Fragment>
               );
             }
             const qtdTotal = itens.reduce((s, v) => s + v.quantidade, 0);
@@ -335,6 +363,7 @@ export default function Dashboard() {
                     {v0.cliente && <span style={{ color: "#64748b", fontWeight: "normal" }}> — {v0.cliente}</span>}
                     {desconto > 0 && tagDesconto(desconto)}
                     {estornado > 0 && tagEstorno(estornado)}
+                    {desfeitos.length > 0 && tagDesfeito(desfeitos.length)}
                   </td>
                   <td style={{ padding: 8 }}>{qtdTotal}</td>
                   {colDesconto}
@@ -357,6 +386,7 @@ export default function Dashboard() {
                     </td>
                   </tr>
                 ))}
+                {aberto && linhasDesfeitos}
               </React.Fragment>
             );
           })}
